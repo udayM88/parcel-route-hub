@@ -50,6 +50,7 @@ const UserManagement = lazy(() => import("./pages/admin/UserManagement"));
 const AdminUserManagement = lazy(() => import("./pages/admin/AdminUserManagement"));
 const BusinessManagement = lazy(() => import("./pages/admin/BusinessManagement"));
 const BusinessLogin = lazy(() => import("./pages/business/BusinessLogin"));
+const BusinessResetPassword = lazy(() => import("./pages/business/BusinessResetPassword"));
 const BusinessDashboard = lazy(() => import("./pages/business/BusinessDashboard"));
 const BusinessBooking = lazy(() => import("./pages/business/BusinessBooking"));
 const OrderMonitoring = lazy(() => import("./pages/admin/OrderMonitoring"));
