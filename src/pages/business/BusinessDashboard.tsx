@@ -73,7 +73,7 @@ const BusinessDashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => navigate("/booking")}>
+            <Button size="sm" onClick={() => navigate("/viasetuforbusinesses/book")}>
               <Plus className="h-4 w-4 mr-1" /> New Shipment
             </Button>
             <Button size="sm" variant="ghost" onClick={handleLogout}>
