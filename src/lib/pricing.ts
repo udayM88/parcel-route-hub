@@ -12,7 +12,7 @@
 //   No retail strike-through / savings badge.
 
 export const CONSUMER_MARGIN_PCT = 0.70;   // 70% margin over courier rate
-export const RETAIL_MULTIPLIER = 3;        // struck-through "retail" price
+export const RETAIL_MULTIPLIER = 4;        // struck-through "retail" price
 export const BUSINESS_FLAT_MARGIN = 15;    // ₹15 revenue per business shipment
 export const GST_RATE = 0.18;
 

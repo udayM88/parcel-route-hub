@@ -236,8 +236,8 @@ const PartnerComparisonTable = ({
                 const retail = computeRetailPrice(rawRate);
                 const savings = computeSavingsPct(retail, price);
                 return <div className="inline-flex flex-col items-end gap-0.5">
-                        {retail > price && <span className="text-[9px] uppercase tracking-wide text-muted-foreground">Retail outlet rate</span>}
-                        {retail > price && <span className="text-sm text-muted-foreground line-through">₹{retail}</span>}
+                        {retail > price && <span className="text-[9px] uppercase tracking-wide text-muted-foreground font-bold">Retail outlet rate</span>}
+                        {retail > price && <span className="text-sm text-muted-foreground line-through font-bold">₹{retail}</span>}
                         <span className="text-sm font-semibold bg-foreground text-background px-2 py-0.5 rounded">₹{price}</span>
                         {savings > 0 && <span className="text-[10px] font-semibold text-emerald-600">Save {savings}%</span>}
                       </div>;

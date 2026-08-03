@@ -240,8 +240,8 @@ const ETACard = ({ courierData, etaData, isSelected, onSelect, platformFee = 0, 
       <div className={`${isAssisted ? "w-[96px] sm:w-[108px]" : "w-[74px] sm:w-[84px]"} shrink-0 text-right`}>
         {retailPrice > totalPrice && (
           <>
-            <p className="text-[8px] uppercase tracking-wide text-muted-foreground leading-none">Retail outlet rate</p>
-            <p className="text-xs sm:text-sm text-muted-foreground line-through leading-tight">₹{retailPrice}</p>
+            <p className="text-[8px] uppercase tracking-wide text-muted-foreground leading-none font-bold">Retail outlet rate</p>
+            <p className="text-xs sm:text-sm text-muted-foreground line-through leading-tight font-bold">₹{retailPrice}</p>
           </>
         )}
         <span className="text-xs sm:text-sm font-bold bg-foreground text-background px-1.5 sm:px-2 py-0.5 rounded inline-block mt-0.5">
