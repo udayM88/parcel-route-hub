@@ -1,9 +1,9 @@
 // Single source of truth for ViaSetu pricing math.
 //
 // CONSUMER (regular) shipments:
-//   viasetu price = courier API rate x 1.70  (70% blanket margin), ALL-INCLUSIVE.
-//   GST is considered already inside that amount (shown as an included
-//   component, never added on top).
+//   viasetu price = courier API rate x 1.70, plus 18% GST on top.
+//   The displayed amount is therefore all-inclusive (GST already added).
+
 //   retail (strike-through) price = courier API rate x 3.
 //   savings % = (retail - viasetu) / retail.
 //
