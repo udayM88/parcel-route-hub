@@ -98,6 +98,9 @@ const ETACard = ({ courierData, etaData, isSelected, onSelect, platformFee = 0, 
   const hasValidLogo = logo && logo !== "/placeholder.svg" && !imageError;
   const partnerPrice = Math.round(courierData.price || 0);
   const totalPrice = computeBaseFare(courierData.price);
+  const retailPrice = computeRetailPrice(courierData.price);
+  const savingsPct = computeSavingsPct(retailPrice, totalPrice);
+
 
   const days = etaData?.adjusted_days ?? courierData.tat_days;
   const confidenceScore = etaData?.confidence_score;
