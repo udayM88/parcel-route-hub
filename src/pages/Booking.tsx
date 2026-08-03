@@ -1268,15 +1268,16 @@ const Booking = () => {
     }
   };
   const selectedCourierData = getSelectedServiceDetails();
-  // Calculate pricing with 18% GST (all values rounded)
-  const baseFare = Math.round(selectedCourierData ? selectedCourierData.basePrice : 0);
-  const gstAmount = Math.round(baseFare * 0.18);
-  const totalAmount = baseFare + gstAmount;
-  // Effective platform fee for persistence: baseFare - cardPrice (hidden in UI).
-  // Falls back to the hook-provided value when no service is selected yet.
+  // All-inclusive pricing: displayed price already contains GST (70% margin
+  // over the courier rate). We only split out the included GST for records.
+  const totalAmount = Math.round(selectedCourierData ? selectedCourierData.basePrice : 0);
+  const gstAmount = extractGst(totalAmount);
+  const baseFare = totalAmount - gstAmount;
+  // ViaSetu revenue on this shipment (total - courier rate).
   const effectivePlatformFee = selectedCourierData?.cardPrice != null
-    ? Math.max(0, baseFare - Math.round(selectedCourierData.cardPrice))
+    ? Math.max(0, totalAmount - Math.round(selectedCourierData.cardPrice))
     : platformFee;
+
   const renderCurrentStep = () => {
     switch (currentStep) {
       case 1:
