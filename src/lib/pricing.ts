@@ -1,9 +1,9 @@
 // Single source of truth for ViaSetu pricing math.
 //
 // CONSUMER (regular) shipments:
-//   viasetu price = courier API rate x 1.70  (70% blanket margin), ALL-INCLUSIVE.
-//   GST is considered already inside that amount (shown as an included
-//   component, never added on top).
+//   viasetu price = courier API rate x 1.70, plus 18% GST on top.
+//   The displayed amount is therefore all-inclusive (GST already added).
+
 //   retail (strike-through) price = courier API rate x 3.
 //   savings % = (retail - viasetu) / retail.
 //
@@ -24,10 +24,10 @@ export function extractGst(inclusiveAmount: number): number {
   return Math.round(amt - amt / (1 + GST_RATE));
 }
 
-/** All-inclusive consumer price for a courier rate. */
+/** All-inclusive consumer price: rate x 1.70, then 18% GST added on top. */
 export function computeConsumerPrice(courierRate: number): number {
   const rate = Number(courierRate) || 0;
-  return Math.round(rate * (1 + CONSUMER_MARGIN_PCT));
+  return Math.round(rate * (1 + CONSUMER_MARGIN_PCT) * (1 + GST_RATE));
 }
 
 /** Struck-through retail reference price. */
