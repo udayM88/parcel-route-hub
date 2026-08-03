@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/contexts/useAdminAuth";
 import { 
   Users, 
+  Building2,
   Package, 
   DollarSign, 
   MessageSquare, 
@@ -45,6 +46,7 @@ const adminMenuItems: { title: string; url: string; icon: any; allowedRoles: Rol
   { title: "Pending Assisted", url: "/admin/assisted-pending", icon: Clock, allowedRoles: ["super_admin", "operations", "support"] },
   { title: "User & Partner Management", url: "/admin/users", icon: Users, allowedRoles: ["super_admin", "operations", "support"] },
   { title: "Admin Users", url: "/admin/admin-users", icon: Shield, allowedRoles: ["super_admin"] },
+  { title: "Manage Businesses", url: "/admin/businesses", icon: Building2, allowedRoles: ["super_admin", "operations"] },
   { title: "Revenue & Commission", url: "/admin/revenue", icon: DollarSign, allowedRoles: ["super_admin"] },
   { title: "Payment Reconciliation", url: "/admin/reconciliation", icon: AlertTriangle, allowedRoles: ["super_admin", "operations", "support"] },
   { title: "Support Management", url: "/admin/support", icon: MessageSquare, allowedRoles: ["super_admin", "operations", "support"] },

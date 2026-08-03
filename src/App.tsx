@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { AdminAuthProvider } from "@/contexts/AdminAuthContext";
+import { BusinessAuthProvider } from "@/contexts/BusinessAuthContext";
+import ProtectedBusinessRoute from "@/components/business/ProtectedBusinessRoute";
 import { CrispChat } from "@/components/CrispChat";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -46,6 +48,9 @@ const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const RealTimeTracking = lazy(() => import("./pages/admin/RealTimeTracking"));
 const UserManagement = lazy(() => import("./pages/admin/UserManagement"));
 const AdminUserManagement = lazy(() => import("./pages/admin/AdminUserManagement"));
+const BusinessManagement = lazy(() => import("./pages/admin/BusinessManagement"));
+const BusinessLogin = lazy(() => import("./pages/business/BusinessLogin"));
+const BusinessDashboard = lazy(() => import("./pages/business/BusinessDashboard"));
 const OrderMonitoring = lazy(() => import("./pages/admin/OrderMonitoring"));
 const RevenueManagement = lazy(() => import("./pages/admin/RevenueManagement"));
 const Reconciliation = lazy(() => import("./pages/admin/Reconciliation"));
@@ -113,6 +118,9 @@ const App = () => (
           <Route path="/privacy-policy" element={<Navigate to="/Privacypolicy" replace />} />
           
           {/* Admin Routes */}
+          <Route path="/viasetuforbusinesses" element={<BusinessAuthProvider><BusinessLogin /></BusinessAuthProvider>} />
+          <Route path="/viasetuforbusinesses/reset-password" element={<ResetPassword />} />
+          <Route path="/viasetuforbusinesses/dashboard" element={<BusinessAuthProvider><ProtectedBusinessRoute><BusinessDashboard /></ProtectedBusinessRoute></BusinessAuthProvider>} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/reset-password" element={<ResetPassword />} />
           <Route path="/cms/login" element={<CmsLogin />} />
@@ -132,6 +140,7 @@ const App = () => (
 
             <Route path="users" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><UserManagement /></ProtectedAdminRoute>} />
             <Route path="admin-users" element={<ProtectedAdminRoute allowedRoles={["super_admin"]}><AdminUserManagement /></ProtectedAdminRoute>} />
+            <Route path="businesses" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations"]}><BusinessManagement /></ProtectedAdminRoute>} />
             <Route path="revenue" element={<ProtectedAdminRoute allowedRoles={["super_admin"]}><RevenueManagement /></ProtectedAdminRoute>} />
             <Route path="reconciliation" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><Reconciliation /></ProtectedAdminRoute>} />
             <Route path="support" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><SupportManagement /></ProtectedAdminRoute>} />

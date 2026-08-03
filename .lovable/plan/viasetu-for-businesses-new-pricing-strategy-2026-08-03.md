@@ -9,14 +9,16 @@ Two connected pieces of work: a separate business portal with admin-created acco
 The current formula (`3x card price + ₹50 zone fee`, then 18% GST added on top) is removed everywhere.
 
 **Consumer / regular shipments**
+
 - ViaSetu price = courier API rate x 1.70 (70% blanket margin), rounded to the rupee.
-- That price is **all-inclusive** — GST and partner charges are considered already inside it. No GST line is added on top.
+- That price is **all-inclusive** — GST to be added and displayed and partner charges are considered already inside it. No GST line is added on top.
 - Retail (strike-through) price = courier API rate x 3, rounded.
 - Savings shown as a percentage: `(retail − viasetu) / retail`, displayed next to the struck retail price.
 
-Example, courier rate ₹100: retail ~~₹300~~, ViaSetu **₹170**, "You save 43%".
+Example, courier rate ₹100: retail ₹300, ViaSetu **₹170**, "You save 43%".
 
 **Business shipments**
+
 - Price per box = courier API rate + ₹15 flat, all-inclusive. ₹15 is the ViaSetu revenue per shipment.
 - No 3x retail strike-through and no savings badge for business accounts.
 - Order total = sum across all boxes in the booking.
@@ -32,6 +34,7 @@ Stored per booking: courier rate, retail price, final price, margin amount, and 
 **Accounts are created by admin only.** There is no public business signup.
 
 *Admin side (new "Business Users" screen under Admin):*
+
 - Create a business user: company name, contact person, email, phone, PAN, GST number, shop act / registration number, expected monthly shipment volume, and address.
 - Upload / review the supporting documents attached to the company before approving.
 - Approve, reject, deactivate or reactivate a business account.
@@ -39,6 +42,7 @@ Stored per booking: courier rate, retail price, final price, margin amount, and 
 - List view of all business accounts with status, volume and shipment count.
 
 *Business side (`/viasetuforbusinesses`):*
+
 - Its own branded login page (email + password, same mechanism as the admin/CMS/ops logins) with forgot-password.
 - Only approved, active business accounts can get in; anyone else is bounced back to the login.
 - Business dashboard: shipment stats, quick "New shipment" action, order history, and company profile (read-only, admin-managed).

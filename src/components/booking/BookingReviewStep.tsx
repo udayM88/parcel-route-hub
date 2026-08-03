@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { computeChargeableKg } from "@/lib/pricing";
+import { computeChargeableKg, extractGst } from "@/lib/pricing";
 
 interface BookingReviewStepProps {
   senderData: {
@@ -65,9 +65,9 @@ const BookingReviewStep = ({
   const [showCancelWarning, setShowCancelWarning] = useState(false);
 
   // Calculate GST at 18% on the base fare (which includes hidden platform fee)
-  const baseFareRounded = Math.round(courierDetails.baseFare);
-  const gstAmount = Math.round(baseFareRounded * 0.18);
-  const totalAmount = baseFareRounded + gstAmount;
+  const totalAmount = Math.round(courierDetails.baseFare);
+  const gstAmount = extractGst(totalAmount);
+  const baseFareRounded = totalAmount - gstAmount;
 
   return (
     <Card className="mt-4 md:mt-6">
@@ -204,10 +204,10 @@ const BookingReviewStep = ({
           <div className="ml-0 sm:ml-7 space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-foreground font-medium">Base Fare</span>
-              <span>₹{Math.round(courierDetails.baseFare)}</span>
+              <span>₹{baseFareRounded}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-foreground font-medium">GST (18%)</span>
+              <span className="text-foreground font-medium">GST (18%, included)</span>
               <span>₹{gstAmount}</span>
             </div>
             <Separator />

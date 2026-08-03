@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Truck, Clock, Check, Zap, Star, Info, AlertTriangle } from "lucide-react";
 import { getPartnerLogo } from "@/config/partnerLogos";
 import { useState } from "react";
-import { computeBaseFare } from "@/lib/pricing";
+import { computeBaseFare, computeRetailPrice, computeSavingsPct } from "@/lib/pricing";
 
 interface CourierData {
   partner_id: string;
@@ -98,6 +98,9 @@ const ETACard = ({ courierData, etaData, isSelected, onSelect, platformFee = 0, 
   const hasValidLogo = logo && logo !== "/placeholder.svg" && !imageError;
   const partnerPrice = Math.round(courierData.price || 0);
   const totalPrice = computeBaseFare(courierData.price);
+  const retailPrice = computeRetailPrice(courierData.price);
+  const savingsPct = computeSavingsPct(retailPrice, totalPrice);
+
 
   const days = etaData?.adjusted_days ?? courierData.tat_days;
   const confidenceScore = etaData?.confidence_score;
@@ -234,17 +237,24 @@ const ETACard = ({ courierData, etaData, isSelected, onSelect, platformFee = 0, 
       </div>
 
       {/* Price */}
-      <div className={`${isAssisted ? "w-[86px] sm:w-[96px]" : "w-[60px] sm:w-[68px]"} shrink-0 text-right`}>
-        <span className="text-xs sm:text-sm font-bold bg-foreground text-background px-1.5 sm:px-2 py-0.5 rounded">
+      <div className={`${isAssisted ? "w-[96px] sm:w-[108px]" : "w-[74px] sm:w-[84px]"} shrink-0 text-right`}>
+        {retailPrice > totalPrice && (
+          <p className="text-[9px] text-muted-foreground line-through leading-none">₹{retailPrice}</p>
+        )}
+        <span className="text-xs sm:text-sm font-bold bg-foreground text-background px-1.5 sm:px-2 py-0.5 rounded inline-block mt-0.5">
           ₹{totalPrice}
         </span>
-        <p className="text-[9px] text-muted-foreground mt-0.5">excl. GST</p>
+        <p className="text-[9px] text-muted-foreground mt-0.5">incl. GST</p>
+        {savingsPct > 0 && (
+          <p className="text-[9px] font-semibold text-emerald-600 leading-none">Save {savingsPct}%</p>
+        )}
         {isAssisted && (
           <p className="text-[9px] font-medium text-amber-700 mt-0.5" title="Actual price quoted by courier partner">
             Partner ₹{partnerPrice}
           </p>
         )}
       </div>
+
     </div>
   );
 };
