@@ -8,7 +8,7 @@ import { getPartnerLogo } from "@/config/partnerLogos";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeTatDays, formatTatRange } from "@/lib/tat-utils";
 import { usePlatformFee } from "@/hooks/usePlatformFee";
-import { computeBaseFare, computeChargeableKg } from "@/lib/pricing";
+import { computeBaseFare, computeChargeableKg, extractGst, computeRetailPrice, computeSavingsPct } from "@/lib/pricing";
 import PaymentModal from "@/components/PaymentModal";
 import BookingProgress from "@/components/booking/BookingProgress";
 import BookingStep1 from "@/components/booking/BookingStep1";
