@@ -121,7 +121,7 @@ const App = () => (
           
           {/* Admin Routes */}
           <Route path="/viasetuforbusinesses" element={<BusinessAuthProvider><BusinessLogin /></BusinessAuthProvider>} />
-          <Route path="/viasetuforbusinesses/reset-password" element={<ResetPassword />} />
+          <Route path="/viasetuforbusinesses/reset-password" element={<BusinessResetPassword />} />
           <Route path="/viasetuforbusinesses/dashboard" element={<BusinessAuthProvider><ProtectedBusinessRoute><BusinessDashboard /></ProtectedBusinessRoute></BusinessAuthProvider>} />
           <Route path="/viasetuforbusinesses/book" element={<BusinessAuthProvider><ProtectedBusinessRoute><BusinessBooking /></ProtectedBusinessRoute></BusinessAuthProvider>} />
           <Route path="/admin/login" element={<AdminLogin />} />
