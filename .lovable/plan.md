@@ -1,93 +1,70 @@
+# ViaSetu for Businesses + New Pricing Strategy
 
-## Problem
+Two connected pieces of work: a separate business portal with admin-created accounts and multi-box booking, and a full replacement of the pricing engine for both consumer and business shipments.
 
-Assisted booking (`admin-create-payment-link`) inserts a `bookings` row with `status = PENDING_PAYMENT`, `payment_link_id`, `payment_link_url`. There is currently:
-- No webhook flipping the row when the customer pays
-- No UI listing these pending rows
-- No mechanism to place the courier order after payment (the customer-side courier booking lives in `Booking.tsx` and runs only when the browser completes payment)
+---
 
-So payment `pay_TD1XoA6yZ0YRPT` was captured on Razorpay but the booking is stuck in `PENDING_PAYMENT` and no courier manifest was generated.
+## 1. New pricing strategy (replaces the existing one)
 
-## Solution
+The current formula (`3x card price + ₹50 zone fee`, then 18% GST added on top) is removed everywhere.
 
-Add an admin-triggered "Refresh & confirm" path that (1) queries Razorpay for the payment link, (2) if paid, updates the booking to `PAYMENT_RECEIVED`, and (3) automatically fires the appropriate direct-partner booking edge function, flipping the row to `CREATED` with an AWB — same terminal state as a normal customer booking.
+**Consumer / regular shipments**
+- ViaSetu price = courier API rate x 1.70 (70% blanket margin), rounded to the rupee.
+- That price is **all-inclusive** — GST and partner charges are considered already inside it. No GST line is added on top.
+- Retail (strike-through) price = courier API rate x 3, rounded.
+- Savings shown as a percentage: `(retail − viasetu) / retail`, displayed next to the struck retail price.
 
-### 1. New edge function: `admin-finalize-assisted-booking`
+Example, courier rate ₹100: retail ~~₹300~~, ViaSetu **₹170**, "You save 43%".
 
-Admin-authenticated (super_admin / operations / support). Input: `{ booking_id }`. Steps:
+**Business shipments**
+- Price per box = courier API rate + ₹15 flat, all-inclusive. ₹15 is the ViaSetu revenue per shipment.
+- No 3x retail strike-through and no savings badge for business accounts.
+- Order total = sum across all boxes in the booking.
 
-1. Load the `bookings` row (service role). Reject if not `PENDING_PAYMENT` / `is_admin_assisted`.
-2. Call Razorpay `GET /v1/payment_links/{payment_link_id}` using the environment stored implicitly (we'll accept `x-environment`, matching `admin-create-payment-link`).
-3. Inspect `status` and `payments[]`:
-   - `status = paid` and a captured payment exists → grab `payment_id`.
-   - Otherwise → return `{ paid: false, link_status }` so the UI can say "not paid yet".
-4. If paid: update the row with `payment_id`, `payment_status='paid'`, `status='PAYMENT_RECEIVED'`, `payment_link_status='paid'` (idempotent — skip if already advanced).
-5. Determine partner from stored `courier_name` / a new `partner_id` field (we'll persist `partner_id` at link-creation time — see step 3 below) and call the corresponding direct-partner booking function (`shadowfax-booking`, `delhivery-booking`, `xpressbees-booking`, `urbanebolt-booking`, `shree-maruti-booking`) using the row's sender/receiver/package fields.
-6. On partner success: update the row with `awb_number`, `tracking_id`, `label_url`, `status='CREATED'`, `booking_source='admin_assisted'`, and trigger the admin-notification email (same pattern `save-booking` uses).
-7. On partner failure: call `confirm-booking-or-refund` with the captured `payment_id` so the customer is auto-refunded, matching the customer-side flow.
+Everywhere a price appears — courier comparison cards, smart ranking, comparison table, review step, payment, order details, invoices, admin revenue/reconciliation reporting — reads from the single new pricing module so the numbers always agree.
 
-Return `{ paid, booked, awb_number?, tracking_id?, error? }`.
+Stored per booking: courier rate, retail price, final price, margin amount, and account type (consumer vs business), so revenue reporting stays correct for both models.
 
-### 2. Small manual-payment override (for `pay_TD1XoA6yZ0YRPT` and similar)
+---
 
-Accept an optional `manual_payment_id` in the request. When present and the Razorpay lookup does not find a paid link (e.g. the customer paid outside the link, or the link's payments array is empty), fetch that payment id via `GET /v1/payments/{id}`, verify `status = captured` and `amount` matches the row's total, then proceed as if paid. This unblocks the current stuck order without waiting on webhook plumbing.
+## 2. ViaSetu for Businesses portal
 
-### 3. Persist `partner_id` + `service_code` at link creation
+**Accounts are created by admin only.** There is no public business signup.
 
-`admin-create-payment-link` currently stores `courier_name` (e.g. "Shadowfax") but not the machine partner_id. Add two columns to `bookings` (nullable text): `partner_id`, `service_code`, and populate them from the booking draft. The Booking.tsx assisted flow already has `selectedPartnerData.partnerId` / `.serviceCode` — we'll pass them through. Migration + updates to `Booking.tsx` (draft build) and `admin-create-payment-link`.
+*Admin side (new "Business Users" screen under Admin):*
+- Create a business user: company name, contact person, email, phone, PAN, GST number, shop act / registration number, expected monthly shipment volume, and address.
+- Upload / review the supporting documents attached to the company before approving.
+- Approve, reject, deactivate or reactivate a business account.
+- On approval the system creates the login and emails a set-your-password link.
+- List view of all business accounts with status, volume and shipment count.
 
-### 4. New admin page: `/admin/assisted-pending`
+*Business side (`/viasetuforbusinesses`):*
+- Its own branded login page (email + password, same mechanism as the admin/CMS/ops logins) with forgot-password.
+- Only approved, active business accounts can get in; anyone else is bounced back to the login.
+- Business dashboard: shipment stats, quick "New shipment" action, order history, and company profile (read-only, admin-managed).
 
-Route + sidebar entry under Admin. Lists all rows where `is_admin_assisted = true AND status = 'PENDING_PAYMENT'`. Columns: created_at, customer name/phone, courier, amount, payment_link_status, actions.
+---
 
-Actions per row:
-- **Refresh payment** → calls `admin-finalize-assisted-booking` with `{ booking_id }`. Toasts `"Payment not received yet"` / `"Booking confirmed · AWB xxx"` / refund messaging.
-- **Enter payment ID manually** → prompt for a `pay_...` id, then calls the same function with `manual_payment_id`. Used for `pay_TD1XoA6yZ0YRPT`.
-- **Copy link**, **Open Razorpay dashboard**.
+## 3. Multi-box booking for business users
 
-Auto-refresh every 30s while the tab is open.
+- In the business booking flow, one order can contain N boxes going to the **same destination pincode**.
+- Each box has its own weight and dimensions; chargeable weight is computed per box (dead vs volumetric, existing logic retained).
+- Serviceability and rates are fetched once for the route; the per-box price is `rate for that box + ₹15`.
+- The review screen shows a per-box breakdown plus the order total.
+- On confirmation, the partner API is called **once per box**, so each box receives its own AWB and label. The order shows all AWBs and offers all labels.
+- If some boxes succeed and others fail, the order records partial success and the failed boxes are flagged for retry/refund rather than silently dropped.
 
-### 5. Booking.tsx tweak
+---
 
-After the payment-link-sent dialog, add a "View pending bookings" link that goes to `/admin/assisted-pending` so admins can jump straight to the follow-up screen.
+## Technical notes
 
-## Technical details
+- **Pricing**: rewrite `src/lib/pricing.ts` around `computeConsumerPrice(rate)` → `{ retail, price, savingsPct }` and `computeBusinessPrice(rate)` → `rate + 15`. Update all call sites: `Booking.tsx`, `BookingStep2/5`, `ETACard`, `SmartRanking`, `PartnerComparisonTable`, `BookingReviewStep`, `OrderDetails`, plus the edge functions `calculate-price`, `calculate-platform-fee`, `save-booking`, `razorpay-create-order`, `razorpay-verify-payment`, `send-order-admin-email`, and admin revenue/reconciliation/analytics pages.
+- **Database migration**: new `business_accounts` table (company details, KYC doc paths, status, monthly volume, linked `user_id`) with `is_business_user()` / `get_business_account()` security-definer helpers, RLS restricting a business user to their own record and admins to all; new `booking_boxes` table (booking_id, index, weight, dims, awb, label_url, status); new columns on `bookings` for `account_type`, `business_account_id`, `courier_rate`, `retail_price`, `margin_amount`, `box_count`; private storage bucket for business KYC documents with admin-only read.
+- **Auth**: business login reuses the Supabase Auth email/password pattern in `StaffLogin.tsx`, but authorises against `business_accounts` instead of `admin_users` (a new `BusinessAuthContext` + `ProtectedBusinessRoute`, mirroring the admin ones). No `@viasetu.com` domain enforcement.
+- **Edge functions**: `create-business-user` (admin-only; creates auth user, business_accounts row, sends password-reset invite), and a multi-box path in the booking pipeline that loops the existing per-partner booking functions once per box and aggregates results.
+- **Routes**: `/viasetuforbusinesses` (login), `/viasetuforbusinesses/dashboard`, `/ship`, `/orders`, `/profile`, `/reset-password`; admin gets `/admin/business-users`.
 
-Files touched:
+## Out of scope
 
-```text
-supabase/migrations/<ts>_add_partner_id_to_bookings.sql   (new)
-supabase/functions/admin-finalize-assisted-booking/index.ts (new)
-supabase/functions/admin-create-payment-link/index.ts     (persist partner_id/service_code)
-src/pages/Booking.tsx                                     (pass partner_id/service_code in draft)
-src/pages/admin/AssistedPendingBookings.tsx               (new)
-src/components/admin/AdminLayout.tsx                      (nav entry)
-src/App.tsx                                               (route)
-```
-
-Data-flow when admin clicks Refresh:
-
-```text
-Admin UI ──► admin-finalize-assisted-booking
-                │
-                ├─► Razorpay GET /payment_links/{id}     (or /payments/{manual})
-                │       └─ if not paid → return {paid:false}
-                │
-                ├─► bookings UPDATE → PAYMENT_RECEIVED (+ payment_id)
-                │
-                ├─► {partner}-booking edge function
-                │       ├─ success → UPDATE → CREATED + awb
-                │       └─ failure → confirm-booking-or-refund → refund + FAILED
-                │
-                └─► return status to UI
-```
-
-## Out of scope (call-outs)
-
-- No Razorpay webhook is being added in this change. Refresh is admin-triggered; if we later want fully hands-off confirmation, a webhook route would be a follow-up.
-- No changes to the customer-side booking path — that continues to work exactly as today.
-
-## Confirmations needed
-
-1. Auto-book the courier immediately on refresh (my default), or just mark the payment as received and let an admin click a separate "Place courier order" button?
-2. For `pay_TD1XoA6yZ0YRPT` specifically — do you want me to run the manual-payment path against it as part of this change, or only ship the tooling and let you trigger it?
+- Consumer users cannot self-upgrade to business — admin creates the account.
+- Billing/credit terms and invoicing changes beyond reflecting the new prices.
