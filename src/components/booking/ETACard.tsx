@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Truck, Clock, Check, Zap, Star, Info, AlertTriangle } from "lucide-react";
 import { getPartnerLogo } from "@/config/partnerLogos";
 import { useState } from "react";
-import { computeBaseFare } from "@/lib/pricing";
+import { computeBaseFare, computeRetailPrice, computeSavingsPct } from "@/lib/pricing";
 
 interface CourierData {
   partner_id: string;
