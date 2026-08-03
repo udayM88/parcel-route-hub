@@ -50,6 +50,7 @@ const UserManagement = lazy(() => import("./pages/admin/UserManagement"));
 const AdminUserManagement = lazy(() => import("./pages/admin/AdminUserManagement"));
 const BusinessManagement = lazy(() => import("./pages/admin/BusinessManagement"));
 const BusinessLogin = lazy(() => import("./pages/business/BusinessLogin"));
+const BusinessResetPassword = lazy(() => import("./pages/business/BusinessResetPassword"));
 const BusinessDashboard = lazy(() => import("./pages/business/BusinessDashboard"));
 const BusinessBooking = lazy(() => import("./pages/business/BusinessBooking"));
 const OrderMonitoring = lazy(() => import("./pages/admin/OrderMonitoring"));
@@ -120,7 +121,7 @@ const App = () => (
           
           {/* Admin Routes */}
           <Route path="/viasetuforbusinesses" element={<BusinessAuthProvider><BusinessLogin /></BusinessAuthProvider>} />
-          <Route path="/viasetuforbusinesses/reset-password" element={<ResetPassword />} />
+          <Route path="/viasetuforbusinesses/reset-password" element={<BusinessResetPassword />} />
           <Route path="/viasetuforbusinesses/dashboard" element={<BusinessAuthProvider><ProtectedBusinessRoute><BusinessDashboard /></ProtectedBusinessRoute></BusinessAuthProvider>} />
           <Route path="/viasetuforbusinesses/book" element={<BusinessAuthProvider><ProtectedBusinessRoute><BusinessBooking /></ProtectedBusinessRoute></BusinessAuthProvider>} />
           <Route path="/admin/login" element={<AdminLogin />} />

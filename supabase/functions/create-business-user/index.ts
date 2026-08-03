@@ -108,8 +108,13 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to create business account: ${insertError.message}`);
     }
 
+    // Always send business users to the live site, never a preview/sandbox origin
+    const origin = req.headers.get("origin") ?? "";
+    const isLiveOrigin = /^https:\/\/([a-z0-9-]+\.)*viasetu\.com$/.test(origin);
+    const siteUrl = isLiveOrigin ? origin : "https://www.viasetu.com";
+
     const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(cleanEmail, {
-      redirectTo: `${req.headers.get("origin")}/viasetuforbusinesses/reset-password`,
+      redirectTo: `${siteUrl}/viasetuforbusinesses/reset-password`,
     });
     if (resetError) console.error("Failed to send password reset email:", resetError);
 
