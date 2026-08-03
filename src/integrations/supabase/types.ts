@@ -44,6 +44,74 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_boxes: {
+        Row: {
+          booking_id: string
+          box_index: number
+          chargeable_weight_kg: number | null
+          courier_rate: number | null
+          created_at: string
+          error_message: string | null
+          height_cm: number | null
+          id: string
+          label_url: string | null
+          length_cm: number | null
+          partner_order_id: string | null
+          price: number | null
+          status: string
+          tracking_id: string | null
+          updated_at: string
+          weight_kg: number
+          width_cm: number | null
+        }
+        Insert: {
+          booking_id: string
+          box_index: number
+          chargeable_weight_kg?: number | null
+          courier_rate?: number | null
+          created_at?: string
+          error_message?: string | null
+          height_cm?: number | null
+          id?: string
+          label_url?: string | null
+          length_cm?: number | null
+          partner_order_id?: string | null
+          price?: number | null
+          status?: string
+          tracking_id?: string | null
+          updated_at?: string
+          weight_kg: number
+          width_cm?: number | null
+        }
+        Update: {
+          booking_id?: string
+          box_index?: number
+          chargeable_weight_kg?: number | null
+          courier_rate?: number | null
+          created_at?: string
+          error_message?: string | null
+          height_cm?: number | null
+          id?: string
+          label_url?: string | null
+          length_cm?: number | null
+          partner_order_id?: string | null
+          price?: number | null
+          status?: string
+          tracking_id?: string | null
+          updated_at?: string
+          weight_kg?: number
+          width_cm?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_boxes_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_progress: {
         Row: {
           booking_id: string | null
@@ -82,12 +150,16 @@ export type Database = {
       }
       bookings: {
         Row: {
+          account_type: string
           admin_email_sent_at: string | null
           base_fare: number | null
           booking_source: string | null
+          box_count: number
+          business_account_id: string | null
           chargeable_weight_g: number | null
           courier_name: string
           courier_price: number
+          courier_rate: number | null
           created_at: string
           created_by_admin_email: string | null
           created_by_admin_id: string | null
@@ -104,6 +176,7 @@ export type Database = {
           is_admin_assisted: boolean
           label_url: string | null
           length: string | null
+          margin_amount: number | null
           package_weight: string
           packaging_amount: number | null
           packaging_required: boolean | null
@@ -128,6 +201,7 @@ export type Database = {
           receiver_state: string
           refund_id: string | null
           refund_reason: string | null
+          retail_price: number | null
           sender_address: string
           sender_city: string
           sender_name: string
@@ -145,12 +219,16 @@ export type Database = {
           width: string | null
         }
         Insert: {
+          account_type?: string
           admin_email_sent_at?: string | null
           base_fare?: number | null
           booking_source?: string | null
+          box_count?: number
+          business_account_id?: string | null
           chargeable_weight_g?: number | null
           courier_name: string
           courier_price: number
+          courier_rate?: number | null
           created_at?: string
           created_by_admin_email?: string | null
           created_by_admin_id?: string | null
@@ -167,6 +245,7 @@ export type Database = {
           is_admin_assisted?: boolean
           label_url?: string | null
           length?: string | null
+          margin_amount?: number | null
           package_weight: string
           packaging_amount?: number | null
           packaging_required?: boolean | null
@@ -191,6 +270,7 @@ export type Database = {
           receiver_state: string
           refund_id?: string | null
           refund_reason?: string | null
+          retail_price?: number | null
           sender_address: string
           sender_city: string
           sender_name: string
@@ -208,12 +288,16 @@ export type Database = {
           width?: string | null
         }
         Update: {
+          account_type?: string
           admin_email_sent_at?: string | null
           base_fare?: number | null
           booking_source?: string | null
+          box_count?: number
+          business_account_id?: string | null
           chargeable_weight_g?: number | null
           courier_name?: string
           courier_price?: number
+          courier_rate?: number | null
           created_at?: string
           created_by_admin_email?: string | null
           created_by_admin_id?: string | null
@@ -230,6 +314,7 @@ export type Database = {
           is_admin_assisted?: boolean
           label_url?: string | null
           length?: string | null
+          margin_amount?: number | null
           package_weight?: string
           packaging_amount?: number | null
           packaging_required?: boolean | null
@@ -254,6 +339,7 @@ export type Database = {
           receiver_state?: string
           refund_id?: string | null
           refund_reason?: string | null
+          retail_price?: number | null
           sender_address?: string
           sender_city?: string
           sender_name?: string
@@ -269,6 +355,89 @@ export type Database = {
           user_id?: string
           volumetric_weight_g?: number | null
           width?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_business_account_id_fkey"
+            columns: ["business_account_id"]
+            isOneToOne: false
+            referencedRelation: "business_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_accounts: {
+        Row: {
+          address: string | null
+          approved_at: string | null
+          city: string | null
+          company_name: string
+          contact_person: string
+          created_at: string
+          created_by: string | null
+          documents: Json
+          email: string
+          gst_number: string | null
+          id: string
+          is_active: boolean
+          monthly_shipments: number
+          notes: string | null
+          pan_number: string | null
+          phone: string
+          pincode: string | null
+          shop_act_number: string | null
+          state: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          address?: string | null
+          approved_at?: string | null
+          city?: string | null
+          company_name: string
+          contact_person: string
+          created_at?: string
+          created_by?: string | null
+          documents?: Json
+          email: string
+          gst_number?: string | null
+          id?: string
+          is_active?: boolean
+          monthly_shipments?: number
+          notes?: string | null
+          pan_number?: string | null
+          phone: string
+          pincode?: string | null
+          shop_act_number?: string | null
+          state?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          address?: string | null
+          approved_at?: string | null
+          city?: string | null
+          company_name?: string
+          contact_person?: string
+          created_at?: string
+          created_by?: string | null
+          documents?: Json
+          email?: string
+          gst_number?: string | null
+          id?: string
+          is_active?: boolean
+          monthly_shipments?: number
+          notes?: string | null
+          pan_number?: string | null
+          phone?: string
+          pincode?: string | null
+          shop_act_number?: string | null
+          state?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -1066,7 +1235,9 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["admin_role"]
       }
+      get_business_account_id: { Args: { _user_id: string }; Returns: string }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_business_user: { Args: { _user_id: string }; Returns: boolean }
       is_operations: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       mask_doc_number: { Args: { doc: string }; Returns: string }
