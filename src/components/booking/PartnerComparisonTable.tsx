@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Star, Clock, Shield, Truck, Check, Zap, ArrowUpDown, Filter } from "lucide-react";
 import { getPartnerLogo } from "@/config/partnerLogos";
 import { normalizeTatDays } from "@/lib/tat-utils";
-import { computeBaseFare } from "@/lib/pricing";
+import { computeBaseFare, computeRetailPrice, computeSavingsPct } from "@/lib/pricing";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -159,7 +159,7 @@ const PartnerComparisonTable = ({
             <TableHead>Mode</TableHead>
             <TableHead className="text-center">Rating</TableHead>
             <TableHead className="text-center">Delivery</TableHead>
-            <TableHead className="text-right">Price <span className="text-[10px] font-normal text-muted-foreground">(excl. GST)</span></TableHead>
+            <TableHead className="text-right">Price <span className="text-[10px] font-normal text-muted-foreground">(incl. GST)</span></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -231,7 +231,16 @@ const PartnerComparisonTable = ({
 
                 {/* Price */}
                 <TableCell className="text-right">
-                  <span className="text-sm font-semibold bg-foreground text-background px-2 py-0.5 rounded">₹{price}</span>
+                  {(() => {
+                const rawRate = Math.round(service.rate?.price?.amount || 0);
+                const retail = computeRetailPrice(rawRate);
+                const savings = computeSavingsPct(retail, price);
+                return <div className="inline-flex flex-col items-end gap-0.5">
+                        {retail > price && <span className="text-[11px] text-muted-foreground line-through">₹{retail}</span>}
+                        <span className="text-sm font-semibold bg-foreground text-background px-2 py-0.5 rounded">₹{price}</span>
+                        {savings > 0 && <span className="text-[10px] font-semibold text-emerald-600">Save {savings}%</span>}
+                      </div>;
+              })()}
                 </TableCell>
               </TableRow>;
         })}
