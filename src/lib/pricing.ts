@@ -24,10 +24,10 @@ export function extractGst(inclusiveAmount: number): number {
   return Math.round(amt - amt / (1 + GST_RATE));
 }
 
-/** All-inclusive consumer price for a courier rate. */
+/** All-inclusive consumer price: rate x 1.70, then 18% GST added on top. */
 export function computeConsumerPrice(courierRate: number): number {
   const rate = Number(courierRate) || 0;
-  return Math.round(rate * (1 + CONSUMER_MARGIN_PCT));
+  return Math.round(rate * (1 + CONSUMER_MARGIN_PCT) * (1 + GST_RATE));
 }
 
 /** Struck-through retail reference price. */
