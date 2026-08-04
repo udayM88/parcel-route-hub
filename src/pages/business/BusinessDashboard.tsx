@@ -111,7 +111,7 @@ const BusinessDashboard = () => {
         <Card>
           <CardHeader>
             <CardTitle>Recent Shipments</CardTitle>
-            <CardDescription>Business rate: courier price + ₹15 per box, all inclusive.</CardDescription>
+            <CardDescription>All amounts shown are inclusive of GST.</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
