@@ -15,7 +15,9 @@ const passwordSchema = z.string().min(6, "Password must be at least 6 characters
 
 const BusinessLogin = () => {
   const navigate = useNavigate();
+  const { refresh } = useBusinessAuth();
   const [email, setEmail] = useState("");
+
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isResetMode, setIsResetMode] = useState(false);
