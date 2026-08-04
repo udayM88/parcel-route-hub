@@ -9,13 +9,17 @@ import { Building2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import PageSeo from "@/components/PageSeo";
+import { useBusinessAuth } from "@/contexts/useBusinessAuth";
+
 
 const emailSchema = z.string().email("Invalid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 
 const BusinessLogin = () => {
   const navigate = useNavigate();
+  const { refresh } = useBusinessAuth();
   const [email, setEmail] = useState("");
+
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isResetMode, setIsResetMode] = useState(false);
@@ -58,7 +62,9 @@ const BusinessLogin = () => {
       }
 
       toast.success("Welcome back!");
+      await refresh();
       navigate("/viasetuforbusinesses/dashboard");
+
     } catch (err) {
       console.error("Business login error:", err);
       toast.error("An unexpected error occurred. Please try again.");
