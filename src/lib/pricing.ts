@@ -36,11 +36,30 @@ export function computeRetailPrice(courierRate: number): number {
   return Math.round(rate * RETAIL_MULTIPLIER);
 }
 
-/** All-inclusive business price for a single box. */
-export function computeBusinessPrice(courierRate: number): number {
+/** Net (GST-exclusive) business amount for a single box: courier rate + flat margin. */
+export function computeBusinessNet(courierRate: number): number {
   const rate = Number(courierRate) || 0;
   return Math.round(rate) + BUSINESS_FLAT_MARGIN;
 }
+
+/** Business price for a single box, with 18% GST added on top of the net amount. */
+export function computeBusinessPrice(courierRate: number): number {
+  return Math.round(computeBusinessNet(courierRate) * (1 + GST_RATE));
+}
+
+/** Net / GST / total triple for a set of business box rates. */
+export function computeBusinessBreakdown(courierRates: number[]): {
+  courierRate: number;
+  net: number;
+  gst: number;
+  total: number;
+} {
+  const courierRate = courierRates.reduce((s, r) => s + Math.round(Number(r) || 0), 0);
+  const net = courierRates.reduce((s, r) => s + computeBusinessNet(r), 0);
+  const total = Math.round(net * (1 + GST_RATE));
+  return { courierRate, net, gst: total - net, total };
+}
+
 
 /** Price for either account type. */
 export function computePrice(courierRate: number, accountType: AccountType = 'consumer'): number {
