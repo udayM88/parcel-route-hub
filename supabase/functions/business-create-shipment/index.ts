@@ -7,7 +7,7 @@
 // create one booking_boxes row per box, then fire the partner booking edge
 // function once per box so every box gets its own AWB / label.
 //
-// Pricing: courier rate + ₹15 per box, all-inclusive (GST already inside).
+// Pricing: (courier rate + ₹15 internal margin) per box, plus 18% GST on top.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -128,15 +128,18 @@ Deno.serve(async (req) => {
     const b = parsed.data;
     const boxes: BoxInput[] = b.boxes;
 
-    // ── Pricing: rate + ₹15 per box, all inclusive ────────────────
+    // ── Pricing: (rate + ₹15) per box, then 18% GST on top ────────
     const perBox = boxes.map((bx) => {
       const rate = Math.round(Number(bx.courier_rate) || 0);
-      return { rate, price: rate + BUSINESS_FLAT_MARGIN };
+      const net = rate + BUSINESS_FLAT_MARGIN;
+      return { rate, net, price: Math.round(net * (1 + GST_RATE)) };
     });
     const totalRate = perBox.reduce((s, p) => s + p.rate, 0);
-    const totalPrice = perBox.reduce((s, p) => s + p.price, 0);
-    const gst = Math.round(totalPrice - totalPrice / (1 + GST_RATE));
+    const totalNet = perBox.reduce((s, p) => s + p.net, 0);
+    const totalPrice = Math.round(totalNet * (1 + GST_RATE));
+    const gst = totalPrice - totalNet;
     const totalWeightKg = boxes.reduce((s, bx) => s + (Number(bx.weight_kg) || 0), 0);
+
 
     const { data: booking, error: insErr } = await admin
       .from("bookings")

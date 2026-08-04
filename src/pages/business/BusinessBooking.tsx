@@ -13,7 +13,7 @@ import { useBusinessAuth } from "@/contexts/useBusinessAuth";
 import PageSeo from "@/components/PageSeo";
 import PaymentModal from "@/components/PaymentModal";
 import { CURRENT_ENV } from "@/config/environment";
-import { computeBusinessPrice, computeChargeableKg, extractGst, BUSINESS_FLAT_MARGIN } from "@/lib/pricing";
+import { computeBusinessBreakdown, computeChargeableKg } from "@/lib/pricing";
 
 const DIRECT_PARTNERS = [
   { code: "shadowfax", name: "Shadowfax", fn: "shadowfax-serviceability" },
@@ -35,18 +35,22 @@ type Quote = {
   serviceName: string;
   deliveryTime: string;
   boxRates: number[];
-  totalRate: number;
   totalPrice: number;
 };
 
 const emptyParty: Party = { name: "", phone: "", address: "", city: "", state: "", pincode: "" };
 const emptyBox: Box = { weightG: "", length: "", width: "", height: "" };
 
+const STEPS = ["Shipment", "Courier", "Addresses", "Pay"];
+
 const BusinessBooking = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { business } = useBusinessAuth();
 
+  const [step, setStep] = useState(1);
+  const [pickupPincode, setPickupPincode] = useState("");
+  const [deliveryPincode, setDeliveryPincode] = useState("");
   const [sender, setSender] = useState<Party>({ ...emptyParty });
   const [receiver, setReceiver] = useState<Party>({ ...emptyParty });
   const [goodsType, setGoodsType] = useState("Package");
@@ -72,29 +76,41 @@ const BusinessBooking = () => {
   const updateBox = (i: number, field: keyof Box, value: string) =>
     setBoxes((prev) => prev.map((b, idx) => (idx === i ? { ...b, [field]: value } : b)));
 
-  const partyValid = (p: Party) =>
-    p.name.trim() && /^\d{10}$/.test(p.phone.replace(/\D/g, "")) && p.address.trim() &&
-    p.city.trim() && p.state.trim() && /^\d{6}$/.test(p.pincode);
+  // Changing shipment inputs invalidates previously fetched rates.
+  const resetQuotes = () => {
+    setQuotes([]);
+    setSelected(null);
+  };
 
-  const boxesValid = boxes.every((b, i) => chargeableKgs[i] > 0);
-  const canQuote = partyValid(sender) && partyValid(receiver) && boxesValid;
+  const addressValid = (p: Party) =>
+    p.name.trim() && /^\d{10}$/.test(p.phone.replace(/\D/g, "")) && p.address.trim() &&
+    p.city.trim() && p.state.trim();
+
+  const boxesValid = boxes.every((_, i) => chargeableKgs[i] > 0);
+  const canQuote =
+    /^\d{6}$/.test(pickupPincode) && /^\d{6}$/.test(deliveryPincode) && boxesValid;
+  const canContinueAddresses = addressValid(sender) && addressValid(receiver);
+
+  const breakdown = useMemo(
+    () => computeBusinessBreakdown(selected?.boxRates ?? []),
+    [selected],
+  );
 
   const fetchQuotes = async () => {
     if (!canQuote) {
-      toast({ title: "Complete all details", description: "Sender, receiver and box details are required.", variant: "destructive" });
+      toast({ title: "Complete shipment details", description: "Both pincodes and every box weight are required.", variant: "destructive" });
       return;
     }
     setFetching(true);
-    setQuotes([]);
-    setSelected(null);
+    resetQuotes();
     try {
       // Quote every box with every partner; only keep partner+service combos
       // that are serviceable for ALL boxes.
       const perBoxResults = await Promise.all(
         boxes.map(async (b, i) => {
           const payload = {
-            pickup_pincode: sender.pincode,
-            delivery_pincode: receiver.pincode,
+            pickup_pincode: pickupPincode,
+            delivery_pincode: deliveryPincode,
             weight_kg: chargeableKgs[i],
             length_cm: parseFloat(b.length) || 10,
             width_cm: parseFloat(b.width) || 10,
@@ -130,8 +146,6 @@ const BusinessBooking = () => {
           if (!hit) return;
           rates.push(Math.round(hit.service.rate?.price?.amount || 0));
         }
-        const totalRate = rates.reduce((s, r) => s + r, 0);
-        const totalPrice = rates.reduce((s, r) => s + computeBusinessPrice(r), 0);
         combos.push({
           partnerId: entry.partner.partner_id,
           partnerCode: entry.partner.partner_code,
@@ -142,8 +156,7 @@ const BusinessBooking = () => {
             entry.service.delivery_label ||
             (entry.service.tat_days ? `${entry.service.tat_days} days` : "2-5 days"),
           boxRates: rates,
-          totalRate,
-          totalPrice,
+          totalPrice: computeBusinessBreakdown(rates).total,
         });
       });
 
@@ -151,6 +164,8 @@ const BusinessBooking = () => {
       setQuotes(combos);
       if (combos.length === 0) {
         toast({ title: "No courier available", description: "No partner serves all boxes on this route.", variant: "destructive" });
+      } else {
+        setStep(2);
       }
     } catch (e: any) {
       toast({ title: "Could not fetch rates", description: e?.message || "Please try again.", variant: "destructive" });
@@ -173,13 +188,13 @@ const BusinessBooking = () => {
           sender_address: sender.address,
           sender_city: sender.city,
           sender_state: sender.state,
-          sender_pincode: sender.pincode,
+          sender_pincode: pickupPincode,
           receiver_name: receiver.name,
           receiver_phone: receiver.phone.replace(/\D/g, "").slice(-10),
           receiver_address: receiver.address,
           receiver_city: receiver.city,
           receiver_state: receiver.state,
-          receiver_pincode: receiver.pincode,
+          receiver_pincode: deliveryPincode,
           goods_type: goodsType || "Package",
           shipment_value: shipmentValue ? Number(shipmentValue) : null,
           urgency: "standard",
@@ -214,13 +229,11 @@ const BusinessBooking = () => {
     }
   };
 
-  const totalAmount = selected?.totalPrice ?? 0;
-  const gstAmount = extractGst(totalAmount);
-
-  const partyFields = (label: string, p: Party, set: (p: Party) => void) => (
+  const partyFields = (label: string, p: Party, set: (p: Party) => void, pincode: string) => (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base">{label}</CardTitle>
+        <CardDescription>Pincode {pincode}</CardDescription>
       </CardHeader>
       <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
@@ -242,10 +255,6 @@ const BusinessBooking = () => {
         <div className="space-y-1">
           <Label>State</Label>
           <Input value={p.state} onChange={(e) => set({ ...p, state: e.target.value })} />
-        </div>
-        <div className="space-y-1">
-          <Label>Pincode</Label>
-          <Input value={p.pincode} maxLength={6} onChange={(e) => set({ ...p, pincode: e.target.value.replace(/\D/g, "") })} />
         </div>
       </CardContent>
     </Card>
@@ -295,12 +304,16 @@ const BusinessBooking = () => {
     <div className="min-h-screen bg-muted/30">
       <PageSeo
         title="New Business Shipment | ViaSetu for Businesses"
-        description="Book multi-box business shipments at flat ₹15 per box over live courier rates."
+        description="Book multi-box business shipments with live courier rates, inclusive of GST."
         path="/viasetuforbusinesses/book"
       />
       <header className="bg-background border-b sticky top-0 z-40">
         <div className="max-w-4xl mx-auto flex items-center gap-3 p-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/viasetuforbusinesses/dashboard")}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => (step > 1 ? setStep(step - 1) : navigate("/viasetuforbusinesses/dashboard"))}
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="min-w-0">
@@ -308,84 +321,126 @@ const BusinessBooking = () => {
             <p className="text-xs text-muted-foreground truncate">{business?.company_name}</p>
           </div>
         </div>
+        <div className="max-w-4xl mx-auto flex items-center gap-2 px-4 pb-3">
+          {STEPS.map((s, i) => (
+            <div key={s} className="flex items-center gap-2 flex-1">
+              <div
+                className={`h-7 w-7 shrink-0 rounded-full grid place-items-center text-xs font-semibold ${
+                  step > i ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {i + 1}
+              </div>
+              <span className={`text-xs truncate ${step === i + 1 ? "font-medium" : "text-muted-foreground"}`}>{s}</span>
+            </div>
+          ))}
+        </div>
       </header>
 
       <main className="max-w-4xl mx-auto p-4 space-y-4 pb-24">
-        {partyFields("Pickup (Sender)", sender, setSender)}
-        {partyFields("Delivery (Receiver)", receiver, setReceiver)}
+        {step === 1 && (
+          <>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Route</CardTitle>
+                <CardDescription>We check live partner serviceability and rates for these pincodes.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Pickup pincode</Label>
+                  <Input
+                    value={pickupPincode}
+                    maxLength={6}
+                    inputMode="numeric"
+                    onChange={(e) => { setPickupPincode(e.target.value.replace(/\D/g, "")); resetQuotes(); }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Delivery pincode</Label>
+                  <Input
+                    value={deliveryPincode}
+                    maxLength={6}
+                    inputMode="numeric"
+                    onChange={(e) => { setDeliveryPincode(e.target.value.replace(/\D/g, "")); resetQuotes(); }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Boxes className="h-4 w-4" /> Boxes ({boxes.length})
-            </CardTitle>
-            <CardDescription>All boxes ship to the same delivery pincode. Each box gets its own AWB.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Goods type</Label>
-                <Input value={goodsType} onChange={(e) => setGoodsType(e.target.value)} placeholder="e.g. Apparel" />
-              </div>
-              <div className="space-y-1">
-                <Label>Shipment value (₹)</Label>
-                <Input value={shipmentValue} onChange={(e) => setShipmentValue(e.target.value.replace(/\D/g, ""))} />
-              </div>
-            </div>
-            <Separator />
-            {boxes.map((b, i) => (
-              <div key={i} className="border rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">Box {i + 1}</p>
-                  <div className="flex items-center gap-2">
-                    {chargeableKgs[i] > 0 && (
-                      <Badge variant="secondary">{chargeableKgs[i]} kg chargeable</Badge>
-                    )}
-                    {boxes.length > 1 && (
-                      <Button size="icon" variant="ghost" onClick={() => setBoxes((p) => p.filter((_, idx) => idx !== i))}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Boxes className="h-4 w-4" /> Boxes ({boxes.length})
+                </CardTitle>
+                <CardDescription>All boxes ship to the same delivery pincode. Each box gets its own AWB.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Goods type</Label>
+                    <Input value={goodsType} onChange={(e) => setGoodsType(e.target.value)} placeholder="e.g. Apparel" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Shipment value (₹)</Label>
+                    <Input value={shipmentValue} onChange={(e) => setShipmentValue(e.target.value.replace(/\D/g, ""))} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Weight (g)</Label>
-                    <Input value={b.weightG} onChange={(e) => updateBox(i, "weightG", e.target.value.replace(/\D/g, ""))} />
+                <Separator />
+                {boxes.map((b, i) => (
+                  <div key={i} className="border rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Box {i + 1}</p>
+                      <div className="flex items-center gap-2">
+                        {chargeableKgs[i] > 0 && (
+                          <Badge variant="secondary">{chargeableKgs[i]} kg chargeable</Badge>
+                        )}
+                        {boxes.length > 1 && (
+                          <Button size="icon" variant="ghost" onClick={() => { setBoxes((p) => p.filter((_, idx) => idx !== i)); resetQuotes(); }}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Weight (g)</Label>
+                        <Input value={b.weightG} inputMode="numeric" onChange={(e) => { updateBox(i, "weightG", e.target.value.replace(/\D/g, "")); resetQuotes(); }} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">L (cm)</Label>
+                        <Input value={b.length} inputMode="decimal" onChange={(e) => { updateBox(i, "length", e.target.value.replace(/[^\d.]/g, "")); resetQuotes(); }} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">W (cm)</Label>
+                        <Input value={b.width} inputMode="decimal" onChange={(e) => { updateBox(i, "width", e.target.value.replace(/[^\d.]/g, "")); resetQuotes(); }} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">H (cm)</Label>
+                        <Input value={b.height} inputMode="decimal" onChange={(e) => { updateBox(i, "height", e.target.value.replace(/[^\d.]/g, "")); resetQuotes(); }} />
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">L (cm)</Label>
-                    <Input value={b.length} onChange={(e) => updateBox(i, "length", e.target.value.replace(/[^\d.]/g, ""))} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">W (cm)</Label>
-                    <Input value={b.width} onChange={(e) => updateBox(i, "width", e.target.value.replace(/[^\d.]/g, ""))} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">H (cm)</Label>
-                    <Input value={b.height} onChange={(e) => updateBox(i, "height", e.target.value.replace(/[^\d.]/g, ""))} />
-                  </div>
-                </div>
-              </div>
-            ))}
-            <Button variant="outline" className="w-full" onClick={() => setBoxes((p) => [...p, { ...emptyBox }])}>
-              <Plus className="h-4 w-4 mr-1" /> Add box
+                ))}
+                <Button variant="outline" className="w-full" onClick={() => { setBoxes((p) => [...p, { ...emptyBox }]); resetQuotes(); }}>
+                  <Plus className="h-4 w-4 mr-1" /> Add box
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Button className="w-full" size="lg" disabled={!canQuote || fetching} onClick={fetchQuotes}>
+              {fetching ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Fetching live rates...</> : "Get courier rates"}
             </Button>
-          </CardContent>
-        </Card>
+          </>
+        )}
 
-        <Button className="w-full" size="lg" disabled={!canQuote || fetching} onClick={fetchQuotes}>
-          {fetching ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Fetching live rates...</> : "Get courier rates"}
-        </Button>
-
-        {quotes.length > 0 && (
+        {step === 2 && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Truck className="h-4 w-4" /> Available couriers
               </CardTitle>
               <CardDescription>
-                Business rate: courier rate + ₹{BUSINESS_FLAT_MARGIN} per box, inclusive of GST and all charges.
+                {pickupPincode} → {deliveryPincode} · {boxes.length} box{boxes.length > 1 ? "es" : ""} · prices include GST
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -401,34 +456,49 @@ const BusinessBooking = () => {
                       <div className="min-w-0">
                         <p className="font-medium truncate">{q.partnerName}</p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {q.serviceName} · {q.deliveryTime} · {boxes.length} box{boxes.length > 1 ? "es" : ""}
+                          {q.serviceName} · {q.deliveryTime}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
                         <p className="font-bold">₹{q.totalPrice}</p>
-                        <p className="text-[11px] text-muted-foreground">all inclusive</p>
+                        <p className="text-[11px] text-muted-foreground">incl. GST</p>
                       </div>
                     </div>
                   </button>
                 );
               })}
+              <Button className="w-full mt-2" size="lg" disabled={!selected} onClick={() => setStep(3)}>
+                Continue
+              </Button>
             </CardContent>
           </Card>
         )}
 
-        {selected && (
+        {step === 3 && (
+          <>
+            {partyFields("Pickup (Sender)", sender, setSender, pickupPincode)}
+            {partyFields("Delivery (Receiver)", receiver, setReceiver, deliveryPincode)}
+            <Button className="w-full" size="lg" disabled={!canContinueAddresses} onClick={() => setStep(4)}>
+              Review & pay
+            </Button>
+          </>
+        )}
+
+        {step === 4 && selected && (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Summary</CardTitle>
+              <CardTitle className="text-base">Review</CardTitle>
+              <CardDescription>
+                {selected.partnerName} · {selected.serviceName} · {boxes.length} box{boxes.length > 1 ? "es" : ""}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-1 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Courier charges</span><span>₹{selected.totalRate}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">ViaSetu fee ({boxes.length} × ₹{BUSINESS_FLAT_MARGIN})</span><span>₹{boxes.length * BUSINESS_FLAT_MARGIN}</span></div>
-              <div className="flex justify-between text-muted-foreground text-xs"><span>Includes GST</span><span>₹{gstAmount}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Shipping charges</span><span>₹{breakdown.net}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">GST (18%)</span><span>₹{breakdown.gst}</span></div>
               <Separator className="my-2" />
-              <div className="flex justify-between font-bold text-base"><span>Total payable</span><span>₹{totalAmount}</span></div>
+              <div className="flex justify-between font-bold text-base"><span>Total payable</span><span>₹{breakdown.total}</span></div>
               <Button className="w-full mt-3" size="lg" disabled={submitting} onClick={() => setShowPayment(true)}>
-                {submitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Booking...</> : `Pay ₹${totalAmount} & book`}
+                {submitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Booking...</> : `Pay ₹${breakdown.total} & book`}
               </Button>
             </CardContent>
           </Card>
@@ -442,9 +512,9 @@ const BusinessBooking = () => {
           orderDetails={{
             courierId: selected.serviceCode,
             courierName: selected.partnerName,
-            baseFare: totalAmount - gstAmount,
-            gstAmount,
-            totalAmount,
+            baseFare: breakdown.net,
+            gstAmount: breakdown.gst,
+            totalAmount: breakdown.total,
           }}
           customerDetails={{
             name: business?.contact_person,
