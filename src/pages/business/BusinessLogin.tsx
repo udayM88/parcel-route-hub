@@ -58,7 +58,9 @@ const BusinessLogin = () => {
       }
 
       toast.success("Welcome back!");
+      await refresh();
       navigate("/viasetuforbusinesses/dashboard");
+
     } catch (err) {
       console.error("Business login error:", err);
       toast.error("An unexpected error occurred. Please try again.");
