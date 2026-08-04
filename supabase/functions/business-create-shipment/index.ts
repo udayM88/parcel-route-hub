@@ -7,7 +7,7 @@
 // create one booking_boxes row per box, then fire the partner booking edge
 // function once per box so every box gets its own AWB / label.
 //
-// Pricing: courier rate + ₹15 per box, all-inclusive (GST already inside).
+// Pricing: (courier rate + ₹15 internal margin) per box, plus 18% GST on top.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
