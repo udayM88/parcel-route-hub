@@ -43,12 +43,15 @@ const BusinessAuthProvider = ({ children }: { children: ReactNode }) => {
         setLoading(false);
         return;
       }
-      if (event === "SIGNED_IN" && !hasLoadedOnce) refresh(true);
-      if (event === "USER_UPDATED") refresh(!hasLoadedOnce);
+      if (event === "SIGNED_IN" || event === "USER_UPDATED" || event === "TOKEN_REFRESHED") {
+        // Always re-fetch: the session may have changed after the initial load.
+        refresh(!hasLoadedOnce);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, [refresh]);
+
 
   const value = useMemo(() => ({ loading, business, refresh }), [loading, business, refresh]);
 
