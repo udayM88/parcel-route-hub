@@ -9,6 +9,8 @@ import { Building2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import PageSeo from "@/components/PageSeo";
+import { useBusinessAuth } from "@/contexts/useBusinessAuth";
+
 
 const emailSchema = z.string().email("Invalid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
