@@ -561,15 +561,25 @@ const BusinessBooking = () => {
 
         {step === 3 && (
           <>
-            {partyFields("Pickup (Sender)", sender, setSender, pickupPincode)}
-            {partyFields("Delivery (Receiver)", receiver, setReceiver, deliveryPincode)}
+            {partyFields("Pickup (Sender)", "sender", sender, setSender, pickupPincode)}
+            {partyFields("Delivery (Receiver)", "receiver", receiver, setReceiver, deliveryPincode)}
             <Button className="w-full" size="lg" disabled={!canContinueAddresses} onClick={() => setStep(4)}>
-              Review & pay
+              Continue to declaration
             </Button>
           </>
         )}
 
-        {step === 4 && selected && (
+        {step === 4 && (
+          <DisclaimerStep
+            onBack={() => setStep(3)}
+            onNext={() => {
+              setDeclarationAccepted(true);
+              setStep(5);
+            }}
+          />
+        )}
+
+        {step === 5 && selected && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Review</CardTitle>
@@ -582,7 +592,12 @@ const BusinessBooking = () => {
               <div className="flex justify-between"><span className="text-muted-foreground">GST (18%)</span><span>₹{breakdown.gst}</span></div>
               <Separator className="my-2" />
               <div className="flex justify-between font-bold text-base"><span>Total payable</span><span>₹{breakdown.total}</span></div>
-              <Button className="w-full mt-3" size="lg" disabled={submitting} onClick={() => setShowPayment(true)}>
+              <Button
+                className="w-full mt-3"
+                size="lg"
+                disabled={submitting || !declarationAccepted}
+                onClick={() => setShowPayment(true)}
+              >
                 {submitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Booking...</> : `Pay ₹${breakdown.total} & book`}
               </Button>
             </CardContent>
