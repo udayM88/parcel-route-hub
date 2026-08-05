@@ -424,6 +424,14 @@ const BookingStep2 = ({
               ) : null}
             </div>
           </div>
+          <PincodeSwapButton
+            onSwap={() => {
+              const p = pickupPincode;
+              onInputChange('pickupPincode', deliveryPincode);
+              onInputChange('deliveryPincode', p);
+            }}
+            disabled={!pickupPincode && !deliveryPincode}
+          />
         </CardContent>
       </Card>
 
