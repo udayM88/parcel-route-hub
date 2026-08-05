@@ -217,7 +217,7 @@ const BusinessManagement = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Business Accounts</CardTitle>
-          <CardDescription>Business pricing: courier rate + ₹15 per box, all inclusive.</CardDescription>
+          <CardDescription>All business rates are shown inclusive of GST.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
