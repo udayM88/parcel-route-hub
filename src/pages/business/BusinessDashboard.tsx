@@ -175,7 +175,12 @@ const BusinessDashboard = () => {
     { key: "cancelled", label: "Cancelled / RTO", value: stats.cancelled, icon: XCircle },
   ];
 
-  const selectedBreakdown = selected ? extractGst(Number(selected.courier_price || 0)) : null;
+  const selectedBreakdown = useMemo(() => {
+    if (!selected) return null;
+    const total = Math.round(Number(selected.courier_price || 0));
+    const gst = extractGst(total);
+    return { total, gst, net: Math.round(total - gst) };
+  }, [selected]);
 
   return (
     <div className="min-h-screen bg-muted/30">
