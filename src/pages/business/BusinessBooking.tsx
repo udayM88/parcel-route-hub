@@ -284,7 +284,13 @@ const BusinessBooking = () => {
     }
   };
 
-  const partyFields = (label: string, p: Party, set: (p: Party) => void, pincode: string) => (
+  const partyFields = (
+    label: string,
+    idPrefix: string,
+    p: Party,
+    set: (updater: (prev: Party) => Party) => void,
+    pincode: string,
+  ) => (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base">{label}</CardTitle>
@@ -293,27 +299,51 @@ const BusinessBooking = () => {
       <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>Name</Label>
-          <Input value={p.name} onChange={(e) => set({ ...p, name: e.target.value })} />
+          <Input value={p.name} onChange={(e) => set((prev) => ({ ...prev, name: e.target.value }))} />
         </div>
         <div className="space-y-1">
           <Label>Phone (10 digits)</Label>
-          <Input value={p.phone} maxLength={10} onChange={(e) => set({ ...p, phone: e.target.value.replace(/\D/g, "") })} />
+          <Input
+            value={p.phone}
+            maxLength={10}
+            onChange={(e) => set((prev) => ({ ...prev, phone: e.target.value.replace(/\D/g, "") }))}
+          />
         </div>
-        <div className="space-y-1 sm:col-span-2">
-          <Label>Address</Label>
-          <Input value={p.address} onChange={(e) => set({ ...p, address: e.target.value })} />
+        <div className="sm:col-span-2">
+          <AddressAutocomplete
+            id={`${idPrefix}-address`}
+            label="Complete address"
+            value={p.address}
+            placeholder="Start typing an address..."
+            onChange={(v) => set((prev) => ({ ...prev, address: v }))}
+            onAddressSelect={(c) =>
+              set((prev) => ({
+                ...prev,
+                address: c.address || prev.address,
+                city: c.city || prev.city,
+                state: c.state || prev.state,
+                pincode: c.pincode || prev.pincode,
+              }))
+            }
+          />
+          {p.pincode && p.pincode !== pincode && (
+            <p className="text-xs text-destructive mt-1">
+              This address is in pincode {p.pincode}, but rates were quoted for {pincode}. Update the pincode in step 1 if needed.
+            </p>
+          )}
         </div>
         <div className="space-y-1">
           <Label>City</Label>
-          <Input value={p.city} onChange={(e) => set({ ...p, city: e.target.value })} />
+          <Input value={p.city} onChange={(e) => set((prev) => ({ ...prev, city: e.target.value }))} />
         </div>
         <div className="space-y-1">
           <Label>State</Label>
-          <Input value={p.state} onChange={(e) => set({ ...p, state: e.target.value })} />
+          <Input value={p.state} onChange={(e) => set((prev) => ({ ...prev, state: e.target.value }))} />
         </div>
       </CardContent>
     </Card>
   );
+
 
   if (result) {
     return (
