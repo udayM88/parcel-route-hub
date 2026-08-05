@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CURRENT_ENV } from "@/config/environment";
 import { cn } from "@/lib/utils";
 import { computeBaseFare, computeChargeableKg } from "@/lib/pricing";
+import PincodeSwapButton from "@/components/booking/PincodeSwapButton";
 
 const goodsTypes = [
   { id: 'documents', label: 'Documents / Envelope', icon: FileText, weightHint: 'Up to 250g' },
@@ -424,6 +425,14 @@ const BookingStep2 = ({
               ) : null}
             </div>
           </div>
+          <PincodeSwapButton
+            onSwap={() => {
+              const p = pickupPincode;
+              onInputChange('pickupPincode', deliveryPincode);
+              onInputChange('deliveryPincode', p);
+            }}
+            disabled={!pickupPincode && !deliveryPincode}
+          />
         </CardContent>
       </Card>
 

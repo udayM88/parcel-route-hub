@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,11 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Boxes, Loader2, Plus, Trash2, Truck, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Boxes, Loader2, Plus, Trash2, Truck, CheckCircle2, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinessAuth } from "@/contexts/useBusinessAuth";
 import PageSeo from "@/components/PageSeo";
 import PaymentModal from "@/components/PaymentModal";
+import PincodeSwapButton from "@/components/booking/PincodeSwapButton";
+import AddressAutocomplete from "@/components/booking/AddressAutocomplete";
+import DisclaimerStep from "@/components/booking/DisclaimerStep";
 import { CURRENT_ENV } from "@/config/environment";
 import { computeBusinessBreakdown, computeChargeableKg } from "@/lib/pricing";
 
@@ -41,7 +44,9 @@ type Quote = {
 const emptyParty: Party = { name: "", phone: "", address: "", city: "", state: "", pincode: "" };
 const emptyBox: Box = { weightG: "", length: "", width: "", height: "" };
 
-const STEPS = ["Shipment", "Courier", "Addresses", "Pay"];
+const STEPS = ["Shipment", "Courier", "Addresses", "Declaration", "Pay"];
+
+type PincodeLocation = { city: string; state: string };
 
 const BusinessBooking = () => {
   const navigate = useNavigate();
@@ -51,11 +56,15 @@ const BusinessBooking = () => {
   const [step, setStep] = useState(1);
   const [pickupPincode, setPickupPincode] = useState("");
   const [deliveryPincode, setDeliveryPincode] = useState("");
+  const [pickupLoc, setPickupLoc] = useState<PincodeLocation | null>(null);
+  const [deliveryLoc, setDeliveryLoc] = useState<PincodeLocation | null>(null);
+  const [locLoading, setLocLoading] = useState(false);
   const [sender, setSender] = useState<Party>({ ...emptyParty });
   const [receiver, setReceiver] = useState<Party>({ ...emptyParty });
   const [goodsType, setGoodsType] = useState("Package");
   const [shipmentValue, setShipmentValue] = useState("");
   const [boxes, setBoxes] = useState<Box[]>([{ ...emptyBox }]);
+  const [declarationAccepted, setDeclarationAccepted] = useState(false);
 
   const [fetching, setFetching] = useState(false);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -81,6 +90,52 @@ const BusinessBooking = () => {
     setQuotes([]);
     setSelected(null);
   };
+
+  // Same Google-backed pincode lookup used in the consumer booking flow.
+  useEffect(() => {
+    const targets = [pickupPincode, deliveryPincode].filter((p) => /^\d{6}$/.test(p));
+    if (targets.length === 0) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setLocLoading(true);
+      try {
+        const { data } = await supabase.functions.invoke("google-geocode-pincode", {
+          body: { pincodes: Array.from(new Set(targets)) },
+        });
+        if (cancelled) return;
+        const results: any[] = data?.results || [];
+        const pick = results.find((r) => r.pincode === pickupPincode);
+        const drop = results.find((r) => r.pincode === deliveryPincode);
+        if (pick) {
+          setPickupLoc({ city: pick.city || "", state: pick.state || "" });
+          setSender((prev) => ({ ...prev, city: prev.city || pick.city || "", state: prev.state || pick.state || "" }));
+        }
+        if (drop) {
+          setDeliveryLoc({ city: drop.city || "", state: drop.state || "" });
+          setReceiver((prev) => ({ ...prev, city: prev.city || drop.city || "", state: prev.state || drop.state || "" }));
+        }
+      } catch (e) {
+        console.error("pincode lookup failed", e);
+      } finally {
+        if (!cancelled) setLocLoading(false);
+      }
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [pickupPincode, deliveryPincode]);
+
+  const swapPincodes = () => {
+    setPickupPincode(deliveryPincode);
+    setDeliveryPincode(pickupPincode);
+    setPickupLoc(deliveryLoc);
+    setDeliveryLoc(pickupLoc);
+    setSender((prev) => ({ ...prev, city: "", state: "" }));
+    setReceiver((prev) => ({ ...prev, city: "", state: "" }));
+    resetQuotes();
+  };
+
 
   const addressValid = (p: Party) =>
     p.name.trim() && /^\d{10}$/.test(p.phone.replace(/\D/g, "")) && p.address.trim() &&
@@ -229,7 +284,13 @@ const BusinessBooking = () => {
     }
   };
 
-  const partyFields = (label: string, p: Party, set: (p: Party) => void, pincode: string) => (
+  const partyFields = (
+    label: string,
+    idPrefix: string,
+    p: Party,
+    set: (updater: (prev: Party) => Party) => void,
+    pincode: string,
+  ) => (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base">{label}</CardTitle>
@@ -238,27 +299,51 @@ const BusinessBooking = () => {
       <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>Name</Label>
-          <Input value={p.name} onChange={(e) => set({ ...p, name: e.target.value })} />
+          <Input value={p.name} onChange={(e) => set((prev) => ({ ...prev, name: e.target.value }))} />
         </div>
         <div className="space-y-1">
           <Label>Phone (10 digits)</Label>
-          <Input value={p.phone} maxLength={10} onChange={(e) => set({ ...p, phone: e.target.value.replace(/\D/g, "") })} />
+          <Input
+            value={p.phone}
+            maxLength={10}
+            onChange={(e) => set((prev) => ({ ...prev, phone: e.target.value.replace(/\D/g, "") }))}
+          />
         </div>
-        <div className="space-y-1 sm:col-span-2">
-          <Label>Address</Label>
-          <Input value={p.address} onChange={(e) => set({ ...p, address: e.target.value })} />
+        <div className="sm:col-span-2">
+          <AddressAutocomplete
+            id={`${idPrefix}-address`}
+            label="Complete address"
+            value={p.address}
+            placeholder="Start typing an address..."
+            onChange={(v) => set((prev) => ({ ...prev, address: v }))}
+            onAddressSelect={(c) =>
+              set((prev) => ({
+                ...prev,
+                address: c.address || prev.address,
+                city: c.city || prev.city,
+                state: c.state || prev.state,
+                pincode: c.pincode || prev.pincode,
+              }))
+            }
+          />
+          {p.pincode && p.pincode !== pincode && (
+            <p className="text-xs text-destructive mt-1">
+              This address is in pincode {p.pincode}, but rates were quoted for {pincode}. Update the pincode in step 1 if needed.
+            </p>
+          )}
         </div>
         <div className="space-y-1">
           <Label>City</Label>
-          <Input value={p.city} onChange={(e) => set({ ...p, city: e.target.value })} />
+          <Input value={p.city} onChange={(e) => set((prev) => ({ ...prev, city: e.target.value }))} />
         </div>
         <div className="space-y-1">
           <Label>State</Label>
-          <Input value={p.state} onChange={(e) => set({ ...p, state: e.target.value })} />
+          <Input value={p.state} onChange={(e) => set((prev) => ({ ...prev, state: e.target.value }))} />
         </div>
       </CardContent>
     </Card>
   );
+
 
   if (result) {
     return (
@@ -345,25 +430,46 @@ const BusinessBooking = () => {
                 <CardTitle className="text-base">Route</CardTitle>
                 <CardDescription>We check live partner serviceability and rates for these pincodes.</CardDescription>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Pickup pincode</Label>
-                  <Input
-                    value={pickupPincode}
-                    maxLength={6}
-                    inputMode="numeric"
-                    onChange={(e) => { setPickupPincode(e.target.value.replace(/\D/g, "")); resetQuotes(); }}
-                  />
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Pickup pincode</Label>
+                    <Input
+                      value={pickupPincode}
+                      maxLength={6}
+                      inputMode="numeric"
+                      onChange={(e) => { setPickupPincode(e.target.value.replace(/\D/g, "")); setPickupLoc(null); resetQuotes(); }}
+                    />
+                    {locLoading && !pickupLoc ? (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Looking up city...
+                      </p>
+                    ) : pickupLoc?.city ? (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> {pickupLoc.city}{pickupLoc.state ? `, ${pickupLoc.state}` : ""}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Delivery pincode</Label>
+                    <Input
+                      value={deliveryPincode}
+                      maxLength={6}
+                      inputMode="numeric"
+                      onChange={(e) => { setDeliveryPincode(e.target.value.replace(/\D/g, "")); setDeliveryLoc(null); resetQuotes(); }}
+                    />
+                    {locLoading && !deliveryLoc ? (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Looking up city...
+                      </p>
+                    ) : deliveryLoc?.city ? (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> {deliveryLoc.city}{deliveryLoc.state ? `, ${deliveryLoc.state}` : ""}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label>Delivery pincode</Label>
-                  <Input
-                    value={deliveryPincode}
-                    maxLength={6}
-                    inputMode="numeric"
-                    onChange={(e) => { setDeliveryPincode(e.target.value.replace(/\D/g, "")); resetQuotes(); }}
-                  />
-                </div>
+                <PincodeSwapButton onSwap={swapPincodes} disabled={!pickupPincode && !deliveryPincode} />
               </CardContent>
             </Card>
 
@@ -476,15 +582,25 @@ const BusinessBooking = () => {
 
         {step === 3 && (
           <>
-            {partyFields("Pickup (Sender)", sender, setSender, pickupPincode)}
-            {partyFields("Delivery (Receiver)", receiver, setReceiver, deliveryPincode)}
+            {partyFields("Pickup (Sender)", "sender", sender, setSender, pickupPincode)}
+            {partyFields("Delivery (Receiver)", "receiver", receiver, setReceiver, deliveryPincode)}
             <Button className="w-full" size="lg" disabled={!canContinueAddresses} onClick={() => setStep(4)}>
-              Review & pay
+              Continue to declaration
             </Button>
           </>
         )}
 
-        {step === 4 && selected && (
+        {step === 4 && (
+          <DisclaimerStep
+            onBack={() => setStep(3)}
+            onNext={() => {
+              setDeclarationAccepted(true);
+              setStep(5);
+            }}
+          />
+        )}
+
+        {step === 5 && selected && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Review</CardTitle>
@@ -497,7 +613,12 @@ const BusinessBooking = () => {
               <div className="flex justify-between"><span className="text-muted-foreground">GST (18%)</span><span>₹{breakdown.gst}</span></div>
               <Separator className="my-2" />
               <div className="flex justify-between font-bold text-base"><span>Total payable</span><span>₹{breakdown.total}</span></div>
-              <Button className="w-full mt-3" size="lg" disabled={submitting} onClick={() => setShowPayment(true)}>
+              <Button
+                className="w-full mt-3"
+                size="lg"
+                disabled={submitting || !declarationAccepted}
+                onClick={() => setShowPayment(true)}
+              >
                 {submitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Booking...</> : `Pay ₹${breakdown.total} & book`}
               </Button>
             </CardContent>
