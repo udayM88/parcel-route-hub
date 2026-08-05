@@ -444,20 +444,80 @@ const BusinessDashboard = () => {
                 ) : (
                   <div className="space-y-2">
                     {boxes.map((bx) => (
-                      <div key={bx.id} className="flex items-center justify-between gap-3 border rounded-lg p-3">
-                        <div className="min-w-0">
-                          <p className="font-medium">Box {bx.box_index}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {bx.tracking_id ? `AWB ${bx.tracking_id}` : "AWB pending"} ·{" "}
-                            {bx.chargeable_weight_kg || bx.weight_kg || "—"} kg
-                          </p>
+                      <div key={bx.id} className="border rounded-lg p-3 space-y-3">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="min-w-0">
+                            <p className="font-medium">Box {bx.box_index}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {bx.tracking_id ? `AWB ${bx.tracking_id}` : "AWB pending"} ·{" "}
+                              {bx.chargeable_weight_kg || bx.weight_kg || "—"} kg
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary">{bx.status || "created"}</Badge>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!bx.tracking_id || trackingLoading === bx.id}
+                              onClick={() => handleTrack(bx)}
+                            >
+                              {trackingLoading === bx.id ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <Navigation className="h-4 w-4 mr-1" />
+                              )}
+                              {trackingBox === bx.id ? "Hide" : "Track"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={(!bx.tracking_id && !bx.label_url) || labelLoading === bx.id}
+                              onClick={() => handleLabel(bx)}
+                            >
+                              {labelLoading === bx.id ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <FileDown className="h-4 w-4 mr-1" />
+                              )}
+                              Label
+                            </Button>
+                          </div>
                         </div>
-                        {bx.label_url ? (
-                          <Button size="sm" variant="outline" asChild>
-                            <a href={bx.label_url} target="_blank" rel="noreferrer">Label</a>
-                          </Button>
-                        ) : (
-                          <Badge variant="secondary">{bx.status || "created"}</Badge>
+
+                        {trackingBox === bx.id && (
+                          <div className="border-t pt-3">
+                            {trackingLoading === bx.id ? (
+                              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                                <Loader2 className="h-3 w-3 animate-spin" /> Fetching tracking updates...
+                              </p>
+                            ) : (trackingEvents[bx.id] || []).length === 0 ? (
+                              <p className="text-xs text-muted-foreground">No tracking updates yet.</p>
+                            ) : (
+                              <ol className="space-y-3">
+                                {(trackingEvents[bx.id] || []).map((ev, i) => (
+                                  <li key={i} className="flex gap-3">
+                                    <div className="flex flex-col items-center">
+                                      <span className={`h-2 w-2 rounded-full mt-1.5 ${i === 0 ? "bg-primary" : "bg-muted-foreground/40"}`} />
+                                      {i < (trackingEvents[bx.id] || []).length - 1 && (
+                                        <span className="flex-1 w-px bg-border mt-1" />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0 pb-1">
+                                      <p className="text-xs font-medium">{ev.status || ev.event}</p>
+                                      {ev.event && ev.event !== ev.status && (
+                                        <p className="text-xs text-muted-foreground">{ev.event}</p>
+                                      )}
+                                      <p className="text-[11px] text-muted-foreground">
+                                        {[ev.location, ev.statusTimestamp ? new Date(ev.statusTimestamp).toLocaleString() : ev.createdAt ? new Date(ev.createdAt).toLocaleString() : ""]
+                                          .filter(Boolean)
+                                          .join(" · ")}
+                                      </p>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ol>
+                            )}
+                          </div>
                         )}
                       </div>
                     ))}
@@ -483,9 +543,32 @@ const BusinessDashboard = () => {
                 </div>
               )}
 
-              <p className="text-xs text-muted-foreground text-center">
-                Full shipment details, AWBs and labels are shown above.
-              </p>
+              <div className="border rounded-lg p-3 space-y-2">
+                <p className="font-semibold flex items-center gap-2">
+                  <LifeBuoy className="h-4 w-4" /> Need help with this shipment?
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Quote reference {selected.tracking_id || selected.id.slice(0, 8)} when you contact us.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" asChild>
+                    <a
+                      href={`mailto:support@viasetu.com?subject=${encodeURIComponent(
+                        `Support request - shipment ${selected.tracking_id || selected.id}`,
+                      )}&body=${encodeURIComponent(
+                        `Company: ${business?.company_name || ""}\nShipment ID: ${selected.id}\nAWB: ${selected.tracking_id || "pending"}\nCourier: ${selected.courier_name || ""}\n\nIssue:\n`,
+                      )}`}
+                    >
+                      <Mail className="h-4 w-4 mr-1" /> Email support
+                    </a>
+                  </Button>
+                  <Button size="sm" variant="outline" asChild>
+                    <a href="tel:+919013999909">
+                      <Phone className="h-4 w-4 mr-1" /> +91 90139 99909
+                    </a>
+                  </Button>
+                </div>
+              </div>
 
             </div>
           )}
