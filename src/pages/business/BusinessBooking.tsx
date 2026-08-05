@@ -91,6 +91,52 @@ const BusinessBooking = () => {
     setSelected(null);
   };
 
+  // Same Google-backed pincode lookup used in the consumer booking flow.
+  useEffect(() => {
+    const targets = [pickupPincode, deliveryPincode].filter((p) => /^\d{6}$/.test(p));
+    if (targets.length === 0) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setLocLoading(true);
+      try {
+        const { data } = await supabase.functions.invoke("google-geocode-pincode", {
+          body: { pincodes: Array.from(new Set(targets)) },
+        });
+        if (cancelled) return;
+        const results: any[] = data?.results || [];
+        const pick = results.find((r) => r.pincode === pickupPincode);
+        const drop = results.find((r) => r.pincode === deliveryPincode);
+        if (pick) {
+          setPickupLoc({ city: pick.city || "", state: pick.state || "" });
+          setSender((prev) => ({ ...prev, city: prev.city || pick.city || "", state: prev.state || pick.state || "" }));
+        }
+        if (drop) {
+          setDeliveryLoc({ city: drop.city || "", state: drop.state || "" });
+          setReceiver((prev) => ({ ...prev, city: prev.city || drop.city || "", state: prev.state || drop.state || "" }));
+        }
+      } catch (e) {
+        console.error("pincode lookup failed", e);
+      } finally {
+        if (!cancelled) setLocLoading(false);
+      }
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [pickupPincode, deliveryPincode]);
+
+  const swapPincodes = () => {
+    setPickupPincode(deliveryPincode);
+    setDeliveryPincode(pickupPincode);
+    setPickupLoc(deliveryLoc);
+    setDeliveryLoc(pickupLoc);
+    setSender((prev) => ({ ...prev, city: "", state: "" }));
+    setReceiver((prev) => ({ ...prev, city: "", state: "" }));
+    resetQuotes();
+  };
+
+
   const addressValid = (p: Party) =>
     p.name.trim() && /^\d{10}$/.test(p.phone.replace(/\D/g, "")) && p.address.trim() &&
     p.city.trim() && p.state.trim();
