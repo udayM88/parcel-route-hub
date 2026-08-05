@@ -11,23 +11,25 @@ const BusinessAuthProvider = ({ children }: { children: ReactNode }) => {
   const refresh = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
         setBusiness(null);
-        return;
+        return null;
       }
       const { data, error } = await supabase
         .from("business_accounts")
         .select("id,company_name,contact_person,email,phone,status,is_active")
-        .eq("user_id", session.user.id)
+        .eq("user_id", user.id)
         .eq("is_active", true)
         .maybeSingle();
 
-      if (error || !data) {
+      if (error) {
         setBusiness(null);
-        return;
+        throw error;
       }
-      setBusiness(data as BusinessAccount);
+      const account = data as BusinessAccount | null;
+      setBusiness(account);
+      return account;
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -35,7 +37,7 @@ const BusinessAuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let hasLoadedOnce = false;
-    refresh(true).finally(() => { hasLoadedOnce = true; });
+    refresh(true).catch(() => undefined).finally(() => { hasLoadedOnce = true; });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") {
@@ -45,7 +47,7 @@ const BusinessAuthProvider = ({ children }: { children: ReactNode }) => {
       }
       if (event === "SIGNED_IN" || event === "USER_UPDATED" || event === "TOKEN_REFRESHED") {
         // Always re-fetch: the session may have changed after the initial load.
-        refresh(!hasLoadedOnce);
+        refresh(!hasLoadedOnce).catch(() => undefined);
       }
     });
 

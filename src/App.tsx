@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { AdminAuthProvider } from "@/contexts/AdminAuthContext";
-import { BusinessAuthProvider } from "@/contexts/BusinessAuthContext";
 import ProtectedBusinessRoute from "@/components/business/ProtectedBusinessRoute";
 import { CrispChat } from "@/components/CrispChat";
 
@@ -53,6 +52,7 @@ const BusinessLogin = lazy(() => import("./pages/business/BusinessLogin"));
 const BusinessResetPassword = lazy(() => import("./pages/business/BusinessResetPassword"));
 const BusinessDashboard = lazy(() => import("./pages/business/BusinessDashboard"));
 const BusinessBooking = lazy(() => import("./pages/business/BusinessBooking"));
+const BusinessPortalLayout = lazy(() => import("./components/business/BusinessPortalLayout"));
 const OrderMonitoring = lazy(() => import("./pages/admin/OrderMonitoring"));
 const RevenueManagement = lazy(() => import("./pages/admin/RevenueManagement"));
 const Reconciliation = lazy(() => import("./pages/admin/Reconciliation"));
@@ -120,10 +120,12 @@ const App = () => (
           <Route path="/privacy-policy" element={<Navigate to="/Privacypolicy" replace />} />
           
           {/* Admin Routes */}
-          <Route path="/viasetuforbusinesses" element={<BusinessAuthProvider><BusinessLogin /></BusinessAuthProvider>} />
-          <Route path="/viasetuforbusinesses/reset-password" element={<BusinessResetPassword />} />
-          <Route path="/viasetuforbusinesses/dashboard" element={<BusinessAuthProvider><ProtectedBusinessRoute><BusinessDashboard /></ProtectedBusinessRoute></BusinessAuthProvider>} />
-          <Route path="/viasetuforbusinesses/book" element={<BusinessAuthProvider><ProtectedBusinessRoute><BusinessBooking /></ProtectedBusinessRoute></BusinessAuthProvider>} />
+          <Route path="/viasetuforbusinesses" element={<BusinessPortalLayout />}>
+            <Route index element={<BusinessLogin />} />
+            <Route path="reset-password" element={<BusinessResetPassword />} />
+            <Route path="dashboard" element={<ProtectedBusinessRoute><BusinessDashboard /></ProtectedBusinessRoute>} />
+            <Route path="book" element={<ProtectedBusinessRoute><BusinessBooking /></ProtectedBusinessRoute>} />
+          </Route>
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/reset-password" element={<ResetPassword />} />
           <Route path="/cms/login" element={<CmsLogin />} />
