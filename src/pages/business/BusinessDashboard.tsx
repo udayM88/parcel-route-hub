@@ -395,9 +395,10 @@ const BusinessDashboard = () => {
                 </div>
               )}
 
-              <Button className="w-full" variant="outline" onClick={() => navigate(`/order/${selected.id}`)}>
-                Open full order page
-              </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                Full shipment details, AWBs and labels are shown above.
+              </p>
+
             </div>
           )}
         </DialogContent>
