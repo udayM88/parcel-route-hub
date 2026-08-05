@@ -44,13 +44,16 @@ const BusinessLogin = () => {
       }
       if (!data.user) { toast.error("Authentication failed"); return; }
 
-      const { data: account, error: accountError } = await supabase
-        .from("business_accounts")
-        .select("id,status,is_active")
-        .eq("user_id", data.user.id)
-        .maybeSingle();
-
-      if (accountError || !account) {
+      let account;
+      try {
+        account = await refresh(false);
+      } catch (accountError) {
+        console.error("Business account lookup error:", accountError);
+        await supabase.auth.signOut();
+        toast.error("We could not verify your business access. Please try again.");
+        return;
+      }
+      if (!account) {
         await supabase.auth.signOut();
         toast.error("This account is not registered as a ViaSetu business.");
         return;
@@ -62,7 +65,6 @@ const BusinessLogin = () => {
       }
 
       toast.success("Welcome back!");
-      await refresh();
       navigate("/viasetuforbusinesses/dashboard");
 
     } catch (err) {

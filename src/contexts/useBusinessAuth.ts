@@ -13,7 +13,7 @@ export type BusinessAccount = {
 export type BusinessAuthState = {
   loading: boolean;
   business: BusinessAccount | null;
-  refresh: () => Promise<void>;
+  refresh: (showLoading?: boolean) => Promise<BusinessAccount | null>;
 };
 
 export const BusinessAuthContext = createContext<BusinessAuthState | undefined>(undefined);
