@@ -430,25 +430,46 @@ const BusinessBooking = () => {
                 <CardTitle className="text-base">Route</CardTitle>
                 <CardDescription>We check live partner serviceability and rates for these pincodes.</CardDescription>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Pickup pincode</Label>
-                  <Input
-                    value={pickupPincode}
-                    maxLength={6}
-                    inputMode="numeric"
-                    onChange={(e) => { setPickupPincode(e.target.value.replace(/\D/g, "")); resetQuotes(); }}
-                  />
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Pickup pincode</Label>
+                    <Input
+                      value={pickupPincode}
+                      maxLength={6}
+                      inputMode="numeric"
+                      onChange={(e) => { setPickupPincode(e.target.value.replace(/\D/g, "")); setPickupLoc(null); resetQuotes(); }}
+                    />
+                    {locLoading && !pickupLoc ? (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Looking up city...
+                      </p>
+                    ) : pickupLoc?.city ? (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> {pickupLoc.city}{pickupLoc.state ? `, ${pickupLoc.state}` : ""}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Delivery pincode</Label>
+                    <Input
+                      value={deliveryPincode}
+                      maxLength={6}
+                      inputMode="numeric"
+                      onChange={(e) => { setDeliveryPincode(e.target.value.replace(/\D/g, "")); setDeliveryLoc(null); resetQuotes(); }}
+                    />
+                    {locLoading && !deliveryLoc ? (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Looking up city...
+                      </p>
+                    ) : deliveryLoc?.city ? (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> {deliveryLoc.city}{deliveryLoc.state ? `, ${deliveryLoc.state}` : ""}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label>Delivery pincode</Label>
-                  <Input
-                    value={deliveryPincode}
-                    maxLength={6}
-                    inputMode="numeric"
-                    onChange={(e) => { setDeliveryPincode(e.target.value.replace(/\D/g, "")); resetQuotes(); }}
-                  />
-                </div>
+                <PincodeSwapButton onSwap={swapPincodes} disabled={!pickupPincode && !deliveryPincode} />
               </CardContent>
             </Card>
 
