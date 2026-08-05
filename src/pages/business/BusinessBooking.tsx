@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,11 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Boxes, Loader2, Plus, Trash2, Truck, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Boxes, Loader2, Plus, Trash2, Truck, CheckCircle2, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinessAuth } from "@/contexts/useBusinessAuth";
 import PageSeo from "@/components/PageSeo";
 import PaymentModal from "@/components/PaymentModal";
+import PincodeSwapButton from "@/components/booking/PincodeSwapButton";
+import AddressAutocomplete from "@/components/booking/AddressAutocomplete";
+import DisclaimerStep from "@/components/booking/DisclaimerStep";
 import { CURRENT_ENV } from "@/config/environment";
 import { computeBusinessBreakdown, computeChargeableKg } from "@/lib/pricing";
 
