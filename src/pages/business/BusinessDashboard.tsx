@@ -10,12 +10,17 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Building2, Package, IndianRupee, Boxes, LogOut, Plus, Truck, CheckCircle2,
-  XCircle, Search, MapPin, Loader2,
+  XCircle, Search, MapPin, Loader2, FileDown, Navigation, LifeBuoy, Mail, Phone,
 } from "lucide-react";
 import { useBusinessAuth } from "@/contexts/useBusinessAuth";
+import { useToast } from "@/hooks/use-toast";
 import PageSeo from "@/components/PageSeo";
 import { bucketOfStatus, STATUS_BUCKETS, type StatusBucket } from "@/lib/booking-status";
 import { extractGst } from "@/lib/pricing";
+import {
+  resolvePartnerKey, trackingFunctionFor, labelFunctionFor, trackingBody, labelBody,
+} from "@/lib/partner-functions";
+
 
 type BusinessBooking = {
   id: string;
@@ -37,6 +42,8 @@ type BusinessBooking = {
   status: string | null;
   tracking_id: string | null;
   goods_type: string | null;
+  partner_id: string | null;
+  prayog_order_id: string | null;
 };
 
 type BookingBox = {
@@ -49,6 +56,14 @@ type BookingBox = {
   status: string | null;
 };
 
+type TrackingEvent = {
+  status: string;
+  event?: string;
+  location?: string;
+  statusTimestamp?: number;
+  createdAt?: string;
+};
+
 type FilterKey = "all" | StatusBucket;
 
 const bucketLabel = (b: StatusBucket) =>
@@ -57,6 +72,7 @@ const bucketLabel = (b: StatusBucket) =>
 const BusinessDashboard = () => {
   const navigate = useNavigate();
   const { business } = useBusinessAuth();
+  const { toast } = useToast();
   const [bookings, setBookings] = useState<BusinessBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -64,6 +80,10 @@ const BusinessDashboard = () => {
   const [selected, setSelected] = useState<BusinessBooking | null>(null);
   const [boxes, setBoxes] = useState<BookingBox[]>([]);
   const [boxesLoading, setBoxesLoading] = useState(false);
+  const [trackingBox, setTrackingBox] = useState<string | null>(null);
+  const [trackingEvents, setTrackingEvents] = useState<Record<string, TrackingEvent[]>>({});
+  const [trackingLoading, setTrackingLoading] = useState<string | null>(null);
+  const [labelLoading, setLabelLoading] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -72,7 +92,7 @@ const BusinessDashboard = () => {
       const { data } = await supabase
         .from("bookings")
         .select(
-          "id,created_at,sender_name,sender_phone,sender_address,sender_city,sender_pincode,receiver_name,receiver_phone,receiver_address,receiver_city,receiver_pincode,courier_name,courier_price,delivery_time,box_count,status,tracking_id,goods_type",
+          "id,created_at,sender_name,sender_phone,sender_address,sender_city,sender_pincode,receiver_name,receiver_phone,receiver_address,receiver_city,receiver_pincode,courier_name,courier_price,delivery_time,box_count,status,tracking_id,goods_type,partner_id,prayog_order_id",
         )
         .eq("business_account_id", business.id)
         .order("created_at", { ascending: false })
@@ -160,6 +180,74 @@ const BusinessDashboard = () => {
       .order("box_index", { ascending: true });
     setBoxes((data ?? []) as BookingBox[]);
     setBoxesLoading(false);
+  };
+
+  const partnerKey = (b: BusinessBooking | null) =>
+    b ? resolvePartnerKey(b.partner_id, b.courier_name) : null;
+
+  const handleTrack = async (bx: BookingBox) => {
+    const awb = bx.tracking_id;
+    const key = partnerKey(selected);
+    if (!awb || !key) {
+      toast({ title: "Tracking unavailable", description: "AWB is not generated yet for this box.", variant: "destructive" });
+      return;
+    }
+    if (trackingBox === bx.id) {
+      setTrackingBox(null);
+      return;
+    }
+    setTrackingBox(bx.id);
+    if (trackingEvents[bx.id]) return;
+    setTrackingLoading(bx.id);
+    try {
+      const { data, error } = await supabase.functions.invoke(trackingFunctionFor(key), {
+        body: trackingBody(key, awb, selected?.prayog_order_id),
+      });
+      if (error) throw error;
+      const statuses: TrackingEvent[] = Array.isArray(data?.statuses) ? data.statuses : [];
+      setTrackingEvents((prev) => ({ ...prev, [bx.id]: statuses }));
+      if (statuses.length === 0) {
+        toast({ title: "No tracking updates yet", description: "The courier has not scanned this shipment yet." });
+      }
+    } catch (e) {
+      toast({
+        title: "Tracking failed",
+        description: e instanceof Error ? e.message : "Could not fetch tracking updates.",
+        variant: "destructive",
+      });
+    } finally {
+      setTrackingLoading(null);
+    }
+  };
+
+  const handleLabel = async (bx: BookingBox) => {
+    if (bx.label_url) {
+      window.open(bx.label_url, "_blank", "noopener");
+      return;
+    }
+    const awb = bx.tracking_id;
+    const key = partnerKey(selected);
+    if (!awb || !key) {
+      toast({ title: "Label unavailable", description: "AWB is not generated yet for this box.", variant: "destructive" });
+      return;
+    }
+    setLabelLoading(bx.id);
+    try {
+      const { data, error } = await supabase.functions.invoke(labelFunctionFor(key), { body: labelBody(awb) });
+      if (error) throw error;
+      const url = data?.label_url || data?.labelUrl || data?.url;
+      if (!url) throw new Error(data?.error || "Label could not be retrieved.");
+      setBoxes((prev) => prev.map((x) => (x.id === bx.id ? { ...x, label_url: url } : x)));
+      window.open(url, "_blank", "noopener");
+    } catch (e) {
+      toast({
+        title: "Label unavailable",
+        description: e instanceof Error ? e.message : "Could not fetch the shipping label.",
+        variant: "destructive",
+      });
+    } finally {
+      setLabelLoading(null);
+    }
   };
 
   const handleLogout = async () => {
@@ -356,20 +444,80 @@ const BusinessDashboard = () => {
                 ) : (
                   <div className="space-y-2">
                     {boxes.map((bx) => (
-                      <div key={bx.id} className="flex items-center justify-between gap-3 border rounded-lg p-3">
-                        <div className="min-w-0">
-                          <p className="font-medium">Box {bx.box_index}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {bx.tracking_id ? `AWB ${bx.tracking_id}` : "AWB pending"} ·{" "}
-                            {bx.chargeable_weight_kg || bx.weight_kg || "—"} kg
-                          </p>
+                      <div key={bx.id} className="border rounded-lg p-3 space-y-3">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="min-w-0">
+                            <p className="font-medium">Box {bx.box_index}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {bx.tracking_id ? `AWB ${bx.tracking_id}` : "AWB pending"} ·{" "}
+                              {bx.chargeable_weight_kg || bx.weight_kg || "—"} kg
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary">{bx.status || "created"}</Badge>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!bx.tracking_id || trackingLoading === bx.id}
+                              onClick={() => handleTrack(bx)}
+                            >
+                              {trackingLoading === bx.id ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <Navigation className="h-4 w-4 mr-1" />
+                              )}
+                              {trackingBox === bx.id ? "Hide" : "Track"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={(!bx.tracking_id && !bx.label_url) || labelLoading === bx.id}
+                              onClick={() => handleLabel(bx)}
+                            >
+                              {labelLoading === bx.id ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <FileDown className="h-4 w-4 mr-1" />
+                              )}
+                              Label
+                            </Button>
+                          </div>
                         </div>
-                        {bx.label_url ? (
-                          <Button size="sm" variant="outline" asChild>
-                            <a href={bx.label_url} target="_blank" rel="noreferrer">Label</a>
-                          </Button>
-                        ) : (
-                          <Badge variant="secondary">{bx.status || "created"}</Badge>
+
+                        {trackingBox === bx.id && (
+                          <div className="border-t pt-3">
+                            {trackingLoading === bx.id ? (
+                              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                                <Loader2 className="h-3 w-3 animate-spin" /> Fetching tracking updates...
+                              </p>
+                            ) : (trackingEvents[bx.id] || []).length === 0 ? (
+                              <p className="text-xs text-muted-foreground">No tracking updates yet.</p>
+                            ) : (
+                              <ol className="space-y-3">
+                                {(trackingEvents[bx.id] || []).map((ev, i) => (
+                                  <li key={i} className="flex gap-3">
+                                    <div className="flex flex-col items-center">
+                                      <span className={`h-2 w-2 rounded-full mt-1.5 ${i === 0 ? "bg-primary" : "bg-muted-foreground/40"}`} />
+                                      {i < (trackingEvents[bx.id] || []).length - 1 && (
+                                        <span className="flex-1 w-px bg-border mt-1" />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0 pb-1">
+                                      <p className="text-xs font-medium">{ev.status || ev.event}</p>
+                                      {ev.event && ev.event !== ev.status && (
+                                        <p className="text-xs text-muted-foreground">{ev.event}</p>
+                                      )}
+                                      <p className="text-[11px] text-muted-foreground">
+                                        {[ev.location, ev.statusTimestamp ? new Date(ev.statusTimestamp).toLocaleString() : ev.createdAt ? new Date(ev.createdAt).toLocaleString() : ""]
+                                          .filter(Boolean)
+                                          .join(" · ")}
+                                      </p>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ol>
+                            )}
+                          </div>
                         )}
                       </div>
                     ))}
@@ -395,9 +543,32 @@ const BusinessDashboard = () => {
                 </div>
               )}
 
-              <p className="text-xs text-muted-foreground text-center">
-                Full shipment details, AWBs and labels are shown above.
-              </p>
+              <div className="border rounded-lg p-3 space-y-2">
+                <p className="font-semibold flex items-center gap-2">
+                  <LifeBuoy className="h-4 w-4" /> Need help with this shipment?
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Quote reference {selected.tracking_id || selected.id.slice(0, 8)} when you contact us.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" asChild>
+                    <a
+                      href={`mailto:support@viasetu.com?subject=${encodeURIComponent(
+                        `Support request - shipment ${selected.tracking_id || selected.id}`,
+                      )}&body=${encodeURIComponent(
+                        `Company: ${business?.company_name || ""}\nShipment ID: ${selected.id}\nAWB: ${selected.tracking_id || "pending"}\nCourier: ${selected.courier_name || ""}\n\nIssue:\n`,
+                      )}`}
+                    >
+                      <Mail className="h-4 w-4 mr-1" /> Email support
+                    </a>
+                  </Button>
+                  <Button size="sm" variant="outline" asChild>
+                    <a href="tel:+919013999909">
+                      <Phone className="h-4 w-4 mr-1" /> +91 90139 99909
+                    </a>
+                  </Button>
+                </div>
+              </div>
 
             </div>
           )}
