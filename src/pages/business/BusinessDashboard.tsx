@@ -42,6 +42,8 @@ type BusinessBooking = {
   status: string | null;
   tracking_id: string | null;
   goods_type: string | null;
+  partner_id: string | null;
+  prayog_order_id: string | null;
 };
 
 type BookingBox = {
@@ -54,6 +56,14 @@ type BookingBox = {
   status: string | null;
 };
 
+type TrackingEvent = {
+  status: string;
+  event?: string;
+  location?: string;
+  statusTimestamp?: number;
+  createdAt?: string;
+};
+
 type FilterKey = "all" | StatusBucket;
 
 const bucketLabel = (b: StatusBucket) =>
@@ -62,6 +72,7 @@ const bucketLabel = (b: StatusBucket) =>
 const BusinessDashboard = () => {
   const navigate = useNavigate();
   const { business } = useBusinessAuth();
+  const { toast } = useToast();
   const [bookings, setBookings] = useState<BusinessBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -69,6 +80,10 @@ const BusinessDashboard = () => {
   const [selected, setSelected] = useState<BusinessBooking | null>(null);
   const [boxes, setBoxes] = useState<BookingBox[]>([]);
   const [boxesLoading, setBoxesLoading] = useState(false);
+  const [trackingBox, setTrackingBox] = useState<string | null>(null);
+  const [trackingEvents, setTrackingEvents] = useState<Record<string, TrackingEvent[]>>({});
+  const [trackingLoading, setTrackingLoading] = useState<string | null>(null);
+  const [labelLoading, setLabelLoading] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -77,7 +92,7 @@ const BusinessDashboard = () => {
       const { data } = await supabase
         .from("bookings")
         .select(
-          "id,created_at,sender_name,sender_phone,sender_address,sender_city,sender_pincode,receiver_name,receiver_phone,receiver_address,receiver_city,receiver_pincode,courier_name,courier_price,delivery_time,box_count,status,tracking_id,goods_type",
+          "id,created_at,sender_name,sender_phone,sender_address,sender_city,sender_pincode,receiver_name,receiver_phone,receiver_address,receiver_city,receiver_pincode,courier_name,courier_price,delivery_time,box_count,status,tracking_id,goods_type,partner_id,prayog_order_id",
         )
         .eq("business_account_id", business.id)
         .order("created_at", { ascending: false })
@@ -165,6 +180,74 @@ const BusinessDashboard = () => {
       .order("box_index", { ascending: true });
     setBoxes((data ?? []) as BookingBox[]);
     setBoxesLoading(false);
+  };
+
+  const partnerKey = (b: BusinessBooking | null) =>
+    b ? resolvePartnerKey(b.partner_id, b.courier_name) : null;
+
+  const handleTrack = async (bx: BookingBox) => {
+    const awb = bx.tracking_id;
+    const key = partnerKey(selected);
+    if (!awb || !key) {
+      toast({ title: "Tracking unavailable", description: "AWB is not generated yet for this box.", variant: "destructive" });
+      return;
+    }
+    if (trackingBox === bx.id) {
+      setTrackingBox(null);
+      return;
+    }
+    setTrackingBox(bx.id);
+    if (trackingEvents[bx.id]) return;
+    setTrackingLoading(bx.id);
+    try {
+      const { data, error } = await supabase.functions.invoke(trackingFunctionFor(key), {
+        body: trackingBody(key, awb, selected?.prayog_order_id),
+      });
+      if (error) throw error;
+      const statuses: TrackingEvent[] = Array.isArray(data?.statuses) ? data.statuses : [];
+      setTrackingEvents((prev) => ({ ...prev, [bx.id]: statuses }));
+      if (statuses.length === 0) {
+        toast({ title: "No tracking updates yet", description: "The courier has not scanned this shipment yet." });
+      }
+    } catch (e) {
+      toast({
+        title: "Tracking failed",
+        description: e instanceof Error ? e.message : "Could not fetch tracking updates.",
+        variant: "destructive",
+      });
+    } finally {
+      setTrackingLoading(null);
+    }
+  };
+
+  const handleLabel = async (bx: BookingBox) => {
+    if (bx.label_url) {
+      window.open(bx.label_url, "_blank", "noopener");
+      return;
+    }
+    const awb = bx.tracking_id;
+    const key = partnerKey(selected);
+    if (!awb || !key) {
+      toast({ title: "Label unavailable", description: "AWB is not generated yet for this box.", variant: "destructive" });
+      return;
+    }
+    setLabelLoading(bx.id);
+    try {
+      const { data, error } = await supabase.functions.invoke(labelFunctionFor(key), { body: labelBody(awb) });
+      if (error) throw error;
+      const url = data?.label_url || data?.labelUrl || data?.url;
+      if (!url) throw new Error(data?.error || "Label could not be retrieved.");
+      setBoxes((prev) => prev.map((x) => (x.id === bx.id ? { ...x, label_url: url } : x)));
+      window.open(url, "_blank", "noopener");
+    } catch (e) {
+      toast({
+        title: "Label unavailable",
+        description: e instanceof Error ? e.message : "Could not fetch the shipping label.",
+        variant: "destructive",
+      });
+    } finally {
+      setLabelLoading(null);
+    }
   };
 
   const handleLogout = async () => {
