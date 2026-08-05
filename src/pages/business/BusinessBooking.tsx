@@ -44,7 +44,9 @@ type Quote = {
 const emptyParty: Party = { name: "", phone: "", address: "", city: "", state: "", pincode: "" };
 const emptyBox: Box = { weightG: "", length: "", width: "", height: "" };
 
-const STEPS = ["Shipment", "Courier", "Addresses", "Pay"];
+const STEPS = ["Shipment", "Courier", "Addresses", "Declaration", "Pay"];
+
+type PincodeLocation = { city: string; state: string };
 
 const BusinessBooking = () => {
   const navigate = useNavigate();
@@ -54,11 +56,15 @@ const BusinessBooking = () => {
   const [step, setStep] = useState(1);
   const [pickupPincode, setPickupPincode] = useState("");
   const [deliveryPincode, setDeliveryPincode] = useState("");
+  const [pickupLoc, setPickupLoc] = useState<PincodeLocation | null>(null);
+  const [deliveryLoc, setDeliveryLoc] = useState<PincodeLocation | null>(null);
+  const [locLoading, setLocLoading] = useState(false);
   const [sender, setSender] = useState<Party>({ ...emptyParty });
   const [receiver, setReceiver] = useState<Party>({ ...emptyParty });
   const [goodsType, setGoodsType] = useState("Package");
   const [shipmentValue, setShipmentValue] = useState("");
   const [boxes, setBoxes] = useState<Box[]>([{ ...emptyBox }]);
+  const [declarationAccepted, setDeclarationAccepted] = useState(false);
 
   const [fetching, setFetching] = useState(false);
   const [quotes, setQuotes] = useState<Quote[]>([]);
