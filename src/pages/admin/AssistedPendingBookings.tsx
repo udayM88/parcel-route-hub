@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,6 +13,15 @@ import {
   RefreshCw, Copy, ExternalLink, Loader2, KeyRound, CheckCircle2, Clock,
   Truck, Download, PackageCheck,
 } from "lucide-react";
+import { resolvePartnerKey, trackingFunctionFor, trackingBody } from "@/lib/partner-functions";
+
+interface TrackEvent {
+  status: string;
+  location?: string;
+  statusTimestamp: number;
+  category?: string;
+  subcategory?: string;
+}
 
 interface PendingRow {
   id: string;
@@ -33,11 +41,14 @@ interface PendingRow {
   tracking_id: string | null;
   label_url: string | null;
   booking_source: string | null;
+  partner_id: string | null;
+  prayog_order_id: string | null;
 }
+
 
 const AssistedPendingBookings = () => {
   const { toast } = useToast();
-  const navigate = useNavigate();
+  
   const [pending, setPending] = useState<PendingRow[]>([]);
   const [confirmed, setConfirmed] = useState<PendingRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,9 +57,12 @@ const AssistedPendingBookings = () => {
   const [manualDialog, setManualDialog] = useState<{ booking: PendingRow } | null>(null);
   const [manualPaymentId, setManualPaymentId] = useState("");
   const [submittingManual, setSubmittingManual] = useState(false);
+  const [trackingBusyId, setTrackingBusyId] = useState<string | null>(null);
+  const [tracking, setTracking] = useState<Record<string, TrackEvent[]>>({});
 
   const SELECT_COLS =
-    "id, created_at, sender_name, receiver_name, courier_name, courier_price, payment_link_id, payment_link_url, payment_link_status, status, created_by_admin_email, sender_city, receiver_city, prayog_awb, tracking_id, label_url, booking_source";
+    "id, created_at, sender_name, receiver_name, courier_name, courier_price, payment_link_id, payment_link_url, payment_link_status, status, created_by_admin_email, sender_city, receiver_city, prayog_awb, tracking_id, label_url, booking_source, partner_id, prayog_order_id";
+
 
   const fetchRows = async () => {
     const [{ data: pendingData, error: pendErr }, { data: confirmedData, error: confErr }] =
@@ -153,14 +167,44 @@ const AssistedPendingBookings = () => {
     }
   };
 
-  const handleTrack = (row: PendingRow) => {
+  const handleTrack = async (row: PendingRow) => {
     const awb = row.prayog_awb || row.tracking_id;
     if (!awb) {
       toast({ title: "No AWB yet", variant: "destructive" });
       return;
     }
-    navigate("/tracking", { state: { awbNumber: awb } });
+    if (tracking[row.id]) {
+      setTracking((prev) => {
+        const next = { ...prev };
+        delete next[row.id];
+        return next;
+      });
+      return;
+    }
+    const key = resolvePartnerKey(row.partner_id, `${row.booking_source || ""} ${row.courier_name || ""}`);
+    if (!key) {
+      toast({ title: "Tracking unavailable", description: "Unknown courier partner.", variant: "destructive" });
+      return;
+    }
+    setTrackingBusyId(row.id);
+    try {
+      const { data, error } = await supabase.functions.invoke(trackingFunctionFor(key), {
+        body: trackingBody(key, awb, row.prayog_order_id),
+        headers: { "x-environment": CURRENT_ENV },
+      });
+      if (error) throw error;
+      const statuses = (data?.statuses || []) as TrackEvent[];
+      if (!statuses.length) {
+        toast({ title: "No tracking events yet", description: "The courier hasn't scanned this shipment." });
+      }
+      setTracking((prev) => ({ ...prev, [row.id]: statuses }));
+    } catch (e: any) {
+      toast({ title: "Tracking failed", description: e?.message || "Please try again", variant: "destructive" });
+    } finally {
+      setTrackingBusyId(null);
+    }
   };
+
 
   const handleDownloadLabel = async (row: PendingRow) => {
     if (row.label_url) {
@@ -352,9 +396,18 @@ const AssistedPendingBookings = () => {
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => handleTrack(row)} disabled={!awb}>
-                      <Truck className="h-4 w-4 mr-2" /> Track shipment
+                    <Button
+                      size="sm"
+                      onClick={() => handleTrack(row)}
+                      disabled={!awb || trackingBusyId === row.id}
+                    >
+                      {trackingBusyId === row.id ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Tracking…</>
+                      ) : (
+                        <><Truck className="h-4 w-4 mr-2" /> {tracking[row.id] ? "Hide tracking" : "Track shipment"}</>
+                      )}
                     </Button>
+
                     <Button
                       size="sm"
                       variant="outline"
@@ -380,6 +433,40 @@ const AssistedPendingBookings = () => {
                       </Button>
                     )}
                   </div>
+
+                  {tracking[row.id] && (
+                    <div className="mt-4 border-t pt-3">
+                      {tracking[row.id].length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No scans yet for this AWB.
+                        </p>
+                      ) : (
+                        <ol className="space-y-3">
+                          {tracking[row.id].map((ev, i) => (
+                            <li key={i} className="flex gap-3">
+                              <div className="flex flex-col items-center">
+                                <span
+                                  className={`h-2.5 w-2.5 rounded-full mt-1 ${i === 0 ? "bg-primary" : "bg-muted-foreground/40"}`}
+                                />
+                                {i < tracking[row.id].length - 1 && (
+                                  <span className="w-px flex-1 bg-border mt-1" />
+                                )}
+                              </div>
+                              <div className="text-xs">
+                                <p className="font-medium">{ev.status}</p>
+                                <p className="text-muted-foreground">
+                                  {[ev.location, ev.statusTimestamp ? new Date(ev.statusTimestamp).toLocaleString() : ""]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </p>
+                              </div>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  )}
+
                 </CardContent>
               </Card>
             );
