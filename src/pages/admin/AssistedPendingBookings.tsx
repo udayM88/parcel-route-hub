@@ -434,6 +434,40 @@ const AssistedPendingBookings = () => {
                       </Button>
                     )}
                   </div>
+
+                  {tracking[row.id] && (
+                    <div className="mt-4 border-t pt-3">
+                      {tracking[row.id].length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No scans yet for this AWB.
+                        </p>
+                      ) : (
+                        <ol className="space-y-3">
+                          {tracking[row.id].map((ev, i) => (
+                            <li key={i} className="flex gap-3">
+                              <div className="flex flex-col items-center">
+                                <span
+                                  className={`h-2.5 w-2.5 rounded-full mt-1 ${i === 0 ? "bg-primary" : "bg-muted-foreground/40"}`}
+                                />
+                                {i < tracking[row.id].length - 1 && (
+                                  <span className="w-px flex-1 bg-border mt-1" />
+                                )}
+                              </div>
+                              <div className="text-xs">
+                                <p className="font-medium">{ev.status}</p>
+                                <p className="text-muted-foreground">
+                                  {[ev.location, ev.statusTimestamp ? new Date(ev.statusTimestamp).toLocaleString() : ""]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </p>
+                              </div>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  )}
+
                 </CardContent>
               </Card>
             );
