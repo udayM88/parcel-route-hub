@@ -11,8 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Building2, Package, IndianRupee, Boxes, LogOut, Plus, Truck, CheckCircle2,
   XCircle, Search, MapPin, Loader2, FileDown, Navigation, LifeBuoy, Mail, Phone,
-  Ban, Copy, FileText, AlertTriangle,
+  Ban, Copy, FileText, AlertTriangle, MessageCircle,
 } from "lucide-react";
+import { openCrispChat } from "@/components/CrispChat";
 import { useBusinessAuth } from "@/contexts/useBusinessAuth";
 import { useToast } from "@/hooks/use-toast";
 import PageSeo from "@/components/PageSeo";
@@ -787,6 +788,9 @@ const BusinessDashboard = () => {
                     <a href="tel:+919013999909">
                       <Phone className="h-4 w-4 mr-1" /> +91 90139 99909
                     </a>
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={openCrispChat}>
+                    <MessageCircle className="h-4 w-4 mr-1" /> Live chat
                   </Button>
                 </div>
               </div>
