@@ -315,10 +315,104 @@ const BusinessDashboard = () => {
     }
   };
 
+  const handleRepeat = () => {
+    if (!selected) return;
+    navigate("/viasetuforbusinesses/book", {
+      state: {
+        repeat: {
+          pickupPincode: selected.sender_pincode || "",
+          deliveryPincode: selected.receiver_pincode || "",
+          sender: {
+            name: selected.sender_name || "",
+            phone: selected.sender_phone || "",
+            address: selected.sender_address || "",
+            city: selected.sender_city || "",
+            state: selected.sender_state || "",
+            pincode: selected.sender_pincode || "",
+          },
+          receiver: {
+            name: selected.receiver_name || "",
+            phone: selected.receiver_phone || "",
+            address: selected.receiver_address || "",
+            city: selected.receiver_city || "",
+            state: selected.receiver_state || "",
+            pincode: selected.receiver_pincode || "",
+          },
+          goodsType: selected.goods_type || "Package",
+          shipmentValue: selected.shipment_value ? String(selected.shipment_value) : "",
+          boxes: (boxes.length ? boxes : []).map((bx) => ({
+            weightG: bx.weight_kg ? String(Math.round(Number(bx.weight_kg) * 1000)) : "",
+            length: bx.length_cm ? String(bx.length_cm) : "",
+            width: bx.width_cm ? String(bx.width_cm) : "",
+            height: bx.height_cm ? String(bx.height_cm) : "",
+          })),
+        },
+      },
+    });
+  };
+
+  const handleInvoice = () => {
+    if (!selected) return;
+    const total = Math.round(Number(selected.courier_price || 0));
+    const gst = Math.round(extractGst(total));
+    const net = total - gst;
+    const rows = (boxes.length ? boxes : []).map(
+      (bx) => `<tr><td>Box ${bx.box_index}</td><td>${bx.tracking_id || "—"}</td><td>${
+        bx.chargeable_weight_kg || bx.weight_kg || "—"
+      } kg</td></tr>`,
+    ).join("");
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8" />
+<title>Invoice ${selected.tracking_id || selected.id}</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; background:#f5f5f5; padding:24px; color:#111; }
+  .wrap { max-width:800px; margin:0 auto; background:#fff; padding:36px; border-radius:8px; }
+  h1 { font-size:28px; margin:0 0 4px; }
+  .muted { color:#666; font-size:13px; }
+  .row { display:flex; justify-content:space-between; gap:24px; margin-bottom:24px; }
+  table { width:100%; border-collapse:collapse; margin:16px 0; font-size:14px; }
+  th,td { text-align:left; padding:8px; border-bottom:1px solid #eee; }
+  .totals td { border:none; }
+  .totals { width:280px; margin-left:auto; }
+  .total-row td { font-weight:700; border-top:2px solid #111; }
+  @media print { body { background:#fff; padding:0; } .wrap { border-radius:0; } }
+</style></head><body><div class="wrap">
+  <div class="row">
+    <div><h1>ViaSetu</h1><p class="muted">India's Consumer Courier Aggregator<br/>support@viasetu.com</p></div>
+    <div style="text-align:right"><h1>INVOICE</h1>
+      <p class="muted">Shipment: ${selected.tracking_id || selected.id}<br/>
+      Date: ${new Date(selected.created_at).toLocaleDateString()}<br/>
+      Courier: ${selected.courier_name || "—"}</p></div>
+  </div>
+  <div class="row">
+    <div><strong>Billed to</strong><p class="muted">${business?.company_name || ""}<br/>${business?.email || ""}</p></div>
+    <div><strong>Pickup</strong><p class="muted">${selected.sender_name || ""}<br/>${selected.sender_address || ""}, ${selected.sender_city || ""} ${selected.sender_pincode || ""}</p></div>
+    <div><strong>Delivery</strong><p class="muted">${selected.receiver_name || ""}<br/>${selected.receiver_address || ""}, ${selected.receiver_city || ""} ${selected.receiver_pincode || ""}</p></div>
+  </div>
+  <table><thead><tr><th>Item</th><th>AWB</th><th>Chargeable weight</th></tr></thead>
+  <tbody>${rows || `<tr><td>Shipment</td><td>${selected.tracking_id || "—"}</td><td>—</td></tr>`}</tbody></table>
+  <table class="totals">
+    <tr><td>Shipping charges</td><td style="text-align:right">₹${net}</td></tr>
+    <tr><td>GST (18%)</td><td style="text-align:right">₹${gst}</td></tr>
+    <tr class="total-row"><td>Total</td><td style="text-align:right">₹${total}</td></tr>
+  </table>
+  <p class="muted">ViaSetu acts as a facilitator between the customer and the courier partner. This invoice is generated electronically and does not require a signature.</p>
+</div></body></html>`;
+
+    const w = window.open("", "_blank");
+    if (!w) {
+      toast({ title: "Popup blocked", description: "Allow popups to download the invoice.", variant: "destructive" });
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/viasetuforbusinesses");
   };
+
 
   const tiles: { key: FilterKey; label: string; value: number | string; icon: typeof Package }[] = [
     { key: "all", label: "Total Shipments", value: stats.shipments, icon: Package },
