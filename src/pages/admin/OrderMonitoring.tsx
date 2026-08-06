@@ -8,10 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Package, Clock, AlertCircle, CheckCircle, MapPin, User, Eye, Search, IndianRupee, Truck, Phone, Calendar, FileText, ExternalLink, Navigation, XCircle, Download, Loader2, RefreshCw, Camera } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Package, Clock, AlertCircle, CheckCircle, MapPin, User, Eye, Search, IndianRupee, Truck, Phone, Calendar as CalendarIcon, FileText, ExternalLink, Navigation, XCircle, Download, Loader2, RefreshCw, Camera } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay, isWithinInterval, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { CURRENT_ENV } from "@/config/environment";
 import { useCancelOrder, isCancellable } from "@/hooks/useCancelOrder";
 import CancelOrderDialog from "@/components/booking/CancelOrderDialog";
@@ -19,6 +21,7 @@ import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 import { useAdminAuth } from "@/contexts/useAdminAuth";
 import ParcelPhotoGallery from "@/components/admin/ParcelPhotoGallery";
 import { bucketOfStatus } from "@/lib/booking-status";
+import { cn } from "@/lib/utils";
 
 // Map booking_source -> partner edge function names
 const PARTNER_FN: Record<string, { tracking: string; label?: string }> = {
@@ -87,6 +90,8 @@ const OrderMonitoring = () => {
   const isSuperAdmin = adminUser?.role === "super_admin";
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -160,15 +165,25 @@ const OrderMonitoring = () => {
       booking.receiver_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.id.toLowerCase().includes(searchTerm.toLowerCase());
 
+    const bookingDate = new Date(booking.created_at);
+    const matchesDate =
+      (!dateFrom && !dateTo) ||
+      (dateFrom && !dateTo && bookingDate >= startOfDay(dateFrom)) ||
+      (!dateFrom && dateTo && bookingDate <= endOfDay(dateTo)) ||
+      (dateFrom && dateTo && isWithinInterval(bookingDate, {
+        start: startOfDay(dateFrom),
+        end: endOfDay(dateTo),
+      }));
+
     const bucket = bucketOfStatus(booking.status);
 
-    if (selectedFilter === "all") return matchesSearch;
-    if (selectedFilter === "pending") return matchesSearch && bucket === "created";
-    if (selectedFilter === "in_transit") return matchesSearch && inTransitBuckets.has(bucket);
-    if (selectedFilter === "delivered") return matchesSearch && bucket === "delivered";
-    if (selectedFilter === "cancelled") return matchesSearch && (bucket === "cancelled" || bucket === "rto");
-    if (selectedFilter === "cop_pending") return matchesSearch && booking.payment_status === "cop_pending";
-    return matchesSearch;
+    if (selectedFilter === "all") return matchesSearch && matchesDate;
+    if (selectedFilter === "pending") return matchesSearch && matchesDate && bucket === "created";
+    if (selectedFilter === "in_transit") return matchesSearch && matchesDate && inTransitBuckets.has(bucket);
+    if (selectedFilter === "delivered") return matchesSearch && matchesDate && bucket === "delivered";
+    if (selectedFilter === "cancelled") return matchesSearch && matchesDate && (bucket === "cancelled" || bucket === "rto");
+    if (selectedFilter === "cop_pending") return matchesSearch && matchesDate && booking.payment_status === "cop_pending";
+    return matchesSearch && matchesDate;
   });
 
   const countByBucket = (predicate: (b: string) => boolean) =>
@@ -326,32 +341,120 @@ const OrderMonitoring = () => {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by ID, name, or tracking..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by ID, name, or tracking..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={selectedFilter} onValueChange={setSelectedFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Orders</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="in_transit">In Transit</SelectItem>
+              <SelectItem value="delivered">Delivered</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+              <SelectItem value="cop_pending">💵 COP Pending</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-[140px] justify-start text-left font-normal",
+                    !dateFrom && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateFrom ? format(dateFrom, "dd MMM yyyy") : "From date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dateFrom}
+                  onSelect={setDateFrom}
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-[140px] justify-start text-left font-normal",
+                    !dateTo && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateTo ? format(dateTo, "dd MMM yyyy") : "To date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dateTo}
+                  onSelect={setDateTo}
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+            {(dateFrom || dateTo) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+
+          <Button variant="outline" onClick={fetchBookings}>
+            Refresh
+          </Button>
         </div>
-        <Select value={selectedFilter} onValueChange={setSelectedFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Orders</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="in_transit">In Transit</SelectItem>
-            <SelectItem value="delivered">Delivered</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-            <SelectItem value="cop_pending">💵 COP Pending</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button variant="outline" onClick={fetchBookings}>
-          Refresh
-        </Button>
+
+        {/* Date presets */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Quick filters:</span>
+          {[
+            { label: "Today", from: startOfDay(new Date()), to: endOfDay(new Date()) },
+            { label: "Last 7 days", from: startOfDay(subDays(new Date(), 6)), to: endOfDay(new Date()) },
+            { label: "Last 30 days", from: startOfDay(subDays(new Date(), 29)), to: endOfDay(new Date()) },
+            { label: "This month", from: startOfMonth(new Date()), to: endOfMonth(new Date()) },
+          ].map((preset) => (
+            <Button
+              key={preset.label}
+              variant="outline"
+              size="sm"
+              onClick={() => { setDateFrom(preset.from); setDateTo(preset.to); }}
+            >
+              {preset.label}
+            </Button>
+          ))}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}
+          >
+            All time
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="all" className="space-y-4">
