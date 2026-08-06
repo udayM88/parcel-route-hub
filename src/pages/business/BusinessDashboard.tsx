@@ -592,6 +592,46 @@ const BusinessDashboard = () => {
                 </div>
               </div>
 
+              <div className="border rounded-lg p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <p className="text-muted-foreground">Goods type</p>
+                  <p className="font-medium">{selected.goods_type || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Declared value</p>
+                  <p className="font-medium">{selected.shipment_value ? `₹${selected.shipment_value}` : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Courier service</p>
+                  <p className="font-medium">{selected.courier_name || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Promised delivery</p>
+                  <p className="font-medium">{selected.delivery_time || "—"}</p>
+                </div>
+              </div>
+
+              {(() => {
+                const ps = (selected.payment_status || "").toLowerCase();
+                if (!ps) return null;
+                const map: Record<string, { label: string; cls: string }> = {
+                  paid: { label: "Payment received", cls: "border-l-green-500 bg-green-50" },
+                  refunded: { label: "Refund completed", cls: "border-l-green-500 bg-green-50" },
+                  refund_initiated: { label: "Refund initiated", cls: "border-l-yellow-500 bg-yellow-50" },
+                  refund_failed: { label: "Refund failed — our team is on it", cls: "border-l-red-500 bg-red-50" },
+                };
+                const info = map[ps] || { label: `Payment: ${selected.payment_status}`, cls: "border-l-muted bg-muted/40" };
+                return (
+                  <div className={`border border-l-4 rounded-lg p-3 ${info.cls}`}>
+                    <p className="font-medium text-xs">{info.label}</p>
+                    {selected.refund_id && (
+                      <p className="text-[11px] text-muted-foreground">Refund reference: {selected.refund_id}</p>
+                    )}
+                  </div>
+                );
+              })()}
+
+
               <div>
                 <p className="font-semibold mb-2">Boxes ({selected.box_count || 1})</p>
                 {boxesLoading ? (
