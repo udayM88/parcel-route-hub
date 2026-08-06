@@ -11,15 +11,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Building2, Package, IndianRupee, Boxes, LogOut, Plus, Truck, CheckCircle2,
   XCircle, Search, MapPin, Loader2, FileDown, Navigation, LifeBuoy, Mail, Phone,
+  Ban, Copy, FileText, AlertTriangle,
 } from "lucide-react";
 import { useBusinessAuth } from "@/contexts/useBusinessAuth";
 import { useToast } from "@/hooks/use-toast";
 import PageSeo from "@/components/PageSeo";
 import { bucketOfStatus, STATUS_BUCKETS, type StatusBucket } from "@/lib/booking-status";
 import { extractGst } from "@/lib/pricing";
+import { useCancelOrder, isCancellable } from "@/hooks/useCancelOrder";
+import CancelOrderDialog from "@/components/booking/CancelOrderDialog";
 import {
   resolvePartnerKey, trackingFunctionFor, labelFunctionFor, trackingBody, labelBody,
 } from "@/lib/partner-functions";
+
 
 
 type BusinessBooking = {
@@ -35,6 +39,8 @@ type BusinessBooking = {
   receiver_address: string | null;
   receiver_city: string | null;
   receiver_pincode: string | null;
+  sender_state: string | null;
+  receiver_state: string | null;
   courier_name: string | null;
   courier_price: number | null;
   delivery_time: string | null;
@@ -44,6 +50,12 @@ type BusinessBooking = {
   goods_type: string | null;
   partner_id: string | null;
   prayog_order_id: string | null;
+  booking_source: string | null;
+  prayog_awb: string | null;
+  payment_status: string | null;
+  payment_id: string | null;
+  refund_id: string | null;
+  shipment_value: number | null;
 };
 
 type BookingBox = {
@@ -51,9 +63,13 @@ type BookingBox = {
   box_index: number;
   weight_kg: number | null;
   chargeable_weight_kg: number | null;
+  length_cm: number | null;
+  width_cm: number | null;
+  height_cm: number | null;
   tracking_id: string | null;
   label_url: string | null;
   status: string | null;
+
 };
 
 type TrackingEvent = {
@@ -84,6 +100,11 @@ const BusinessDashboard = () => {
   const [trackingEvents, setTrackingEvents] = useState<Record<string, TrackingEvent[]>>({});
   const [trackingLoading, setTrackingLoading] = useState<string | null>(null);
   const [labelLoading, setLabelLoading] = useState<string | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelBlocked, setCancelBlocked] = useState<string | null>(null);
+
+  const BOOKING_COLUMNS =
+    "id,created_at,sender_name,sender_phone,sender_address,sender_city,sender_state,sender_pincode,receiver_name,receiver_phone,receiver_address,receiver_city,receiver_state,receiver_pincode,courier_name,courier_price,delivery_time,box_count,status,tracking_id,goods_type,partner_id,prayog_order_id,booking_source,prayog_awb,payment_status,payment_id,refund_id,shipment_value";
 
   useEffect(() => {
     const load = async () => {
@@ -91,9 +112,8 @@ const BusinessDashboard = () => {
       setLoading(true);
       const { data } = await supabase
         .from("bookings")
-        .select(
-          "id,created_at,sender_name,sender_phone,sender_address,sender_city,sender_pincode,receiver_name,receiver_phone,receiver_address,receiver_city,receiver_pincode,courier_name,courier_price,delivery_time,box_count,status,tracking_id,goods_type,partner_id,prayog_order_id",
-        )
+        .select(BOOKING_COLUMNS)
+
         .eq("business_account_id", business.id)
         .order("created_at", { ascending: false })
         .limit(500);
@@ -172,15 +192,60 @@ const BusinessDashboard = () => {
   const openDetail = async (b: BusinessBooking) => {
     setSelected(b);
     setBoxes([]);
+    setCancelBlocked(null);
     setBoxesLoading(true);
     const { data } = await supabase
       .from("booking_boxes")
-      .select("id,box_index,weight_kg,chargeable_weight_kg,tracking_id,label_url,status")
+      .select("id,box_index,weight_kg,chargeable_weight_kg,length_cm,width_cm,height_cm,tracking_id,label_url,status")
       .eq("booking_id", b.id)
       .order("box_index", { ascending: true });
     setBoxes((data ?? []) as BookingBox[]);
     setBoxesLoading(false);
   };
+
+  const refreshSelected = async (bookingId: string) => {
+    const { data } = await supabase
+      .from("bookings")
+      .select(BOOKING_COLUMNS)
+      .eq("id", bookingId)
+      .maybeSingle();
+    if (!data) return;
+    const row = data as unknown as BusinessBooking;
+    setSelected((prev) => (prev && prev.id === row.id ? row : prev));
+    setBookings((prev) => prev.map((b) => (b.id === row.id ? { ...b, ...row } : b)));
+  };
+
+  const { cancelOrder, cancelling } = useCancelOrder();
+
+  const handleCancel = async (reason: Parameters<typeof cancelOrder>[0]["reason"]) => {
+    if (!selected) return;
+    setCancelBlocked(null);
+    const awbs = boxes.map((bx) => bx.tracking_id).filter(Boolean) as string[];
+    const fallbackAwb = selected.tracking_id || selected.prayog_awb || null;
+    const targets = awbs.length ? awbs : [fallbackAwb];
+
+    let allOk = true;
+    for (const awb of targets) {
+      const ok = await cancelOrder({
+        orderId: selected.prayog_order_id || selected.id,
+        bookingSource: selected.booking_source || "",
+        bookingId: selected.id,
+        reason,
+        awb,
+      });
+      if (!ok) allOk = false;
+    }
+
+    if (allOk) {
+      setCancelOpen(false);
+      await refreshSelected(selected.id);
+    } else {
+      setCancelBlocked(
+        "We couldn't cancel every box with the courier. Please email support@viasetu.com with your shipment reference and our team will take it forward.",
+      );
+    }
+  };
+
 
   const partnerKey = (b: BusinessBooking | null) =>
     b ? resolvePartnerKey(b.partner_id, b.courier_name) : null;
@@ -250,10 +315,104 @@ const BusinessDashboard = () => {
     }
   };
 
+  const handleRepeat = () => {
+    if (!selected) return;
+    navigate("/viasetuforbusinesses/book", {
+      state: {
+        repeat: {
+          pickupPincode: selected.sender_pincode || "",
+          deliveryPincode: selected.receiver_pincode || "",
+          sender: {
+            name: selected.sender_name || "",
+            phone: selected.sender_phone || "",
+            address: selected.sender_address || "",
+            city: selected.sender_city || "",
+            state: selected.sender_state || "",
+            pincode: selected.sender_pincode || "",
+          },
+          receiver: {
+            name: selected.receiver_name || "",
+            phone: selected.receiver_phone || "",
+            address: selected.receiver_address || "",
+            city: selected.receiver_city || "",
+            state: selected.receiver_state || "",
+            pincode: selected.receiver_pincode || "",
+          },
+          goodsType: selected.goods_type || "Package",
+          shipmentValue: selected.shipment_value ? String(selected.shipment_value) : "",
+          boxes: (boxes.length ? boxes : []).map((bx) => ({
+            weightG: bx.weight_kg ? String(Math.round(Number(bx.weight_kg) * 1000)) : "",
+            length: bx.length_cm ? String(bx.length_cm) : "",
+            width: bx.width_cm ? String(bx.width_cm) : "",
+            height: bx.height_cm ? String(bx.height_cm) : "",
+          })),
+        },
+      },
+    });
+  };
+
+  const handleInvoice = () => {
+    if (!selected) return;
+    const total = Math.round(Number(selected.courier_price || 0));
+    const gst = Math.round(extractGst(total));
+    const net = total - gst;
+    const rows = (boxes.length ? boxes : []).map(
+      (bx) => `<tr><td>Box ${bx.box_index}</td><td>${bx.tracking_id || "—"}</td><td>${
+        bx.chargeable_weight_kg || bx.weight_kg || "—"
+      } kg</td></tr>`,
+    ).join("");
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8" />
+<title>Invoice ${selected.tracking_id || selected.id}</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; background:#f5f5f5; padding:24px; color:#111; }
+  .wrap { max-width:800px; margin:0 auto; background:#fff; padding:36px; border-radius:8px; }
+  h1 { font-size:28px; margin:0 0 4px; }
+  .muted { color:#666; font-size:13px; }
+  .row { display:flex; justify-content:space-between; gap:24px; margin-bottom:24px; }
+  table { width:100%; border-collapse:collapse; margin:16px 0; font-size:14px; }
+  th,td { text-align:left; padding:8px; border-bottom:1px solid #eee; }
+  .totals td { border:none; }
+  .totals { width:280px; margin-left:auto; }
+  .total-row td { font-weight:700; border-top:2px solid #111; }
+  @media print { body { background:#fff; padding:0; } .wrap { border-radius:0; } }
+</style></head><body><div class="wrap">
+  <div class="row">
+    <div><h1>ViaSetu</h1><p class="muted">India's Consumer Courier Aggregator<br/>support@viasetu.com</p></div>
+    <div style="text-align:right"><h1>INVOICE</h1>
+      <p class="muted">Shipment: ${selected.tracking_id || selected.id}<br/>
+      Date: ${new Date(selected.created_at).toLocaleDateString()}<br/>
+      Courier: ${selected.courier_name || "—"}</p></div>
+  </div>
+  <div class="row">
+    <div><strong>Billed to</strong><p class="muted">${business?.company_name || ""}<br/>${business?.email || ""}</p></div>
+    <div><strong>Pickup</strong><p class="muted">${selected.sender_name || ""}<br/>${selected.sender_address || ""}, ${selected.sender_city || ""} ${selected.sender_pincode || ""}</p></div>
+    <div><strong>Delivery</strong><p class="muted">${selected.receiver_name || ""}<br/>${selected.receiver_address || ""}, ${selected.receiver_city || ""} ${selected.receiver_pincode || ""}</p></div>
+  </div>
+  <table><thead><tr><th>Item</th><th>AWB</th><th>Chargeable weight</th></tr></thead>
+  <tbody>${rows || `<tr><td>Shipment</td><td>${selected.tracking_id || "—"}</td><td>—</td></tr>`}</tbody></table>
+  <table class="totals">
+    <tr><td>Shipping charges</td><td style="text-align:right">₹${net}</td></tr>
+    <tr><td>GST (18%)</td><td style="text-align:right">₹${gst}</td></tr>
+    <tr class="total-row"><td>Total</td><td style="text-align:right">₹${total}</td></tr>
+  </table>
+  <p class="muted">ViaSetu acts as a facilitator between the customer and the courier partner. This invoice is generated electronically and does not require a signature.</p>
+</div></body></html>`;
+
+    const w = window.open("", "_blank");
+    if (!w) {
+      toast({ title: "Popup blocked", description: "Allow popups to download the invoice.", variant: "destructive" });
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/viasetuforbusinesses");
   };
+
 
   const tiles: { key: FilterKey; label: string; value: number | string; icon: typeof Package }[] = [
     { key: "all", label: "Total Shipments", value: stats.shipments, icon: Package },
@@ -433,6 +592,46 @@ const BusinessDashboard = () => {
                 </div>
               </div>
 
+              <div className="border rounded-lg p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <p className="text-muted-foreground">Goods type</p>
+                  <p className="font-medium">{selected.goods_type || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Declared value</p>
+                  <p className="font-medium">{selected.shipment_value ? `₹${selected.shipment_value}` : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Courier service</p>
+                  <p className="font-medium">{selected.courier_name || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Promised delivery</p>
+                  <p className="font-medium">{selected.delivery_time || "—"}</p>
+                </div>
+              </div>
+
+              {(() => {
+                const ps = (selected.payment_status || "").toLowerCase();
+                if (!ps) return null;
+                const map: Record<string, { label: string; cls: string }> = {
+                  paid: { label: "Payment received", cls: "border-l-green-500 bg-green-50" },
+                  refunded: { label: "Refund completed", cls: "border-l-green-500 bg-green-50" },
+                  refund_initiated: { label: "Refund initiated", cls: "border-l-yellow-500 bg-yellow-50" },
+                  refund_failed: { label: "Refund failed — our team is on it", cls: "border-l-red-500 bg-red-50" },
+                };
+                const info = map[ps] || { label: `Payment: ${selected.payment_status}`, cls: "border-l-muted bg-muted/40" };
+                return (
+                  <div className={`border border-l-4 rounded-lg p-3 ${info.cls}`}>
+                    <p className="font-medium text-xs">{info.label}</p>
+                    {selected.refund_id && (
+                      <p className="text-[11px] text-muted-foreground">Refund reference: {selected.refund_id}</p>
+                    )}
+                  </div>
+                );
+              })()}
+
+
               <div>
                 <p className="font-semibold mb-2">Boxes ({selected.box_count || 1})</p>
                 {boxesLoading ? (
@@ -543,6 +742,28 @@ const BusinessDashboard = () => {
                 </div>
               )}
 
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={handleInvoice}>
+                  <FileText className="h-4 w-4 mr-1" /> Download invoice
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleRepeat}>
+                  <Copy className="h-4 w-4 mr-1" /> Repeat shipment
+                </Button>
+                {isCancellable(selected.status) && (
+                  <Button size="sm" variant="destructive" onClick={() => setCancelOpen(true)} disabled={cancelling}>
+                    <Ban className="h-4 w-4 mr-1" /> Cancel shipment
+                  </Button>
+                )}
+              </div>
+
+              {cancelBlocked && (
+                <div className="border border-amber-300 bg-amber-50 rounded-lg p-3 flex gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-900">{cancelBlocked}</p>
+                </div>
+              )}
+
+
               <div className="border rounded-lg p-3 space-y-2">
                 <p className="font-semibold flex items-center gap-2">
                   <LifeBuoy className="h-4 w-4" /> Need help with this shipment?
@@ -574,8 +795,16 @@ const BusinessDashboard = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <CancelOrderDialog
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        onConfirm={handleCancel}
+        cancelling={cancelling}
+      />
     </div>
   );
+
 };
 
 export default BusinessDashboard;

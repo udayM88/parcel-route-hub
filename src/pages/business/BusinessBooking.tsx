@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,20 +50,36 @@ type PincodeLocation = { city: string; state: string };
 
 const BusinessBooking = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const repeatData = (location.state as any)?.repeat as
+    | {
+        pickupPincode?: string;
+        deliveryPincode?: string;
+        sender?: Partial<Party>;
+        receiver?: Partial<Party>;
+        goodsType?: string;
+        shipmentValue?: string;
+        boxes?: Box[];
+      }
+    | undefined;
   const { toast } = useToast();
   const { business } = useBusinessAuth();
 
   const [step, setStep] = useState(1);
-  const [pickupPincode, setPickupPincode] = useState("");
-  const [deliveryPincode, setDeliveryPincode] = useState("");
+
+  const [pickupPincode, setPickupPincode] = useState(repeatData?.pickupPincode || "");
+  const [deliveryPincode, setDeliveryPincode] = useState(repeatData?.deliveryPincode || "");
   const [pickupLoc, setPickupLoc] = useState<PincodeLocation | null>(null);
   const [deliveryLoc, setDeliveryLoc] = useState<PincodeLocation | null>(null);
   const [locLoading, setLocLoading] = useState(false);
-  const [sender, setSender] = useState<Party>({ ...emptyParty });
-  const [receiver, setReceiver] = useState<Party>({ ...emptyParty });
-  const [goodsType, setGoodsType] = useState("Package");
-  const [shipmentValue, setShipmentValue] = useState("");
-  const [boxes, setBoxes] = useState<Box[]>([{ ...emptyBox }]);
+  const [sender, setSender] = useState<Party>({ ...emptyParty, ...(repeatData?.sender || {}) });
+  const [receiver, setReceiver] = useState<Party>({ ...emptyParty, ...(repeatData?.receiver || {}) });
+  const [goodsType, setGoodsType] = useState(repeatData?.goodsType || "Package");
+  const [shipmentValue, setShipmentValue] = useState(repeatData?.shipmentValue || "");
+  const [boxes, setBoxes] = useState<Box[]>(
+    repeatData?.boxes?.length ? repeatData.boxes.map((b) => ({ ...emptyBox, ...b })) : [{ ...emptyBox }],
+  );
+
   const [declarationAccepted, setDeclarationAccepted] = useState(false);
 
   const [fetching, setFetching] = useState(false);
