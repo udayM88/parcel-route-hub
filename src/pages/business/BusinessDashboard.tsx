@@ -39,6 +39,8 @@ type BusinessBooking = {
   receiver_address: string | null;
   receiver_city: string | null;
   receiver_pincode: string | null;
+  sender_state: string | null;
+  receiver_state: string | null;
   courier_name: string | null;
   courier_price: number | null;
   delivery_time: string | null;
@@ -48,6 +50,12 @@ type BusinessBooking = {
   goods_type: string | null;
   partner_id: string | null;
   prayog_order_id: string | null;
+  booking_source: string | null;
+  prayog_awb: string | null;
+  payment_status: string | null;
+  payment_id: string | null;
+  refund_id: string | null;
+  shipment_value: number | null;
 };
 
 type BookingBox = {
@@ -55,9 +63,13 @@ type BookingBox = {
   box_index: number;
   weight_kg: number | null;
   chargeable_weight_kg: number | null;
+  length_cm: number | null;
+  width_cm: number | null;
+  height_cm: number | null;
   tracking_id: string | null;
   label_url: string | null;
   status: string | null;
+
 };
 
 type TrackingEvent = {
