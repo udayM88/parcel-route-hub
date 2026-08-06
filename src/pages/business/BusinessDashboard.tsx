@@ -788,6 +788,9 @@ const BusinessDashboard = () => {
                       <Phone className="h-4 w-4 mr-1" /> +91 90139 99909
                     </a>
                   </Button>
+                  <Button size="sm" variant="outline" onClick={openCrispChat}>
+                    <MessageCircle className="h-4 w-4 mr-1" /> Live chat
+                  </Button>
                 </div>
               </div>
 
