@@ -397,9 +397,18 @@ const AssistedPendingBookings = () => {
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => handleTrack(row)} disabled={!awb}>
-                      <Truck className="h-4 w-4 mr-2" /> Track shipment
+                    <Button
+                      size="sm"
+                      onClick={() => handleTrack(row)}
+                      disabled={!awb || trackingBusyId === row.id}
+                    >
+                      {trackingBusyId === row.id ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Tracking…</>
+                      ) : (
+                        <><Truck className="h-4 w-4 mr-2" /> {tracking[row.id] ? "Hide tracking" : "Track shipment"}</>
+                      )}
                     </Button>
+
                     <Button
                       size="sm"
                       variant="outline"
