@@ -795,8 +795,16 @@ const BusinessDashboard = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <CancelOrderDialog
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        onConfirm={handleCancel}
+        cancelling={cancelling}
+      />
     </div>
   );
+
 };
 
 export default BusinessDashboard;
