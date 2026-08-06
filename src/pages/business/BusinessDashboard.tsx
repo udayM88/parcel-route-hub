@@ -100,6 +100,11 @@ const BusinessDashboard = () => {
   const [trackingEvents, setTrackingEvents] = useState<Record<string, TrackingEvent[]>>({});
   const [trackingLoading, setTrackingLoading] = useState<string | null>(null);
   const [labelLoading, setLabelLoading] = useState<string | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelBlocked, setCancelBlocked] = useState<string | null>(null);
+
+  const BOOKING_COLUMNS =
+    "id,created_at,sender_name,sender_phone,sender_address,sender_city,sender_state,sender_pincode,receiver_name,receiver_phone,receiver_address,receiver_city,receiver_state,receiver_pincode,courier_name,courier_price,delivery_time,box_count,status,tracking_id,goods_type,partner_id,prayog_order_id,booking_source,prayog_awb,payment_status,payment_id,refund_id,shipment_value";
 
   useEffect(() => {
     const load = async () => {
@@ -107,9 +112,8 @@ const BusinessDashboard = () => {
       setLoading(true);
       const { data } = await supabase
         .from("bookings")
-        .select(
-          "id,created_at,sender_name,sender_phone,sender_address,sender_city,sender_pincode,receiver_name,receiver_phone,receiver_address,receiver_city,receiver_pincode,courier_name,courier_price,delivery_time,box_count,status,tracking_id,goods_type,partner_id,prayog_order_id",
-        )
+        .select(BOOKING_COLUMNS)
+
         .eq("business_account_id", business.id)
         .order("created_at", { ascending: false })
         .limit(500);
