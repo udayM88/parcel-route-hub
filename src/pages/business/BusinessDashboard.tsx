@@ -742,6 +742,28 @@ const BusinessDashboard = () => {
                 </div>
               )}
 
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={handleInvoice}>
+                  <FileText className="h-4 w-4 mr-1" /> Download invoice
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleRepeat}>
+                  <Copy className="h-4 w-4 mr-1" /> Repeat shipment
+                </Button>
+                {isCancellable(selected.status) && (
+                  <Button size="sm" variant="destructive" onClick={() => setCancelOpen(true)} disabled={cancelling}>
+                    <Ban className="h-4 w-4 mr-1" /> Cancel shipment
+                  </Button>
+                )}
+              </div>
+
+              {cancelBlocked && (
+                <div className="border border-amber-300 bg-amber-50 rounded-lg p-3 flex gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-900">{cancelBlocked}</p>
+                </div>
+              )}
+
+
               <div className="border rounded-lg p-3 space-y-2">
                 <p className="font-semibold flex items-center gap-2">
                   <LifeBuoy className="h-4 w-4" /> Need help with this shipment?
