@@ -58,9 +58,12 @@ const AssistedPendingBookings = () => {
   const [manualDialog, setManualDialog] = useState<{ booking: PendingRow } | null>(null);
   const [manualPaymentId, setManualPaymentId] = useState("");
   const [submittingManual, setSubmittingManual] = useState(false);
+  const [trackingBusyId, setTrackingBusyId] = useState<string | null>(null);
+  const [tracking, setTracking] = useState<Record<string, TrackEvent[]>>({});
 
   const SELECT_COLS =
-    "id, created_at, sender_name, receiver_name, courier_name, courier_price, payment_link_id, payment_link_url, payment_link_status, status, created_by_admin_email, sender_city, receiver_city, prayog_awb, tracking_id, label_url, booking_source";
+    "id, created_at, sender_name, receiver_name, courier_name, courier_price, payment_link_id, payment_link_url, payment_link_status, status, created_by_admin_email, sender_city, receiver_city, prayog_awb, tracking_id, label_url, booking_source, partner_id, prayog_order_id";
+
 
   const fetchRows = async () => {
     const [{ data: pendingData, error: pendErr }, { data: confirmedData, error: confErr }] =
