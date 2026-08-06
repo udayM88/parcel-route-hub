@@ -192,15 +192,60 @@ const BusinessDashboard = () => {
   const openDetail = async (b: BusinessBooking) => {
     setSelected(b);
     setBoxes([]);
+    setCancelBlocked(null);
     setBoxesLoading(true);
     const { data } = await supabase
       .from("booking_boxes")
-      .select("id,box_index,weight_kg,chargeable_weight_kg,tracking_id,label_url,status")
+      .select("id,box_index,weight_kg,chargeable_weight_kg,length_cm,width_cm,height_cm,tracking_id,label_url,status")
       .eq("booking_id", b.id)
       .order("box_index", { ascending: true });
     setBoxes((data ?? []) as BookingBox[]);
     setBoxesLoading(false);
   };
+
+  const refreshSelected = async (bookingId: string) => {
+    const { data } = await supabase
+      .from("bookings")
+      .select(BOOKING_COLUMNS)
+      .eq("id", bookingId)
+      .maybeSingle();
+    if (!data) return;
+    const row = data as unknown as BusinessBooking;
+    setSelected((prev) => (prev && prev.id === row.id ? row : prev));
+    setBookings((prev) => prev.map((b) => (b.id === row.id ? { ...b, ...row } : b)));
+  };
+
+  const { cancelOrder, cancelling } = useCancelOrder();
+
+  const handleCancel = async (reason: Parameters<typeof cancelOrder>[0]["reason"]) => {
+    if (!selected) return;
+    setCancelBlocked(null);
+    const awbs = boxes.map((bx) => bx.tracking_id).filter(Boolean) as string[];
+    const fallbackAwb = selected.tracking_id || selected.prayog_awb || null;
+    const targets = awbs.length ? awbs : [fallbackAwb];
+
+    let allOk = true;
+    for (const awb of targets) {
+      const ok = await cancelOrder({
+        orderId: selected.prayog_order_id || selected.id,
+        bookingSource: selected.booking_source || "",
+        bookingId: selected.id,
+        reason,
+        awb,
+      });
+      if (!ok) allOk = false;
+    }
+
+    if (allOk) {
+      setCancelOpen(false);
+      await refreshSelected(selected.id);
+    } else {
+      setCancelBlocked(
+        "We couldn't cancel every box with the courier. Please email support@viasetu.com with your shipment reference and our team will take it forward.",
+      );
+    }
+  };
+
 
   const partnerKey = (b: BusinessBooking | null) =>
     b ? resolvePartnerKey(b.partner_id, b.courier_name) : null;
