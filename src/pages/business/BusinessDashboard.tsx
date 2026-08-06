@@ -11,15 +11,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Building2, Package, IndianRupee, Boxes, LogOut, Plus, Truck, CheckCircle2,
   XCircle, Search, MapPin, Loader2, FileDown, Navigation, LifeBuoy, Mail, Phone,
+  Ban, Copy, FileText, AlertTriangle,
 } from "lucide-react";
 import { useBusinessAuth } from "@/contexts/useBusinessAuth";
 import { useToast } from "@/hooks/use-toast";
 import PageSeo from "@/components/PageSeo";
 import { bucketOfStatus, STATUS_BUCKETS, type StatusBucket } from "@/lib/booking-status";
 import { extractGst } from "@/lib/pricing";
+import { useCancelOrder, isCancellable } from "@/hooks/useCancelOrder";
+import CancelOrderDialog from "@/components/booking/CancelOrderDialog";
 import {
   resolvePartnerKey, trackingFunctionFor, labelFunctionFor, trackingBody, labelBody,
 } from "@/lib/partner-functions";
+
 
 
 type BusinessBooking = {
