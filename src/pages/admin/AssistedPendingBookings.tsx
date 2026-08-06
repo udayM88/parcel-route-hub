@@ -49,7 +49,7 @@ interface PendingRow {
 
 const AssistedPendingBookings = () => {
   const { toast } = useToast();
-  const navigate = useNavigate();
+  
   const [pending, setPending] = useState<PendingRow[]>([]);
   const [confirmed, setConfirmed] = useState<PendingRow[]>([]);
   const [loading, setLoading] = useState(true);
