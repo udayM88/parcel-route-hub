@@ -50,10 +50,23 @@ type PincodeLocation = { city: string; state: string };
 
 const BusinessBooking = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const repeatData = (location.state as any)?.repeat as
+    | {
+        pickupPincode?: string;
+        deliveryPincode?: string;
+        sender?: Partial<Party>;
+        receiver?: Partial<Party>;
+        goodsType?: string;
+        shipmentValue?: string;
+        boxes?: Box[];
+      }
+    | undefined;
   const { toast } = useToast();
   const { business } = useBusinessAuth();
 
   const [step, setStep] = useState(1);
+
   const [pickupPincode, setPickupPincode] = useState("");
   const [deliveryPincode, setDeliveryPincode] = useState("");
   const [pickupLoc, setPickupLoc] = useState<PincodeLocation | null>(null);
