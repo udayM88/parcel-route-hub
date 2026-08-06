@@ -153,14 +153,44 @@ const AssistedPendingBookings = () => {
     }
   };
 
-  const handleTrack = (row: PendingRow) => {
+  const handleTrack = async (row: PendingRow) => {
     const awb = row.prayog_awb || row.tracking_id;
     if (!awb) {
       toast({ title: "No AWB yet", variant: "destructive" });
       return;
     }
-    navigate("/tracking", { state: { awbNumber: awb } });
+    if (tracking[row.id]) {
+      setTracking((prev) => {
+        const next = { ...prev };
+        delete next[row.id];
+        return next;
+      });
+      return;
+    }
+    const key = resolvePartnerKey(row.partner_id, `${row.booking_source || ""} ${row.courier_name || ""}`);
+    if (!key) {
+      toast({ title: "Tracking unavailable", description: "Unknown courier partner.", variant: "destructive" });
+      return;
+    }
+    setTrackingBusyId(row.id);
+    try {
+      const { data, error } = await supabase.functions.invoke(trackingFunctionFor(key), {
+        body: trackingBody(key, awb, row.prayog_order_id),
+        headers: { "x-environment": CURRENT_ENV },
+      });
+      if (error) throw error;
+      const statuses = (data?.statuses || []) as TrackEvent[];
+      if (!statuses.length) {
+        toast({ title: "No tracking events yet", description: "The courier hasn't scanned this shipment." });
+      }
+      setTracking((prev) => ({ ...prev, [row.id]: statuses }));
+    } catch (e: any) {
+      toast({ title: "Tracking failed", description: e?.message || "Please try again", variant: "destructive" });
+    } finally {
+      setTrackingBusyId(null);
+    }
   };
+
 
   const handleDownloadLabel = async (row: PendingRow) => {
     if (row.label_url) {
