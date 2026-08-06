@@ -14,6 +14,15 @@ import {
   RefreshCw, Copy, ExternalLink, Loader2, KeyRound, CheckCircle2, Clock,
   Truck, Download, PackageCheck,
 } from "lucide-react";
+import { resolvePartnerKey, trackingFunctionFor, trackingBody } from "@/lib/partner-functions";
+
+interface TrackEvent {
+  status: string;
+  location?: string;
+  statusTimestamp: number;
+  category?: string;
+  subcategory?: string;
+}
 
 interface PendingRow {
   id: string;
@@ -33,7 +42,10 @@ interface PendingRow {
   tracking_id: string | null;
   label_url: string | null;
   booking_source: string | null;
+  partner_id: string | null;
+  prayog_order_id: string | null;
 }
+
 
 const AssistedPendingBookings = () => {
   const { toast } = useToast();
