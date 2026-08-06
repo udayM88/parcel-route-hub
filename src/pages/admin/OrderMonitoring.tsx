@@ -165,15 +165,25 @@ const OrderMonitoring = () => {
       booking.receiver_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.id.toLowerCase().includes(searchTerm.toLowerCase());
 
+    const bookingDate = new Date(booking.created_at);
+    const matchesDate =
+      (!dateFrom && !dateTo) ||
+      (dateFrom && !dateTo && bookingDate >= startOfDay(dateFrom)) ||
+      (!dateFrom && dateTo && bookingDate <= endOfDay(dateTo)) ||
+      (dateFrom && dateTo && isWithinInterval(bookingDate, {
+        start: startOfDay(dateFrom),
+        end: endOfDay(dateTo),
+      }));
+
     const bucket = bucketOfStatus(booking.status);
 
-    if (selectedFilter === "all") return matchesSearch;
-    if (selectedFilter === "pending") return matchesSearch && bucket === "created";
-    if (selectedFilter === "in_transit") return matchesSearch && inTransitBuckets.has(bucket);
-    if (selectedFilter === "delivered") return matchesSearch && bucket === "delivered";
-    if (selectedFilter === "cancelled") return matchesSearch && (bucket === "cancelled" || bucket === "rto");
-    if (selectedFilter === "cop_pending") return matchesSearch && booking.payment_status === "cop_pending";
-    return matchesSearch;
+    if (selectedFilter === "all") return matchesSearch && matchesDate;
+    if (selectedFilter === "pending") return matchesSearch && matchesDate && bucket === "created";
+    if (selectedFilter === "in_transit") return matchesSearch && matchesDate && inTransitBuckets.has(bucket);
+    if (selectedFilter === "delivered") return matchesSearch && matchesDate && bucket === "delivered";
+    if (selectedFilter === "cancelled") return matchesSearch && matchesDate && (bucket === "cancelled" || bucket === "rto");
+    if (selectedFilter === "cop_pending") return matchesSearch && matchesDate && booking.payment_status === "cop_pending";
+    return matchesSearch && matchesDate;
   });
 
   const countByBucket = (predicate: (b: string) => boolean) =>
