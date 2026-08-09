@@ -1,5 +1,6 @@
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import PageSeo from "@/components/PageSeo";
 import Logo from "@/components/Logo";
 import PublicSiteLayout from "@/components/site/PublicSiteLayout";
