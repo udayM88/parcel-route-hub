@@ -1,8 +1,21 @@
 User-agent: *
 Allow: /
+
+# Auth & user-scoped pages
 Disallow: /login
 Disallow: /onboarding
 Disallow: /history
 Disallow: /settings
+Disallow: /order/
 
-Sitemap: https://www.viasetu.com/sitemap.xml
+# Admin, CMS, ops & business portals
+Disallow: /admin
+Disallow: /admin/
+Disallow: /cms/
+Disallow: /ops/
+Disallow: /viasetuforbusinesses
+
+# Query-parameter / tracking URLs
+Disallow: /*?
+
+Sitemap: https://viasetu.com/sitemap.xml

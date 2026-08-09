@@ -22,7 +22,7 @@ export default function Privacy() {
       <Helmet>
         <title>Privacy Policy — ViaSetu</title>
         <meta name="description" content="Privacy Policy, Shipping Policy, Refund Policy, Grievance Redressal and Disclaimer of Viasetu Private Limited." />
-        <link rel="canonical" href="https://www.viasetu.com/Privacypolicy" />
+        <link rel="canonical" href="https://viasetu.com/Privacypolicy" />
         <meta name="robots" content="index, follow" />
       </Helmet>
 

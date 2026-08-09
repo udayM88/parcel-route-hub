@@ -195,10 +195,10 @@ export default function ParcelTrackingPage() {
           name="description"
           content="Track any parcel online with ViaSetu. Check courier status, AWB tracking, shipment location, delivery updates, and real-time parcel tracking across leading courier partners in India."
         />
-        <link rel="canonical" href="https://www.viasetu.com/services/parcel-tracking" />
+        <link rel="canonical" href="https://viasetu.com/services/parcel-tracking" />
         <meta property="og:title" content="Parcel Tracking in India | Track Courier & Shipment Online | ViaSetu" />
         <meta property="og:description" content="Track any parcel online with ViaSetu across leading courier partners in India." />
-        <meta property="og:url" content="https://www.viasetu.com/services/parcel-tracking" />
+        <meta property="og:url" content="https://viasetu.com/services/parcel-tracking" />
         <script type="application/ld+json">{JSON.stringify(faqLd)}</script>
       </Helmet>
 

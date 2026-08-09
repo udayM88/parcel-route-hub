@@ -140,7 +140,7 @@ export default function CourierPartners() {
           name="description"
           content="ViaSetu partners with India's leading courier companies — Delhivery, Shadowfax, Xpressbees, Shree Maruti and Urbanebolt — to bring you the best shipping options in one place."
         />
-        <link rel="canonical" href="https://www.viasetu.com/courier-partners" />
+        <link rel="canonical" href="https://viasetu.com/courier-partners" />
         <meta property="og:title" content="Courier Partners — ViaSetu" />
         <meta
           property="og:description"

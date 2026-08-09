@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const SITE = "https://www.viasetu.com";
+const SITE = "https://viasetu.com";
 
 // Public, indexable static routes. Excludes user-scoped/admin/auth routes
 // (/login, /onboarding, /history, /order/:id, /settings, /admin/*, /ops/*, /cms/*)

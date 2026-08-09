@@ -101,7 +101,7 @@ export default function SEOPanel({ content, onChange }: Props) {
         <div className="rounded border p-3 bg-muted/30">
           <div className="text-xs text-muted-foreground mb-1">Google preview</div>
           <div className="text-blue-700 text-base truncate">{content.meta_title || content.title || 'Title'}</div>
-          <div className="text-green-700 text-xs truncate">https://www.viasetu.com/{content.slug || 'slug'}</div>
+          <div className="text-green-700 text-xs truncate">https://viasetu.com/{content.slug || 'slug'}</div>
           <div className="text-sm text-foreground line-clamp-2">{content.meta_description || 'Meta description preview...'}</div>
         </div>
       </div>
