@@ -124,9 +124,16 @@ function SiteHeader() {
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
   return (
+    <>
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all ${scrolled ? "backdrop-blur-sm" : ""}`}
+      className={`fixed top-0 left-0 right-0 z-[60] transition-all ${scrolled ? "backdrop-blur-sm" : ""}`}
       style={{ background: scrolled ? "rgba(255,255,255,0.92)" : C.bg, borderBottom: `1px solid ${C.border}`, height: 64 }}
     >
       <div className="max-w-7xl mx-auto h-full px-4 lg:px-6 flex items-center justify-between gap-3">
