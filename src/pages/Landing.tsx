@@ -225,7 +225,7 @@ const NavBar = ({ onSendClick, onTrackClick }: { onSendClick: () => void; onTrac
             <Logo size="md" />
             <button onClick={() => setOpen(false)} className="text-[#0B1220]" aria-label="Close menu"><X className="h-6 w-6" /></button>
           </div>
-          <nav className="flex flex-col p-6 gap-5">
+          <nav className="flex flex-col p-6 pb-24 gap-5">
             <Link to="/" onClick={() => setOpen(false)} className="text-[#0B1220] text-lg">Home</Link>
             <div>
               <button

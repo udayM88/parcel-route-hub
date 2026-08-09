@@ -188,7 +188,7 @@ function SiteHeader() {
             <Logo size="md" />
             <button onClick={() => setOpen(false)} style={{ color: C.text }} aria-label="Close menu"><X className="h-6 w-6" /></button>
           </div>
-          <nav className="flex flex-col p-6 gap-5 overflow-y-auto" style={{ maxHeight: "calc(100vh - 64px)" }}>
+          <nav className="flex flex-col p-6 pb-24 gap-5">
             <div>
               <button
                 onClick={() => setResourcesOpenMobile((v) => !v)}
