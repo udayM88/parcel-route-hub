@@ -7,7 +7,7 @@ interface Props {
   noindex?: boolean;
 }
 
-const SITE = 'https://www.viasetu.com';
+const SITE = 'https://viasetu.com';
 
 export default function PageSeo({ title, description, path, noindex }: Props) {
   const url = `${SITE}${path}`;

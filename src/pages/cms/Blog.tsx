@@ -39,7 +39,7 @@ export default function Blog() {
       <Helmet>
         <title>ViaSetu Blog — Courier Tips, Guides & News</title>
         <meta name="description" content="Read the latest courier tips, shipping guides, and logistics news from ViaSetu." />
-        <link rel="canonical" href="https://www.viasetu.com/blog" />
+        <link rel="canonical" href="https://viasetu.com/blog" />
       </Helmet>
 
       <section className="px-6 py-12 md:py-16" style={{ background: '#F4F7FB' }}>

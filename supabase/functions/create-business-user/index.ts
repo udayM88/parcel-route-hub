@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
     // Always send business users to the live site, never a preview/sandbox origin
     const origin = req.headers.get("origin") ?? "";
     const isLiveOrigin = /^https:\/\/([a-z0-9-]+\.)*viasetu\.com$/.test(origin);
-    const siteUrl = isLiveOrigin ? origin : "https://www.viasetu.com";
+    const siteUrl = isLiveOrigin ? origin : "https://viasetu.com";
 
     const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(cleanEmail, {
       redirectTo: `${siteUrl}/viasetuforbusinesses/reset-password`,

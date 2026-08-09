@@ -11,8 +11,8 @@ export default function SeoHead({ content, url }: Props) {
   const desc = content.meta_description || content.excerpt || '';
   // Canonical is always derived from the live URL — never use a stored override.
   // This guarantees consistency for SEO and prevents stale canonicals.
-  const canonical = `https://www.viasetu.com${url}`;
-  const ogImage = content.og_image_url || content.featured_image_url || 'https://www.viasetu.com/og-image.png';
+  const canonical = `https://viasetu.com${url}`;
+  const ogImage = content.og_image_url || content.featured_image_url || 'https://viasetu.com/og-image.png';
 
   const schema: Record<string, unknown> = {
     '@context': 'https://schema.org',

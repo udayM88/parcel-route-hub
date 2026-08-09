@@ -1105,9 +1105,9 @@ export default function ServicePage({ service }: { service: ServiceContent }) {
     "@type": "Service",
     name: service.title,
     description: service.metaDescription,
-    provider: { "@type": "Organization", name: "ViaSetu", url: "https://www.viasetu.com" },
+    provider: { "@type": "Organization", name: "ViaSetu", url: "https://viasetu.com" },
     areaServed: { "@type": "Country", name: "India" },
-    url: `https://www.viasetu.com/services/${service.slug}`,
+    url: `https://viasetu.com/services/${service.slug}`,
   };
 
   return (
@@ -1115,7 +1115,7 @@ export default function ServicePage({ service }: { service: ServiceContent }) {
       <Helmet>
         <title>{metaTitle}</title>
         <meta name="description" content={service.metaDescription} />
-        <link rel="canonical" href={`https://www.viasetu.com/services/${service.slug}`} />
+        <link rel="canonical" href={`https://viasetu.com/services/${service.slug}`} />
         <script type="application/ld+json">{JSON.stringify(serviceSchema)}</script>
         {faqSchema && <script type="application/ld+json">{JSON.stringify(faqSchema)}</script>}
       </Helmet>

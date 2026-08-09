@@ -20,7 +20,7 @@ export default function Contact() {
       <Helmet>
         <title>Contact Us — ViaSetu</title>
         <meta name="description" content="Get in touch with ViaSetu — India's consumer-first courier aggregator." />
-        <link rel="canonical" href="https://www.viasetu.com/contact" />
+        <link rel="canonical" href="https://viasetu.com/contact" />
       </Helmet>
 
       {/* Hero */}

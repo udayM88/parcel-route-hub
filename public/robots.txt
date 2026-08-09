@@ -5,4 +5,4 @@ Disallow: /onboarding
 Disallow: /history
 Disallow: /settings
 
-Sitemap: https://www.viasetu.com/sitemap.xml
+Sitemap: https://viasetu.com/sitemap.xml

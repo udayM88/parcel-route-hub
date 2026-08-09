@@ -74,7 +74,7 @@ export default function About() {
           name="description"
           content="Learn about ViaSetu — our mission, vision, values and technology-driven approach to simplifying courier booking across India."
         />
-        <link rel="canonical" href="https://www.viasetu.com/about" />
+        <link rel="canonical" href="https://viasetu.com/about" />
         <meta property="og:title" content="About ViaSetu" />
         <meta property="og:description" content="Compare couriers, book pickup, track shipments — India's first consumer-first courier aggregator." />
       </Helmet>
