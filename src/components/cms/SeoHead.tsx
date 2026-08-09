@@ -12,14 +12,15 @@ export default function SeoHead({ content, url }: Props) {
   // Canonical is always derived from the live URL — never use a stored override.
   // This guarantees consistency for SEO and prevents stale canonicals.
   const canonical = `https://viasetu.com${url}`;
-  const ogImage = content.og_image_url || content.featured_image_url || 'https://viasetu.com/og-image.png';
+  // No placeholder fallback — a 404 image previews worse than none.
+  const ogImage = content.og_image_url || content.featured_image_url || undefined;
 
   const schema: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': content.schema_type || 'Article',
     headline: content.title,
     description: desc,
-    image: ogImage,
+    ...(ogImage ? { image: ogImage } : {}),
     datePublished: content.published_at,
     dateModified: content.updated_at,
     mainEntityOfPage: canonical,
@@ -35,12 +36,12 @@ export default function SeoHead({ content, url }: Props) {
       <meta property="og:title" content={title} />
       <meta property="og:description" content={desc} />
       <meta property="og:url" content={canonical} />
-      <meta property="og:image" content={ogImage} />
+      {ogImage ? <meta property="og:image" content={ogImage} /> : null}
       <meta property="og:type" content="article" />
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={desc} />
-      <meta name="twitter:image" content={ogImage} />
+      {ogImage ? <meta name="twitter:image" content={ogImage} /> : null}
       <script type="application/ld+json">{JSON.stringify(schema)}</script>
     </Helmet>
   );
