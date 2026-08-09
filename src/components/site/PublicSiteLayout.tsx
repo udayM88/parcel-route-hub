@@ -179,10 +179,11 @@ function SiteHeader() {
           <Menu className="h-6 w-6" />
         </button>
       </div>
+    </header>
 
-      {open && (
-        <div className="fixed inset-0 z-[100] md:hidden overflow-y-auto" style={{ background: C.bg }}>
-          <div className="flex justify-between items-center px-6 h-16" style={{ borderBottom: `1px solid ${C.border}` }}>
+    {open && createPortal(
+        <div className="fixed inset-0 z-[100] md:hidden overflow-y-auto overscroll-contain" style={{ background: C.bg }}>
+          <div className="sticky top-0 flex justify-between items-center px-6 h-16" style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
             <Logo size="md" />
             <button onClick={() => setOpen(false)} style={{ color: C.text }} aria-label="Close menu"><X className="h-6 w-6" /></button>
           </div>
