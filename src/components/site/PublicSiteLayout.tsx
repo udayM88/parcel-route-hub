@@ -261,9 +261,10 @@ function SiteHeader() {
             <button onClick={() => { setOpen(false); navigate("/tracking"); }} className="mt-4 h-12 rounded-lg border-2 font-semibold" style={{ borderColor: C.teal, color: C.teal }}>Track Your Parcel</button>
             <button onClick={() => { setOpen(false); navigate("/login"); }} className="h-12 rounded-lg font-bold" style={{ background: C.teal, color: C.bg }}>Send a Parcel →</button>
           </nav>
-        </div>
-      )}
-    </header>
+        </div>,
+      document.body
+    )}
+    </>
   );
 }
 
