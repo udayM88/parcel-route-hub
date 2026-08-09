@@ -1,5 +1,6 @@
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import PageSeo from "@/components/PageSeo";
 import Logo from "@/components/Logo";
 import PublicSiteLayout from "@/components/site/PublicSiteLayout";
@@ -163,6 +164,12 @@ const NavBar = ({ onSendClick, onTrackClick }: { onSendClick: () => void; onTrac
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
   const [servicesOpenMobile, setServicesOpenMobile] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
   const plainLinks = [
     { href: "/", label: "Home" },
     { href: "/tracking", label: "Track Parcel" },
@@ -170,8 +177,9 @@ const NavBar = ({ onSendClick, onTrackClick }: { onSendClick: () => void; onTrac
     { href: "/courier-partners", label: "Courier Partners" },
   ];
   return (
+    <>
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all ${scrolled ? "backdrop-blur-sm" : ""}`}
+      className={`fixed top-0 left-0 right-0 z-[60] transition-all ${scrolled ? "backdrop-blur-sm" : ""}`}
       style={{ background: scrolled ? "rgba(255,255,255,0.92)" : C.bg, borderBottom: `1px solid ${C.border}`, height: 64 }}
     >
       <div className="max-w-7xl mx-auto h-full px-6 flex items-center justify-between">
@@ -209,14 +217,15 @@ const NavBar = ({ onSendClick, onTrackClick }: { onSendClick: () => void; onTrac
           <Menu className="h-6 w-6" />
         </button>
       </div>
+    </header>
 
-      {open && (
-        <div className="fixed inset-0 z-50 md:hidden" style={{ background: C.bg }}>
-          <div className="flex justify-between items-center px-6 h-16" style={{ borderBottom: `1px solid ${C.border}` }}>
+    {open && createPortal(
+        <div className="fixed inset-0 z-[100] md:hidden overflow-y-auto overscroll-contain" style={{ background: C.bg }}>
+          <div className="sticky top-0 flex justify-between items-center px-6 h-16" style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
             <Logo size="md" />
             <button onClick={() => setOpen(false)} className="text-[#0B1220]" aria-label="Close menu"><X className="h-6 w-6" /></button>
           </div>
-          <nav className="flex flex-col p-6 gap-5">
+          <nav className="flex flex-col p-6 pb-24 gap-5">
             <Link to="/" onClick={() => setOpen(false)} className="text-[#0B1220] text-lg">Home</Link>
             <div>
               <button
@@ -270,9 +279,10 @@ const NavBar = ({ onSendClick, onTrackClick }: { onSendClick: () => void; onTrac
             <button onClick={() => { setOpen(false); onTrackClick(); }} className="mt-4 h-12 rounded-lg border-2 font-semibold" style={{ borderColor: C.teal, color: C.teal }}>Track Your Parcel</button>
             <button onClick={() => { setOpen(false); onSendClick(); }} className="h-12 rounded-lg font-bold" style={{ background: C.teal, color: C.bg }}>Send a Parcel →</button>
           </nav>
-        </div>
-      )}
-    </header>
+        </div>,
+      document.body
+    )}
+    </>
   );
 };
 

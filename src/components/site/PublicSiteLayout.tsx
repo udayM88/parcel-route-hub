@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Menu, X, Linkedin, Facebook, Instagram, ChevronDown, BookOpen, HelpCircle, Briefcase, Package, Truck, Zap, MapPin, User, Home, Building2, Hand, Landmark } from "lucide-react";
 import Logo from "@/components/Logo";
@@ -124,9 +125,16 @@ function SiteHeader() {
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
   return (
+    <>
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all ${scrolled ? "backdrop-blur-sm" : ""}`}
+      className={`fixed top-0 left-0 right-0 z-[60] transition-all ${scrolled ? "backdrop-blur-sm" : ""}`}
       style={{ background: scrolled ? "rgba(255,255,255,0.92)" : C.bg, borderBottom: `1px solid ${C.border}`, height: 64 }}
     >
       <div className="max-w-7xl mx-auto h-full px-4 lg:px-6 flex items-center justify-between gap-3">
@@ -172,14 +180,15 @@ function SiteHeader() {
           <Menu className="h-6 w-6" />
         </button>
       </div>
+    </header>
 
-      {open && (
-        <div className="fixed inset-0 z-[100] md:hidden overflow-y-auto" style={{ background: C.bg }}>
-          <div className="flex justify-between items-center px-6 h-16" style={{ borderBottom: `1px solid ${C.border}` }}>
+    {open && createPortal(
+        <div className="fixed inset-0 z-[100] md:hidden overflow-y-auto overscroll-contain" style={{ background: C.bg }}>
+          <div className="sticky top-0 flex justify-between items-center px-6 h-16" style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
             <Logo size="md" />
             <button onClick={() => setOpen(false)} style={{ color: C.text }} aria-label="Close menu"><X className="h-6 w-6" /></button>
           </div>
-          <nav className="flex flex-col p-6 gap-5 overflow-y-auto" style={{ maxHeight: "calc(100vh - 64px)" }}>
+          <nav className="flex flex-col p-6 pb-24 gap-5">
             <div>
               <button
                 onClick={() => setResourcesOpenMobile((v) => !v)}
@@ -253,9 +262,10 @@ function SiteHeader() {
             <button onClick={() => { setOpen(false); navigate("/tracking"); }} className="mt-4 h-12 rounded-lg border-2 font-semibold" style={{ borderColor: C.teal, color: C.teal }}>Track Your Parcel</button>
             <button onClick={() => { setOpen(false); navigate("/login"); }} className="h-12 rounded-lg font-bold" style={{ background: C.teal, color: C.bg }}>Send a Parcel →</button>
           </nav>
-        </div>
-      )}
-    </header>
+        </div>,
+      document.body
+    )}
+    </>
   );
 }
 
