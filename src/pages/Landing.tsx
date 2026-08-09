@@ -278,9 +278,10 @@ const NavBar = ({ onSendClick, onTrackClick }: { onSendClick: () => void; onTrac
             <button onClick={() => { setOpen(false); onTrackClick(); }} className="mt-4 h-12 rounded-lg border-2 font-semibold" style={{ borderColor: C.teal, color: C.teal }}>Track Your Parcel</button>
             <button onClick={() => { setOpen(false); onSendClick(); }} className="h-12 rounded-lg font-bold" style={{ background: C.teal, color: C.bg }}>Send a Parcel →</button>
           </nav>
-        </div>
-      )}
-    </header>
+        </div>,
+      document.body
+    )}
+    </>
   );
 };
 
