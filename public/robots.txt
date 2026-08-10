@@ -18,4 +18,4 @@ Disallow: /viasetuforbusinesses
 # Query-parameter / tracking URLs
 Disallow: /*?
 
-Sitemap: https://viasetu.com/sitemap.xml
+Sitemap: https://www.viasetu.com/sitemap.xml

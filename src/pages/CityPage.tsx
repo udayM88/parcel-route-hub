@@ -563,7 +563,7 @@ export default function CityPage({ city }: { city: CityContent }) {
       <Helmet>
         <title>{metaTitle}</title>
         <meta name="description" content={city.metaDescription} />
-        <link rel="canonical" href={`https://viasetu.com/courier-service-in-${city.slug}`} />
+        <link rel="canonical" href={`https://www.viasetu.com/courier-service-in-${city.slug}`} />
         {faqSchema && (
           <script type="application/ld+json">{JSON.stringify(faqSchema)}</script>
         )}

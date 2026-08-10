@@ -106,7 +106,7 @@ export default function HowItWorks() {
           name="description"
           content="Learn how ViaSetu works in 4 simple steps: enter details, compare couriers, book & pay securely, and track live — all in one app."
         />
-        <link rel="canonical" href="https://viasetu.com/how-it-works" />
+        <link rel="canonical" href="https://www.viasetu.com/how-it-works" />
         <meta property="og:title" content="How It Works — ViaSetu" />
         <meta
           property="og:description"
