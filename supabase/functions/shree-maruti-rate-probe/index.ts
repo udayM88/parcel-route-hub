@@ -44,26 +44,26 @@ Deno.serve(async (req) => {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const authHeader: Record<string, string> = { "Api-Key": apiKey };
-
+    const tid = Deno.env.get("SHREE_MARUTI_INNO_TENANT_ID") || "69a7517bb5c73d3ef3f9c776";
     const base = {
       fromPincode: Number(pickup),
       toPincode: Number(delivery),
-      weight: Math.round(weight * 1000),
-      length: dims.l, width: dims.w, height: dims.h,
-      deliveryMode: mode,
-      isCodOrder: false,
-      codAmount: 0,
-      declaredValue: 1000,
+      serviceType: "ECOMM",
+      productType: "ECOMM",
+      weight: weight,
+      length: dims.l,
+      height: dims.h,
+      width: dims.w,
+      includeDefaultCharges: false,
+      userOptions: { insurance: { enabled: false, amount: 0 }, cod: false },
+      filters: { delivery_mode: mode },
     };
 
-    const variants: Array<{ name: string; body: Record<string, unknown> }> = [
-      { name: "base", body: base },
-      { name: "rateCardType=COURIER", body: { ...base, rateCardType: "COURIER" } },
-      { name: "serviceType=COURIER", body: { ...base, serviceType: "COURIER" } },
-      { name: "shipmentType=FORWARD", body: { ...base, rateCardType: "COURIER", shipmentType: "FORWARD" } },
-      { name: "paymentType=PREPAID", body: { ...base, rateCardType: "COURIER", paymentType: "PREPAID" } },
-      { name: "weight-in-kg", body: { ...base, weight } },
+    const variants: Array<{ name: string; headers: Record<string, string>; body: Record<string, unknown> }> = [
+      { name: "api-key (docs payload)", headers: { "api-key": apiKey }, body: base },
+      { name: "api-key + tenantid", headers: { "api-key": apiKey, tenantid: tid }, body: base },
+      { name: "Api-Key (cased) + tenantid", headers: { "Api-Key": apiKey, TenantId: tid }, body: base },
+      { name: "includeDefaultCharges=true", headers: { "api-key": apiKey, tenantid: tid }, body: { ...base, includeDefaultCharges: true } },
     ];
 
     const attempts: any[] = [];
@@ -71,11 +71,11 @@ Deno.serve(async (req) => {
       try {
         const r = await fetch(V2_URL, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json", ...authHeader },
+          headers: { "Content-Type": "application/json", Accept: "application/json", ...v.headers },
           body: JSON.stringify(v.body),
         });
         const t = await r.text();
-        attempts.push({ variant: v.name, status: r.status, body: t.slice(0, 700) });
+        attempts.push({ variant: v.name, status: r.status, body: t.slice(0, 1200) });
         if (r.ok) break;
       } catch (e) {
         attempts.push({ variant: v.name, error: String(e) });
@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       "/gateway/ure/api/external/profile",
     ]) {
       try {
-        const r = await fetch(`${GATEWAY}${p}`, { headers: { Accept: "application/json", ...authHeader } });
+        const r = await fetch(`${GATEWAY}${p}`, { headers: { Accept: "application/json", "api-key": apiKey, tenantid: tid } });
         const t = await r.text();
         discovery.push({ path: p, status: r.status, body: t.slice(0, 400) });
       } catch (e) {
