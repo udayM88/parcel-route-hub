@@ -21,7 +21,9 @@ const tokenCache = new Map<Environment, CachedToken>();
 function apiKeyHeaders(): Record<string, string> | null {
   const key = Deno.env.get("SHREE_MARUTI_INNO_API_KEY");
   if (!key) return null;
-  return { "Api-Key": key };
+  // Docs: header name is lowercase `api-key`; tenantid optional alongside it.
+  const tid = tenantId();
+  return { "api-key": key, ...(tid ? { tenantid: tid } : {}) };
 }
 
 // Auth option 2: Bearer id_token + TenantId header.
@@ -105,14 +107,18 @@ export async function fetchShreeMarutiLiveRate(
   const payload = {
     fromPincode: Number(params.pickup_pincode),
     toPincode: Number(params.delivery_pincode),
-    weight: Math.round(Number(params.weight_kg) * 1000), // grams
+    serviceType: "ECOMM",
+    productType: "ECOMM",
+    weight: Number(params.weight_kg), // KG per docs
     length: Number(params.length_cm),
-    width: Number(params.width_cm),
     height: Number(params.height_cm),
-    deliveryMode: params.mode,
-    isCodOrder: false,
-    codAmount: 0,
-    declaredValue: params.declared_value ?? 1000,
+    width: Number(params.width_cm),
+    includeDefaultCharges: false,
+    userOptions: {
+      insurance: { enabled: false, amount: params.declared_value ?? 0 },
+      cod: false,
+    },
+    filters: { delivery_mode: params.mode },
   };
 
   const call = async (headers: Record<string, string>) =>
@@ -137,7 +143,7 @@ export async function fetchShreeMarutiLiveRate(
       const tid = tenantId();
       const bearer = (t: string) => ({
         Authorization: `Bearer ${t}`,
-        ...(tid ? { TenantId: tid } : {}),
+        ...(tid ? { tenantid: tid } : {}),
       });
       let token = await getGatewayToken(env);
       res = await call(bearer(token));
@@ -155,8 +161,15 @@ export async function fetchShreeMarutiLiveRate(
     let data: any;
     try { data = JSON.parse(text); } catch { return null; }
 
-    // Response shape is tolerant: object, {data:{...}}, or {data:[{...}]}
-    const node = data?.data ?? data;
+    // Documented shape: data.pricing.baseRate (pre-GST) + data.calculation.totalAmount (incl GST).
+    // We quote pre-GST because GST is applied downstream by ViaSetu pricing.
+    const d = data?.data ?? data;
+    const baseRate = pickAmount({ amount: d?.pricing?.baseRate }) ??
+      pickAmount({ amount: d?.calculation?.baseAmount });
+    if (baseRate != null) return { amount: baseRate, raw: d };
+
+    // Fallback: tolerant scan (object, {data:{...}}, or {data:[{...}]})
+    const node = d;
     const candidates: any[] = Array.isArray(node) ? node : [node, ...(Array.isArray(node?.rates) ? node.rates : [])];
     for (const c of candidates) {
       const amount = pickAmount(c);
