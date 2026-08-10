@@ -37,12 +37,13 @@ Deno.serve(async (req) => {
         fromPincode: Number(pickup), toPincode: Number(delivery),
         weight: Math.round(weight * 1000), deliveryMode: mode,
         isCodOrder: false, codAmount: 0, declaredValue: 1000,
-        length: dims.l, breadth: dims.w, height: dims.h,
+        length: dims.l, width: dims.w, height: dims.h,
       },
       {
         fromPincode: Number(pickup), toPincode: Number(delivery),
         weight, deliveryMode: mode, isCodOrder: false, codAmount: 0,
-        invoiceValue: 1000, length: dims.l, breadth: dims.w, height: dims.h,
+        declaredValue: 1000, volumetricWeight: (dims.l*dims.w*dims.h)/5000,
+        length: dims.l, width: dims.w, height: dims.h,
       },
     ];
     for (const p of payloads) {
