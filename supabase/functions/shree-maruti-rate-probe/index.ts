@@ -1,7 +1,6 @@
-// TEMP diagnostic: calls the LIVE Shree Maruti v2 rate API (Innofulfill gateway)
-// and compares it with the embedded contracted rate card. Not used by the app.
-import { getEnvironmentFromRequest } from "../_shared/environment.ts";
-import { shreeMarutiFetch } from "../_shared/shree-maruti-auth.ts";
+// TEMP diagnostic: probes auth + rate v2 on the Innofulfill gateway.
+import { getShreeMarutiConfig, getEnvironmentFromRequest } from "../_shared/environment.ts";
+import { getShreeMarutiToken } from "../_shared/shree-maruti-auth.ts";
 import { quoteFromCard, type PinInfo } from "../_shared/rate-cards.ts";
 
 const V2_URL = "https://apis.innofulfill.com/gateway/ure/api/external/rate-calculation/calculate/v2";
@@ -33,45 +32,69 @@ Deno.serve(async (req) => {
     const mode = String(b.mode ?? "SURFACE").toUpperCase();
     const dims = { l: Number(b.length_cm ?? 10), w: Number(b.width_cm ?? 10), h: Number(b.height_cm ?? 10) };
 
-    const attempts: any[] = [];
-    const payloads: Record<string, unknown>[] = [
-      {
-        fromPincode: Number(pickup), toPincode: Number(delivery),
-        weight: Math.round(weight * 1000), deliveryMode: mode,
-        isCodOrder: false, codAmount: 0, declaredValue: 1000,
-        length: dims.l, width: dims.w, height: dims.h,
-      },
-      {
-        fromPincode: Number(pickup), toPincode: Number(delivery),
-        weight, deliveryMode: mode, isCodOrder: false, codAmount: 0,
-        declaredValue: 1000,
-        length: dims.l, width: dims.w, height: dims.h,
-        paymentType: "ONLINE", shipmentType: "FORWARD",
-      },
-      {
-        fromPincode: String(pickup), toPincode: String(delivery),
-        weight: Math.round(weight * 1000), deliveryMode: mode,
-        isCodOrder: false, codAmount: 0, declaredValue: 1000,
-        length: dims.l, width: dims.w, height: dims.h,
-        orderType: "ECOMM", serviceType: mode,
-      },
+    const { email, password, vendorType } = getShreeMarutiConfig(env);
+    const logins: any[] = [];
+    const tokens: Record<string, string> = {};
+
+    // Delcaper token (known working for other endpoints)
+    try { tokens["delcaper"] = await getShreeMarutiToken(env); } catch (e) { logins.push({ where: "delcaper", error: String(e) }); }
+
+    // Try login endpoints on innofulfill gateway
+    const loginUrls = [
+      "https://apis.innofulfill.com/auth/login",
+      "https://apis.innofulfill.com/gateway/ure/api/external/auth/login",
+      "https://apis.innofulfill.com/gateway/auth/login",
     ];
-    for (const p of payloads) {
+    for (const u of loginUrls) {
       try {
-        const res = await shreeMarutiFetch(env, V2_URL, {
-          method: "POST", body: JSON.stringify(p),
+        const r = await fetch(u, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ email, password, vendorType }),
         });
-        const text = await res.text();
-        attempts.push({ payload: p, status: res.status, body: text.slice(0, 2000) });
-      } catch (e) {
-        attempts.push({ payload: p, error: String(e) });
+        const t = await r.text();
+        logins.push({ url: u, status: r.status, body: t.slice(0, 600) });
+        try {
+          const j = JSON.parse(t);
+          const tok = j?.data?.accessToken || j?.accessToken || j?.data?.token || j?.token;
+          if (tok) tokens[u] = tok;
+        } catch (_) { /* ignore */ }
+      } catch (e) { logins.push({ url: u, error: String(e) }); }
+    }
+
+    const payload = {
+      fromPincode: Number(pickup), toPincode: Number(delivery),
+      weight: Math.round(weight * 1000), deliveryMode: mode,
+      isCodOrder: false, codAmount: 0, declaredValue: 1000,
+      length: dims.l, width: dims.w, height: dims.h,
+    };
+
+    const attempts: any[] = [];
+    for (const [name, tok] of Object.entries(tokens)) {
+      const headerSets: Record<string, string>[] = [
+        { Authorization: `Bearer ${tok}` },
+        { Authorization: tok },
+        { token: tok },
+        { "x-access-token": tok },
+      ];
+      for (const h of headerSets) {
+        try {
+          const r = await fetch(V2_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json", ...h },
+            body: JSON.stringify(payload),
+          });
+          const t = await r.text();
+          attempts.push({ token: name, header: Object.keys(h)[0], status: r.status, body: t.slice(0, 800) });
+          if (r.ok) break;
+        } catch (e) { attempts.push({ token: name, header: Object.keys(h)[0], error: String(e) }); }
       }
     }
 
     const [pi, di] = await Promise.all([pinInfo(pickup), pinInfo(delivery)]);
     const card = quoteFromCard("shree_maruti", mode === "AIR" ? "air" : "surface", pi, di, weight, dims);
 
-    return new Response(JSON.stringify({ card, attempts }, null, 2), {
+    return new Response(JSON.stringify({ card, logins, attempts }, null, 2), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
