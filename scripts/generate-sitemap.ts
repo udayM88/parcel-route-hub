@@ -16,11 +16,29 @@ import { resolve } from "node:path";
 
 const BASE_URL = "https://www.viasetu.com";
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://tksfdvnogzsweteetjjw.supabase.co";
+// Vite's .env isn't loaded into process.env for standalone scripts, so read it
+// directly as a fallback — otherwise CMS URLs silently drop out of the sitemap.
+function envFromDotEnv(key: string): string | undefined {
+  try {
+    const raw = readFileSync(resolve(".env"), "utf8");
+    const line = raw.split("\n").find((l) => l.trim().startsWith(`${key}=`));
+    return line?.slice(line.indexOf("=") + 1).trim().replace(/^["']|["']$/g, "");
+  } catch {
+    return undefined;
+  }
+}
+
+const SUPABASE_URL =
+  process.env.VITE_SUPABASE_URL ||
+  envFromDotEnv("VITE_SUPABASE_URL") ||
+  "https://tksfdvnogzsweteetjjw.supabase.co";
 const SUPABASE_KEY =
   process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   process.env.VITE_SUPABASE_ANON_KEY ||
+  envFromDotEnv("VITE_SUPABASE_PUBLISHABLE_KEY") ||
+  envFromDotEnv("VITE_SUPABASE_ANON_KEY") ||
   "";
+
 
 interface Entry {
   path: string;
