@@ -17,6 +17,18 @@ const LOGIN_PATH = "/auth/login";
 interface CachedToken { token: string; expiresAt: number }
 const tokenCache = new Map<Environment, CachedToken>();
 
+// Auth option 1 (preferred when configured): static API key header.
+function apiKeyHeaders(): Record<string, string> | null {
+  const key = Deno.env.get("SHREE_MARUTI_INNO_API_KEY");
+  if (!key) return null;
+  return { "Api-Key": key };
+}
+
+// Auth option 2: Bearer id_token + TenantId header.
+function tenantId(): string | undefined {
+  return Deno.env.get("SHREE_MARUTI_INNO_TENANT_ID");
+}
+
 function gatewayCreds(env: Environment) {
   const fallback = getShreeMarutiConfig(env);
   const username =
@@ -103,24 +115,37 @@ export async function fetchShreeMarutiLiveRate(
     declaredValue: params.declared_value ?? 1000,
   };
 
-  const call = async (token: string) =>
+  const call = async (headers: Record<string, string>) =>
     fetch(`${GATEWAY_BASE}${RATE_V2_PATH}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        Authorization: `Bearer ${token}`,
+        ...headers,
       },
       body: JSON.stringify(payload),
     });
 
   try {
-    let token = await getGatewayToken(env);
-    let res = await call(token);
-    if (res.status === 401 || res.status === 403) {
-      tokenCache.delete(env);
-      token = await getGatewayToken(env, true);
-      res = await call(token);
+    let res: Response;
+    const keyHeaders = apiKeyHeaders();
+    if (keyHeaders) {
+      // Method 1: Api-Key
+      res = await call(keyHeaders);
+    } else {
+      // Method 2: Bearer id_token (+ TenantId)
+      const tid = tenantId();
+      const bearer = (t: string) => ({
+        Authorization: `Bearer ${t}`,
+        ...(tid ? { TenantId: tid } : {}),
+      });
+      let token = await getGatewayToken(env);
+      res = await call(bearer(token));
+      if (res.status === 401 || res.status === 403) {
+        tokenCache.delete(env);
+        token = await getGatewayToken(env, true);
+        res = await call(bearer(token));
+      }
     }
     const text = await res.text();
     if (!res.ok) {
