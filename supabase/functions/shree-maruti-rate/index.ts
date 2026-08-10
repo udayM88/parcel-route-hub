@@ -1,9 +1,10 @@
-// Shree Maruti rate calculation — EMBEDDED CARD ONLY.
-// We no longer call /fulfillment/rate-card/calculate-rate/ecomm. All pricing
-// comes from the contracted rate card in supabase/functions/_shared/rate-cards.ts
-// (source: ViaSetu_1.xlsx).
+// Shree Maruti rate calculation — LIVE API first, embedded card as fallback.
+// Live: https://apis.innofulfill.com/gateway/ure/api/external/rate-calculation/calculate/v2
+// Fallback / verification: supabase/functions/_shared/rate-cards.ts (ViaSetu_1.xlsx)
 
-import { quoteFromCard } from "../_shared/rate-cards.ts";
+import { quoteFromCard, resolvePrice } from "../_shared/rate-cards.ts";
+import { getEnvironmentFromRequest } from "../_shared/environment.ts";
+import { fetchShreeMarutiLiveRate } from "../_shared/shree-maruti-rate-api.ts";
 
 async function pinInfo(pin: string) {
   try {
@@ -25,12 +26,14 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    const env = getEnvironmentFromRequest(req);
     const body = await req.json();
     const {
       pickup_pincode, delivery_pincode,
       weight_kg = 1,
       length_cm = 10, width_cm = 10, height_cm = 10,
       mode = "SURFACE", // "SURFACE" | "AIR"
+      declared_value,
     } = body;
 
     if (!pickup_pincode || !delivery_pincode) {
@@ -40,21 +43,34 @@ Deno.serve(async (req) => {
       );
     }
 
-    const [pInfo, dInfo] = await Promise.all([
+    const upperMode = String(mode).toUpperCase() === "AIR" ? "AIR" : "SURFACE";
+    const dims = { l: Number(length_cm), w: Number(width_cm), h: Number(height_cm) };
+
+    const [pInfo, dInfo, live] = await Promise.all([
       pinInfo(String(pickup_pincode)),
       pinInfo(String(delivery_pincode)),
+      fetchShreeMarutiLiveRate(env, {
+        pickup_pincode, delivery_pincode,
+        weight_kg: Number(weight_kg),
+        length_cm: dims.l, width_cm: dims.w, height_cm: dims.h,
+        mode: upperMode,
+        declared_value,
+      }),
     ]);
 
-    const cardMode = String(mode).toUpperCase() === "AIR" ? "air" : "surface";
-    const card = quoteFromCard("shree_maruti", cardMode, pInfo, dInfo, Number(weight_kg), {
-      l: Number(length_cm), w: Number(width_cm), h: Number(height_cm),
-    });
+    const card = quoteFromCard(
+      "shree_maruti",
+      upperMode === "AIR" ? "air" : "surface",
+      pInfo, dInfo, Number(weight_kg), dims,
+    );
 
-    if (!card) {
+    const resolved = resolvePrice(live?.amount ?? null, card);
+
+    if (!resolved.price) {
       return new Response(
         JSON.stringify({
-          error: "Embedded rate card could not price this request",
-          details: { mode: cardMode, pickup: pInfo, delivery: dInfo, weight_kg },
+          error: "No rate available (live API and embedded card both failed)",
+          details: { mode: upperMode, pickup: pInfo, delivery: dInfo, weight_kg },
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -62,13 +78,15 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      data: { totalAmount: card.price_with_fsc },
-      rate_source: "card",
-      card_zone: card.zone,
-      card_price: card.price_with_fsc,
-      chargeable_g: card.chargeable_g,
-      card_version: card.card_version,
-      final_price: card.price_with_fsc,
+      data: { totalAmount: resolved.price },
+      rate_source: resolved.rate_source,
+      api_price: live?.amount ?? null,
+      card_zone: card?.zone ?? null,
+      card_price: card?.price_with_fsc ?? null,
+      card_delta_pct: resolved.verify?.delta_pct ?? null,
+      chargeable_g: card?.chargeable_g ?? null,
+      card_version: card?.card_version ?? null,
+      final_price: resolved.price,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     console.error("[shree-maruti-rate] error:", err);
