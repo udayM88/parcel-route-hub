@@ -1,8 +1,10 @@
-// TEMP diagnostic: calls the LIVE Shree Maruti rate API and compares it with
-// the embedded contracted rate card. Not used by the app.
+// TEMP diagnostic: calls the LIVE Shree Maruti v2 rate API (Innofulfill gateway)
+// and compares it with the embedded contracted rate card. Not used by the app.
 import { getEnvironmentFromRequest } from "../_shared/environment.ts";
 import { shreeMarutiFetch } from "../_shared/shree-maruti-auth.ts";
 import { quoteFromCard, type PinInfo } from "../_shared/rate-cards.ts";
+
+const V2_URL = "https://apis.innofulfill.com/gateway/ure/api/external/rate-calculation/calculate/v2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,17 +44,25 @@ Deno.serve(async (req) => {
       {
         fromPincode: Number(pickup), toPincode: Number(delivery),
         weight, deliveryMode: mode, isCodOrder: false, codAmount: 0,
-        declaredValue: 1000, volumetricWeight: (dims.l*dims.w*dims.h)/5000,
+        declaredValue: 1000,
         length: dims.l, width: dims.w, height: dims.h,
+        paymentType: "ONLINE", shipmentType: "FORWARD",
+      },
+      {
+        fromPincode: String(pickup), toPincode: String(delivery),
+        weight: Math.round(weight * 1000), deliveryMode: mode,
+        isCodOrder: false, codAmount: 0, declaredValue: 1000,
+        length: dims.l, width: dims.w, height: dims.h,
+        orderType: "ECOMM", serviceType: mode,
       },
     ];
     for (const p of payloads) {
       try {
-        const res = await shreeMarutiFetch(env, "/fulfillment/rate-card/calculate-rate/ecomm", {
+        const res = await shreeMarutiFetch(env, V2_URL, {
           method: "POST", body: JSON.stringify(p),
         });
         const text = await res.text();
-        attempts.push({ payload: p, status: res.status, body: text.slice(0, 1200) });
+        attempts.push({ payload: p, status: res.status, body: text.slice(0, 2000) });
       } catch (e) {
         attempts.push({ payload: p, error: String(e) });
       }
