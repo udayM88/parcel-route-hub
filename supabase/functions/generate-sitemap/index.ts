@@ -53,10 +53,9 @@ function xmlEscape(s: string): string {
 }
 
 Deno.serve(async () => {
-  const today = fmtDate(null);
-  const entries: Array<{ loc: string; lastmod: string; changefreq: string; priority: string }> = STATIC_URLS.map(u => ({
+  // No lastmod for static pages: a generation timestamp is not a page-change signal.
+  const entries: Array<{ loc: string; lastmod?: string; changefreq: string; priority: string }> = STATIC_URLS.map(u => ({
     loc: u.loc,
-    lastmod: today,
     changefreq: u.changefreq,
     priority: u.priority,
   }));
@@ -92,7 +91,7 @@ Deno.serve(async () => {
   const urls = entries.map(u =>
     `<url>` +
       `<loc>${SITE}${xmlEscape(u.loc)}</loc>` +
-      `<lastmod>${u.lastmod}</lastmod>` +
+      (u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : "") +
       `<changefreq>${u.changefreq}</changefreq>` +
       `<priority>${u.priority}</priority>` +
     `</url>`
