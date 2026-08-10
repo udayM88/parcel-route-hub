@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
         const r = await fetch(u, {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ email, password, vendorType }),
+          body: JSON.stringify(u.includes("innofulfill.com/auth/login") ? { username: email, password } : { email, password, vendorType }),
         });
         const t = await r.text();
         logins.push({ url: u, status: r.status, body: t.slice(0, 600) });
