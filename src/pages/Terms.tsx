@@ -22,7 +22,7 @@ export default function Terms() {
       <Helmet>
         <title>Terms & Conditions — ViaSetu</title>
         <meta name="description" content="Terms and Conditions for use of the ViaSetu courier aggregator platform operated by Viasetu Private Limited." />
-        <link rel="canonical" href="https://viasetu.com/Termsandconditions" />
+        <link rel="canonical" href="https://www.viasetu.com/Termsandconditions" />
         <meta name="robots" content="index, follow" />
       </Helmet>
 

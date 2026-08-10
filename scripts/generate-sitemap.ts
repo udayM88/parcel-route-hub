@@ -14,7 +14,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const BASE_URL = "https://viasetu.com";
+const BASE_URL = "https://www.viasetu.com";
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://tksfdvnogzsweteetjjw.supabase.co";
 const SUPABASE_KEY =

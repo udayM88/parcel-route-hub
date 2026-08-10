@@ -5,8 +5,8 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const SITE = "https://viasetu.com";
-const ORIGIN = "https://viasetu.com"; // origin to fetch the built index.html from
+const SITE = "https://www.viasetu.com";
+const ORIGIN = "https://www.viasetu.com"; // origin to fetch the built index.html from
 
 function esc(s: string): string {
   return (s || "")

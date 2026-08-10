@@ -5,11 +5,11 @@ CREATE OR REPLACE FUNCTION public.generate_canonical_url(content_type text, cont
  SET search_path TO 'public'
 AS $function$
   SELECT CASE content_type
-    WHEN 'post'    THEN 'https://viasetu.com/blog/' || content_slug
-    WHEN 'page'    THEN 'https://viasetu.com/p/' || content_slug
-    WHEN 'partner' THEN 'https://viasetu.com/courier/' || content_slug
-    WHEN 'faq'     THEN 'https://viasetu.com/faq'
-    ELSE               'https://viasetu.com/' || content_slug
+    WHEN 'post'    THEN 'https://www.viasetu.com/blog/' || content_slug
+    WHEN 'page'    THEN 'https://www.viasetu.com/p/' || content_slug
+    WHEN 'partner' THEN 'https://www.viasetu.com/courier/' || content_slug
+    WHEN 'faq'     THEN 'https://www.viasetu.com/faq'
+    ELSE               'https://www.viasetu.com/' || content_slug
   END;
 $function$;
 

@@ -99,7 +99,7 @@ export default function FaqPage() {
         <Helmet>
           <title>FAQ — Frequently Asked Questions | ViaSetu</title>
           <meta name="description" content="Answers to common questions about ViaSetu courier booking, pricing, tracking, cancellation, refunds and more." />
-          <link rel="canonical" href="https://viasetu.com/faq" />
+          <link rel="canonical" href="https://www.viasetu.com/faq" />
           <script type="application/ld+json">{JSON.stringify(schema)}</script>
         </Helmet>
         <h1 className="text-4xl md:text-5xl font-bold text-center mb-3" style={{ color: '#0B1220' }}>FAQs</h1>
