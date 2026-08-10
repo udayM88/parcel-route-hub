@@ -17,6 +17,18 @@ const LOGIN_PATH = "/auth/login";
 interface CachedToken { token: string; expiresAt: number }
 const tokenCache = new Map<Environment, CachedToken>();
 
+// Auth option 1 (preferred when configured): static API key header.
+function apiKeyHeaders(): Record<string, string> | null {
+  const key = Deno.env.get("SHREE_MARUTI_INNO_API_KEY");
+  if (!key) return null;
+  return { "Api-Key": key };
+}
+
+// Auth option 2: Bearer id_token + TenantId header.
+function tenantId(): string | undefined {
+  return Deno.env.get("SHREE_MARUTI_INNO_TENANT_ID");
+}
+
 function gatewayCreds(env: Environment) {
   const fallback = getShreeMarutiConfig(env);
   const username =
