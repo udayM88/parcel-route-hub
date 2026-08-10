@@ -1,14 +1,16 @@
 // Shree Maruti (Innofulfill / Delcaper) serviceability check.
-// Pricing is sourced EXCLUSIVELY from the embedded rate card
-// (supabase/functions/_shared/rate-cards.ts, source: ViaSetu_1.xlsx).
-// The live rate API (/calculate-rate/ecomm) is NOT called.
+// Pricing: LIVE rate API first
+// (https://apis.innofulfill.com/gateway/ure/api/external/rate-calculation/calculate/v2),
+// with the embedded rate card (supabase/functions/_shared/rate-cards.ts,
+// source: ViaSetu_1.xlsx) used for verification and as fallback.
 //
 // We still call the partner serviceability endpoint to confirm whether
 // SURFACE / AIR is available for the pincode pair before quoting from the card.
 
 import { getEnvironmentFromRequest } from "../_shared/environment.ts";
 import { shreeMarutiFetch } from "../_shared/shree-maruti-auth.ts";
-import { quoteFromCard, type PinInfo } from "../_shared/rate-cards.ts";
+import { quoteFromCard, resolvePrice, type PinInfo } from "../_shared/rate-cards.ts";
+import { fetchShreeMarutiLiveRate } from "../_shared/shree-maruti-rate-api.ts";
 
 async function lookupPinInfo(pin: string): Promise<PinInfo> {
   try {
@@ -113,7 +115,7 @@ Deno.serve(async (req) => {
     const dims = { l: length_cm, w: width_cm, h: height_cm };
     const services: any[] = [];
 
-    const buildService = (mode: "SURFACE" | "AIR") => {
+    const buildService = async (mode: "SURFACE" | "AIR") => {
       const isAir = mode === "AIR";
       const card = quoteFromCard(
         "shree_maruti",
@@ -121,7 +123,13 @@ Deno.serve(async (req) => {
         pickupInfo, deliveryInfo,
         weight_kg, dims,
       );
-      if (!card) return; // card can't price this mode → skip it
+      const live = await fetchShreeMarutiLiveRate(env, {
+        pickup_pincode, delivery_pincode,
+        weight_kg, length_cm, width_cm, height_cm,
+        mode,
+      });
+      const resolved = resolvePrice(live?.amount ?? null, card);
+      if (!resolved.price) return; // neither API nor card can price this mode
       services.push({
         service_code: isAir ? "shree_maruti_express" : "shree_maruti_surface",
         service_name: isAir ? "Shree Maruti Express (Air)" : "Shree Maruti Surface",
@@ -134,27 +142,31 @@ Deno.serve(async (req) => {
         insurance: false,
         rate: {
           rate_id: `sm_rate_${mode.toLowerCase()}`,
-          price: { amount: card.price_with_fsc, currency: "INR", type: "calculated" },
-          description: isAir ? "Shree Maruti Air (Card)" : "Shree Maruti Surface (Card)",
+          price: { amount: resolved.price, currency: "INR", type: "calculated" },
+          description: isAir ? "Shree Maruti Air" : "Shree Maruti Surface",
         },
         metadata: {
-          rate_source: "card",
-          card_price: card.price_with_fsc,
-          card_zone: card.zone,
-          chargeable_g: card.chargeable_g,
-          card_version: card.card_version,
+          rate_source: resolved.rate_source,
+          api_price: live?.amount ?? null,
+          card_price: card?.price_with_fsc ?? null,
+          card_zone: card?.zone ?? null,
+          card_delta_pct: resolved.verify?.delta_pct ?? null,
+          chargeable_g: card?.chargeable_g ?? null,
+          card_version: card?.card_version ?? null,
         },
       });
     };
 
-    if (surface.ok) buildService("SURFACE");
-    if (air.ok)     buildService("AIR");
+    await Promise.all([
+      surface.ok ? buildService("SURFACE") : Promise.resolve(),
+      air.ok ? buildService("AIR") : Promise.resolve(),
+    ]);
 
     if (services.length === 0) {
       return new Response(
         JSON.stringify({
           is_serviceable: false,
-          reason: "Embedded rate card could not price this pincode pair / weight",
+          reason: "No rate available for this pincode pair / weight",
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
