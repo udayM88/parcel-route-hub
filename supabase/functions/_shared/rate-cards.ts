@@ -474,12 +474,20 @@ export function quoteFromCard(
       return mkQuote("delhivery", mode, zone, g, base, 0);
     }
     case "shree_maruti": {
-      const zone = smZone(pickup, delivery);
-      const slabs = mode === "air" || mode === "express" ? SM_AIR[zone] : SM_SURFACE[zone];
-      const base = smPrice(slabs, Math.max(weightKg, g / 1000));
-      if (base == null) return null;
+      const isAir = mode === "air" || mode === "express";
+      const zone = smZone(pickup, delivery, isAir);
+      const kg = Math.max(Number(weightKg) || 0, g / 1000);
+      let base: number | null;
+      if (isAir) {
+        const slabs = SM_AIR[zone];
+        base = slabs ? smAirPrice(slabs, kg) : null; // Local = Air not offered
+      } else {
+        base = smSurfacePrice(SM_SURFACE[zone], kg);
+      }
+      if (base == null || !(base > 0)) return null;
       return mkQuote("shree_maruti", mode, zone, g, base, 0);
     }
+
     case "urbanebolt": {
       const zone = ubZone(pickup, delivery);
       const base = ubPrice(zone, g);
