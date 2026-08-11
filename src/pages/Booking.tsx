@@ -1464,6 +1464,8 @@ const Booking = () => {
         base_fare: baseFare,
         platform_fee: effectivePlatformFee,
         gst: gstAmount, courier_rate: courierRateValue, retail_price: retailPriceValue, margin_amount: effectivePlatformFee, account_type: 'consumer',
+        partner_id: selectedPartnerData?.partnerId || null,
+        service_code: selectedPartnerData?.serviceCode || null,
         booking_source: 'pending',
       }} />}
 

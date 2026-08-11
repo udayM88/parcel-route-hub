@@ -34,6 +34,7 @@ interface PaymentModalProps {
   onPaymentSuccess: (paymentMethod: string, paymentDetails?: {
     razorpay_payment_id: string;
     razorpay_order_id: string;
+    booking_id?: string | null;
   }) => void;
   customerDetails?: {
     name?: string;
@@ -205,6 +206,7 @@ const PaymentModal = ({ isOpen, onClose, orderDetails, onPaymentSuccess, custome
             onPaymentSuccess('razorpay', {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_order_id: response.razorpay_order_id,
+              booking_id: verifyData?.booking_id ?? null,
             });
             onClose();
           } catch (verifyErr) {
