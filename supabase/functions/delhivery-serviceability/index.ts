@@ -32,7 +32,10 @@ interface Body {
 
 interface RateResult {
   mode: "E" | "S";
+  /** Pre-GST amount used as courier_rate. */
   amount: number;
+  gross?: number | null;
+  total?: number | null;
 }
 
 async function checkPincodes(
@@ -96,15 +99,35 @@ async function fetchRate(
     }
 
     const json = JSON.parse(text);
-    // Response is an array of rate entries; pick first with total_amount
+    // Response is an array of rate entries. `total_amount` is GST-inclusive;
+    // we need the pre-tax figure (`gross_amount`) so GST is applied only once
+    // by our pricing layer, consistent with every other partner.
     const arr: any[] = Array.isArray(json) ? json : [json];
-    const entry = arr.find((e) => typeof e?.total_amount === "number");
+    const entry = arr.find(
+      (e) => typeof e?.gross_amount === "number" || typeof e?.total_amount === "number",
+    );
     if (!entry) {
-      console.warn(`Delhivery rate ${mode} no total_amount in response:`, text.slice(0, 300));
+      console.warn(`Delhivery rate ${mode} no amount in response:`, text.slice(0, 300));
       return null;
     }
 
-    return { mode, amount: Math.round(entry.total_amount) };
+    let preTax: number;
+    if (typeof entry.gross_amount === "number" && entry.gross_amount > 0) {
+      preTax = entry.gross_amount;
+    } else {
+      preTax = Number(entry.total_amount) / 1.18;
+      console.warn(
+        `Delhivery rate ${mode}: gross_amount missing, derived pre-tax ${preTax.toFixed(2)} from total_amount ${entry.total_amount}`,
+      );
+    }
+
+    return {
+      mode,
+      amount: Math.round(preTax),
+      gross: typeof entry.gross_amount === "number" ? entry.gross_amount : null,
+      total: typeof entry.total_amount === "number" ? entry.total_amount : null,
+    };
+
   } catch (err) {
     console.warn(`Delhivery rate ${mode} threw:`, err);
     return null;
@@ -210,6 +233,9 @@ Deno.serve(async (req) => {
         metadata: {
           rate_source: expressResolved.rate_source,
           api_price: express?.amount ?? null,
+          api_gross: express?.gross ?? null,
+          api_total: express?.total ?? null,
+          gst_included_in_rate: false,
           card_price: expressCard?.price_with_fsc ?? null,
           card_zone: expressCard?.zone ?? null,
           card_delta_pct: expressResolved.verify?.delta_pct ?? null,
@@ -235,6 +261,9 @@ Deno.serve(async (req) => {
         metadata: {
           rate_source: surfaceResolved.rate_source,
           api_price: surface?.amount ?? null,
+          api_gross: surface?.gross ?? null,
+          api_total: surface?.total ?? null,
+          gst_included_in_rate: false,
           card_price: surfaceCard?.price_with_fsc ?? null,
           card_zone: surfaceCard?.zone ?? null,
           card_delta_pct: surfaceResolved.verify?.delta_pct ?? null,
