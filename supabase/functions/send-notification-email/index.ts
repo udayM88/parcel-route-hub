@@ -11,8 +11,8 @@ const corsHeaders = {
 
 const SMTP_HOST = Deno.env.get("SMTP_HOST");
 const SMTP_PORT = Number(Deno.env.get("SMTP_PORT") || "465");
-const SMTP_USER = Deno.env.get("SMTP_USER");
-const SMTP_PASS = Deno.env.get("SMTP_PASS");
+const SMTP_USER = Deno.env.get("SMTP_USERNAME") || Deno.env.get("SMTP_USER");
+const SMTP_PASS = Deno.env.get("SMTP_PASSWORD") || Deno.env.get("SMTP_PASS");
 const SMTP_FROM_NAME = Deno.env.get("SMTP_FROM_NAME") || "ViaSetu Notification";
 const SMTP_FROM_EMAIL = Deno.env.get("SMTP_FROM_EMAIL") || SMTP_USER || "";
 
