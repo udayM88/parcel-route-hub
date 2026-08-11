@@ -1,3 +1,4 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 // Server-side consumer shipment creation.
 //
 // Called (a) by razorpay-verify-payment in the background right after a
@@ -235,6 +236,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ booking_id: bookingId }),
       }).catch(() => {});
     } catch { /* ignore */ }
+    dispatchEmail("order_confirmed", bookingId);
 
     console.log(`[create-consumer-shipment] ${bookingId} booked, awb=${awb}`);
 

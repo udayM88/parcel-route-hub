@@ -1,3 +1,4 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 // Business (ViaSetu for Businesses) multi-box shipment creation.
 //
 // Auth: Supabase JWT of a business user with an approved, active
@@ -302,6 +303,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ booking_id: booking.id }),
       }).catch(() => { /* ignore */ });
     } catch { /* ignore */ }
+    dispatchEmail(booked.length === 0 ? "order_rejected" : "order_confirmed", booking.id);
 
     return json({
       success: booked.length > 0,

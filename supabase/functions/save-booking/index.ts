@@ -1,3 +1,4 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 // Persists a booking row using the service role, bypassing RLS.
 // Auth is verified via the x-prayog-auth header (external Prayog OTP system).
 // Idempotent on payment_id: if a row with the same payment_id already exists,
@@ -31,6 +32,7 @@ function triggerAdminEmail(booking: any) {
       },
       body: JSON.stringify({ booking_id: booking.id }),
     }).catch((e) => console.error("[save-booking] admin email trigger failed:", e));
+    dispatchEmail("order_placed", booking.id);
   } catch (e) {
     console.error("[save-booking] triggerAdminEmail err:", e);
   }
