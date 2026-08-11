@@ -10,7 +10,6 @@
 import { getEnvironmentFromRequest } from "../_shared/environment.ts";
 import { shreeMarutiFetch } from "../_shared/shree-maruti-auth.ts";
 import { quoteFromCard, resolvePrice, type PinInfo } from "../_shared/rate-cards.ts";
-import { fetchShreeMarutiLiveRate } from "../_shared/shree-maruti-rate-api.ts";
 
 async function lookupPinInfo(pin: string): Promise<PinInfo> {
   try {
@@ -123,12 +122,9 @@ Deno.serve(async (req) => {
         pickupInfo, deliveryInfo,
         weight_kg, dims,
       );
-      const live = await fetchShreeMarutiLiveRate(env, {
-        pickup_pincode, delivery_pincode,
-        weight_kg, length_cm, width_cm, height_cm,
-        mode,
-      });
-      const resolved = resolvePrice(live?.amount ?? null, card);
+      // Card-only pricing for Shree Maruti (live API deliberately not used).
+      const live: { amount: number } | null = null;
+      const resolved = resolvePrice(null, card);
       if (!resolved.price) return; // neither API nor card can price this mode
       services.push({
         service_code: isAir ? "shree_maruti_express" : "shree_maruti_surface",
