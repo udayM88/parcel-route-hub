@@ -32,7 +32,10 @@ interface Body {
 
 interface RateResult {
   mode: "E" | "S";
+  /** Pre-GST amount used as courier_rate. */
   amount: number;
+  gross?: number | null;
+  total?: number | null;
 }
 
 async function checkPincodes(
