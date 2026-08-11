@@ -37,6 +37,7 @@ import { CITIES } from "./pages/CityPage";
 const CMSDashboard = lazy(() => import("./pages/admin/cms/CMSDashboard"));
 const ContentList = lazy(() => import("./components/admin/cms/ContentList"));
 const ContentEditor = lazy(() => import("./components/admin/cms/ContentEditor"));
+const CmsEmails = lazy(() => import("./pages/admin/cms/CmsEmails"));
 const CmsLogin = lazy(() => import("./pages/cms/CmsLogin"));
 const OpsLogin = lazy(() => import("./pages/ops/OpsLogin"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -162,6 +163,8 @@ const App = () => (
             <Route path="cms/faqs/:id" element={<ProtectedAdminRoute allowedRoles={["super_admin", "cms_editor"]}><ContentEditor type="faq" /></ProtectedAdminRoute>} />
             <Route path="cms/partners" element={<ProtectedAdminRoute allowedRoles={["super_admin", "cms_editor"]}><ContentList type="partner" /></ProtectedAdminRoute>} />
             <Route path="cms/partners/:id" element={<ProtectedAdminRoute allowedRoles={["super_admin", "cms_editor"]}><ContentEditor type="partner" /></ProtectedAdminRoute>} />
+            <Route path="cms/emails" element={<ProtectedAdminRoute allowedRoles={["super_admin", "cms_editor"]}><CmsEmails /></ProtectedAdminRoute>} />
+
           </Route>
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
