@@ -217,11 +217,13 @@ const SystemSettings = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="email">
+        <TabsContent value="email" className="space-y-6">
+          <EmailNotificationsPanel />
+
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" />Order Notification Emails</CardTitle>
-              <CardDescription>Sent to admin whenever a new order is successfully placed. Powered by Resend.</CardDescription>
+              <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" />Legacy Order Notification (Resend)</CardTitle>
+              <CardDescription>Existing admin order email. Left unchanged for backward compatibility.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center space-x-2">
@@ -250,9 +252,6 @@ const SystemSettings = () => {
                   <Label>Sender Email</Label>
                   <Input type="email" value={emailCfg.sender_email}
                     onChange={(e) => setEmailCfg({ ...emailCfg, sender_email: e.target.value })} />
-                  <p className="text-xs text-muted-foreground">
-                    Use <code>onboarding@resend.dev</code> until you verify a domain in Resend.
-                  </p>
                 </div>
               </div>
               <Button onClick={() => saveSetting("email_config", emailCfg)} disabled={saving}>
@@ -261,6 +260,7 @@ const SystemSettings = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
 
         <TabsContent value="notifications">
           <Card>
