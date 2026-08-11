@@ -206,6 +206,9 @@ Deno.serve(async (req) => {
         }).eq("id", bookingId);
       }
 
+      dispatchEmail("order_rejected", bookingId, { failure_reason: String(errDetail).slice(0, 500) });
+      if (refunded) dispatchEmail("order_refunded", bookingId, { refund_reason: "Partner booking failed" });
+
       return json({ booked: false, error: String(errDetail).slice(0, 500), refunded, refund_id: refundId });
     }
 
