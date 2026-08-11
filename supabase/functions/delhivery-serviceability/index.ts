@@ -233,6 +233,9 @@ Deno.serve(async (req) => {
         metadata: {
           rate_source: expressResolved.rate_source,
           api_price: express?.amount ?? null,
+          api_gross: express?.gross ?? null,
+          api_total: express?.total ?? null,
+          gst_included_in_rate: false,
           card_price: expressCard?.price_with_fsc ?? null,
           card_zone: expressCard?.zone ?? null,
           card_delta_pct: expressResolved.verify?.delta_pct ?? null,
