@@ -47,6 +47,12 @@ interface BookingDraft {
   packaging_amount?: number;
   insurance_amount?: number;
   booking_source?: string;
+  partner_id?: string;
+  service_code?: string;
+  courier_rate?: number;
+  retail_price?: number;
+  margin_amount?: number;
+  account_type?: string;
 }
 
 Deno.serve(async (req) => {
