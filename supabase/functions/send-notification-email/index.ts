@@ -163,34 +163,80 @@ Deno.serve(async (req) => {
       status: "sent",
     };
 
-    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-      await supabase.from("email_logs").insert({
-        ...logRow, status: "failed", error: "SMTP credentials not configured",
-      });
-      return json({ error: "SMTP not configured" }, 500);
-    }
+    // --- Transport ---------------------------------------------------------
+    // Supabase Edge Functions block outbound raw SMTP ports (465/587), so an
+    // HTTPS email API is the primary transport. SMTP is kept as a last resort
+    // in case the runtime ever permits it.
+    const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY");
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
-    const message = {
-      from: `${SMTP_FROM_NAME} <${SMTP_FROM_EMAIL}>`,
-      to,
-      ...(cc.length ? { cc } : {}),
-      ...(tpl.reply_to ? { replyTo: tpl.reply_to } : {}),
-      subject,
-      html,
-      content: "text/html",
+    const fromEmail = SMTP_FROM_EMAIL || "notification@viasetu.com";
+    const fromName = SMTP_FROM_NAME;
+
+    const sendViaBrevo = async () => {
+      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": BREVO_API_KEY!,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          sender: { name: fromName, email: fromEmail },
+          to: to.map((email) => ({ email })),
+          ...(cc.length ? { cc: cc.map((email) => ({ email })) } : {}),
+          ...(tpl.reply_to ? { replyTo: { email: tpl.reply_to } } : {}),
+          subject,
+          htmlContent: html,
+        }),
+      });
+      if (!res.ok) throw new Error(`Brevo ${res.status}: ${await res.text()}`);
+      return "brevo";
     };
 
-    const attempt = async (port: number) => {
+    const sendViaResend = async () => {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: `${fromName} <${fromEmail}>`,
+          to,
+          ...(cc.length ? { cc } : {}),
+          ...(tpl.reply_to ? { reply_to: tpl.reply_to } : {}),
+          subject,
+          html,
+        }),
+      });
+      if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
+      return "resend";
+    };
+
+    const sendViaSmtp = async () => {
+      if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+        throw new Error("SMTP credentials not configured");
+      }
+      const message = {
+        from: `${fromName} <${fromEmail}>`,
+        to,
+        ...(cc.length ? { cc } : {}),
+        ...(tpl.reply_to ? { replyTo: tpl.reply_to } : {}),
+        subject,
+        html,
+        content: "text/html",
+      };
       const client = new SMTPClient({
         connection: {
-          hostname: SMTP_HOST!,
-          port,
-          tls: port === 465,
-          auth: { username: SMTP_USER!, password: SMTP_PASS! },
+          hostname: SMTP_HOST,
+          port: SMTP_PORT,
+          tls: SMTP_PORT === 465,
+          auth: { username: SMTP_USER, password: SMTP_PASS },
         },
       });
       const timeout = new Promise((_r, rej) =>
-        setTimeout(() => rej(new Error(`SMTP timeout on port ${port}`)), 20000)
+        setTimeout(() => rej(new Error(`SMTP timeout on port ${SMTP_PORT}`)), 15000)
       );
       try {
         // deno-lint-ignore no-explicit-any
@@ -200,22 +246,28 @@ Deno.serve(async (req) => {
         try { await client.close(); } catch { /* ignore */ }
         throw e;
       }
+      return "smtp";
     };
 
-    const ports = [SMTP_PORT, SMTP_PORT === 465 ? 587 : 465];
+    const transports: { name: string; run: () => Promise<string> }[] = [];
+    if (BREVO_API_KEY) transports.push({ name: "brevo", run: sendViaBrevo });
+    if (RESEND_API_KEY) transports.push({ name: "resend", run: sendViaResend });
+    transports.push({ name: "smtp", run: sendViaSmtp });
+
+    let usedTransport: string | null = null;
     let lastErr: unknown = null;
-    let ok = false;
-    for (const p of ports) {
+    for (const t of transports) {
       try {
-        await attempt(p);
-        ok = true;
+        usedTransport = await t.run();
         break;
       } catch (e) {
         lastErr = e;
-        console.error(`[send-notification-email] SMTP port ${p} failed:`, String(e));
+        console.error(`[send-notification-email] transport ${t.name} failed:`, String(e));
       }
     }
-    if (!ok) throw lastErr ?? new Error("SMTP send failed");
+    if (!usedTransport) throw lastErr ?? new Error("All email transports failed");
+    logRow.provider_response = { transport: usedTransport };
+
 
 
     await supabase.from("email_logs").insert(logRow);
