@@ -45,6 +45,20 @@ export default function CMSDashboard() {
           </Link>
         ))}
       </div>
+      <Link to="/admin/cms/emails" className="block">
+        <Card className="hover:border-primary transition-colors">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Email Notifications</CardTitle>
+            <Mail className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Enable or disable order emails, edit templates and subjects, manage To / CC / Reply-To,
+              send test emails and review delivery logs.
+            </p>
+          </CardContent>
+        </Card>
+      </Link>
     </div>
   );
 }
