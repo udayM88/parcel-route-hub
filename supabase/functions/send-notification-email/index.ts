@@ -11,8 +11,8 @@ const corsHeaders = {
 
 const SMTP_HOST = Deno.env.get("SMTP_HOST");
 const SMTP_PORT = Number(Deno.env.get("SMTP_PORT") || "465");
-const SMTP_USER = Deno.env.get("SMTP_USER");
-const SMTP_PASS = Deno.env.get("SMTP_PASS");
+const SMTP_USER = Deno.env.get("SMTP_USERNAME") || Deno.env.get("SMTP_USER");
+const SMTP_PASS = Deno.env.get("SMTP_PASSWORD") || Deno.env.get("SMTP_PASS");
 const SMTP_FROM_NAME = Deno.env.get("SMTP_FROM_NAME") || "ViaSetu Notification";
 const SMTP_FROM_EMAIL = Deno.env.get("SMTP_FROM_EMAIL") || SMTP_USER || "";
 
@@ -170,30 +170,53 @@ Deno.serve(async (req) => {
       return json({ error: "SMTP not configured" }, 500);
     }
 
-    const client = new SMTPClient({
-      connection: {
-        hostname: SMTP_HOST,
-        port: SMTP_PORT,
-        tls: SMTP_PORT === 465,
-        auth: { username: SMTP_USER, password: SMTP_PASS },
-      },
-    });
+    const message = {
+      from: `${SMTP_FROM_NAME} <${SMTP_FROM_EMAIL}>`,
+      to,
+      ...(cc.length ? { cc } : {}),
+      ...(tpl.reply_to ? { replyTo: tpl.reply_to } : {}),
+      subject,
+      html,
+      content: "text/html",
+    };
 
-    try {
-      await client.send({
-        from: `${SMTP_FROM_NAME} <${SMTP_FROM_EMAIL}>`,
-        to,
-        ...(cc.length ? { cc } : {}),
-        ...(tpl.reply_to ? { replyTo: tpl.reply_to } : {}),
-        subject,
-        html,
-        content: "text/html",
+    const attempt = async (port: number) => {
+      const client = new SMTPClient({
+        connection: {
+          hostname: SMTP_HOST!,
+          port,
+          tls: port === 465,
+          auth: { username: SMTP_USER!, password: SMTP_PASS! },
+        },
       });
-      await client.close();
-    } catch (sendErr) {
-      try { await client.close(); } catch { /* ignore */ }
-      throw sendErr;
+      const timeout = new Promise((_r, rej) =>
+        setTimeout(() => rej(new Error(`SMTP timeout on port ${port}`)), 20000)
+      );
+      try {
+        // deno-lint-ignore no-explicit-any
+        await Promise.race([client.send(message as any), timeout]);
+        await client.close();
+      } catch (e) {
+        try { await client.close(); } catch { /* ignore */ }
+        throw e;
+      }
+    };
+
+    const ports = [SMTP_PORT, SMTP_PORT === 465 ? 587 : 465];
+    let lastErr: unknown = null;
+    let ok = false;
+    for (const p of ports) {
+      try {
+        await attempt(p);
+        ok = true;
+        break;
+      } catch (e) {
+        lastErr = e;
+        console.error(`[send-notification-email] SMTP port ${p} failed:`, String(e));
+      }
     }
+    if (!ok) throw lastErr ?? new Error("SMTP send failed");
+
 
     await supabase.from("email_logs").insert(logRow);
     return json({ sent: true, to, cc });
