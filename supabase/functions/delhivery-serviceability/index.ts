@@ -261,6 +261,9 @@ Deno.serve(async (req) => {
         metadata: {
           rate_source: surfaceResolved.rate_source,
           api_price: surface?.amount ?? null,
+          api_gross: surface?.gross ?? null,
+          api_total: surface?.total ?? null,
+          gst_included_in_rate: false,
           card_price: surfaceCard?.price_with_fsc ?? null,
           card_zone: surfaceCard?.zone ?? null,
           card_delta_pct: surfaceResolved.verify?.delta_pct ?? null,
