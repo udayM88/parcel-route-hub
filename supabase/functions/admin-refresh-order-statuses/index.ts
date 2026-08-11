@@ -137,6 +137,12 @@ Deno.serve(async (req) => {
           .update({ status: newStatus, updated_at: new Date().toISOString() })
           .eq("id", b.id);
         if (upErr) { errors.push({ id: b.id, reason: upErr.message }); return; }
+        const bucket = bucketOfStatus(newStatus);
+        if (bucket === "delivered") {
+          dispatchEmail("order_completed", b.id, { status: newStatus });
+        } else {
+          dispatchEmail("status_change", b.id, { status: newStatus });
+        }
         updated++;
       } catch (e: any) {
         errors.push({ id: b.id, reason: String(e?.message || e) });
