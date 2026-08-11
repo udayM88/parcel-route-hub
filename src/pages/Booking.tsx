@@ -578,10 +578,73 @@ const Booking = () => {
   const handlePaymentSuccess = async (paymentMethod: string, paymentDetails?: {
     razorpay_payment_id: string;
     razorpay_order_id: string;
+    booking_id?: string | null;
   }, isCop: boolean = false) => {
     if (!userId) return;
     const selectedCourierData = getSelectedServiceDetails();
+
+    // ── Server-side shipment path ────────────────────────────────
+    // razorpay-verify-payment already persisted the booking and kicked off
+    // create-consumer-shipment on the server, so the manifest no longer
+    // depends on this tab staying open. We just poll for the outcome.
+    if (!isCop && paymentDetails?.booking_id) {
+      const bookingId = paymentDetails.booking_id;
+      setShowPaymentModal(false);
+      const prayogAuthRaw = localStorage.getItem('auth_session') || localStorage.getItem('prayog_auth');
+      const headers = prayogAuthRaw
+        ? { 'x-prayog-auth': prayogAuthRaw, 'x-environment': CURRENT_ENV }
+        : { 'x-environment': CURRENT_ENV };
+      toast({ title: "Confirming your shipment…", description: "This usually takes a few seconds." });
+
+      for (let attempt = 0; attempt < 40; attempt++) {
+        await new Promise((r) => setTimeout(r, attempt === 0 ? 1500 : 3000));
+        try {
+          const { data } = await supabase.functions.invoke('get-booking-detail', {
+            body: { booking_id: bookingId },
+            headers,
+          });
+          const order: any = (data as any)?.order;
+          const status = String(order?.orderStatus || '').toUpperCase();
+          const awb = order?.shipments?.[0]?.awbNumber || '';
+
+          if (status === 'CREATED' && awb) {
+            setConfirmationData({
+              awbNumber: awb,
+              labelUrl: order?.shipments?.[0]?.documents?.[0]?.url || undefined,
+              courierName: order?.carrierName || selectedCourierData?.name || '',
+              trackingId: awb,
+              bookingId,
+            });
+            localStorage.removeItem('booking_draft');
+            markCompleted(userId, bookingId);
+            setShowConfirmationDialog(true);
+            return;
+          }
+          if (status === 'FAILED' || status === 'CANCELLED') {
+            toast({
+              title: "Booking could not be completed",
+              description: order?.statusReason
+                || "Your payment has been refunded automatically. Please try another courier.",
+              variant: "destructive",
+            });
+            navigate('/history');
+            return;
+          }
+        } catch (e) {
+          console.warn('[booking] poll error', e);
+        }
+      }
+
+      toast({
+        title: "Still processing",
+        description: "Your payment is confirmed and the shipment is being created. Track it in Order History.",
+      });
+      navigate('/history');
+      return;
+    }
+
     try {
+
       // Find the selected service from serviceability data
       let selectedService = null;
       let isShadowfaxDirect = false;
