@@ -172,54 +172,128 @@ function delhiveryExpressPrice(zone: DlZone, g: number): number {
 // =============================================================================
 type SmZone = "Local" | "WithinZone" | "Metro" | "ROI" | "Special";
 
-interface SmSlabs {
-  d025: number | null;
-  d050: number | null;
-  add050: number | null;
-  upto_1: number | null;
-  upto_2: number | null;
-  add1: number | null;
+// Surface slabs (INR, pre-tax) exactly as per Shree Maruti sheet.
+interface SmSurfaceSlabs {
+  d050: number;   // upto 0.5 kg
+  d100: number;   // 0.5 - 1 kg
+  d150: number;   // 1 - 1.5 kg
+  d200: number;   // 1.5 - 2 kg
+  d300: number;   // 2 - 3 kg
+  d400: number;   // 3 - 4 kg
+  d500: number;   // 4 - 5 kg
+  add1: number;   // additional 1 kg beyond 5 kg
 }
 
-const SM_SURFACE: Record<SmZone, SmSlabs> = {
-  Local:      { d025: 23, d050: 25, add050: 19, upto_1: 40, upto_2: 60,  add1: 32 },
-  WithinZone: { d025: 29, d050: 32, add050: 28, upto_1: 55, upto_2: 72,  add1: 43 },
-  Metro:      { d025: 36, d050: 42, add050: 33, upto_1: 65, upto_2: 95,  add1: 52 },
-  ROI:        { d025: 44, d050: 48, add050: 39, upto_1: 83, upto_2: 111, add1: 64 },
-  Special:    { d025: 54, d050: 58, add050: 45, upto_1: 93, upto_2: 162, add1: 78 },
+const SM_SURFACE: Record<SmZone, SmSurfaceSlabs> = {
+  Local:      { d050: 29, d100: 51,  d150: 68,  d200: 76,  d300: 96,  d400: 118, d500: 132, add1: 17 },
+  WithinZone: { d050: 35, d100: 58,  d150: 78,  d200: 89,  d300: 118, d400: 146, d500: 171, add1: 23 },
+  Metro:      { d050: 40, d100: 74,  d150: 99,  d200: 117, d300: 149, d400: 180, d500: 206, add1: 28 },
+  ROI:        { d050: 43, d100: 83,  d150: 112, d200: 135, d300: 179, d400: 220, d500: 247, add1: 31 },
+  Special:    { d050: 69, d100: 120, d150: 160, d200: 198, d300: 253, d400: 304, d500: 347, add1: 49 },
 };
 
-const SM_AIR: Record<SmZone, SmSlabs> = {
-  Local:      { d025: null, d050: null, add050: null, upto_1: null, upto_2: null, add1: null },
-  WithinZone: { d025: 38,   d050: 52,   add050: 41,   upto_1: 80,   upto_2: 120,  add1: 60 },
-  Metro:      { d025: 42,   d050: 60,   add050: 47,   upto_1: 90,   upto_2: 138,  add1: 72 },
-  ROI:        { d025: 52,   d050: 75,   add050: 60,   upto_1: 102,  upto_2: 160,  add1: 85 },
-  Special:    { d025: 68,   d050: 83,   add050: 65,   upto_1: 120,  upto_2: 185,  add1: 98 },
+// Air slabs. Local is 0 in the sheet => Air not offered on Local lanes.
+interface SmAirSlabs {
+  first050: number;  // 0.5 kg
+  add050: number;    // additional 0.5 kg (below 2 kg)
+  upto2: number;     // upto 2 kg
+  add1: number;      // additional 1 kg beyond 2 kg
+}
+
+const SM_AIR: Record<SmZone, SmAirSlabs | null> = {
+  Local:      null,
+  WithinZone: { first050: 38, add050: 29, upto2: 128, add1: 53 },
+  Metro:      { first050: 58, add050: 49, upto2: 165, add1: 59 },
+  ROI:        { first050: 65, add050: 54, upto2: 186, add1: 71 },
+  Special:    { first050: 87, add050: 70, upto2: 255, add1: 77 },
 };
 
-function smZone(p: PinInfo, d: PinInfo): SmZone {
+// Shree Maruti's own zone map (kept separate from the shared REGION map so
+// other partners' zoning is unaffected).
+const SM_REGION: Record<string, "north" | "south" | "east" | "west" | "ne"> = {
+  // North
+  "delhi": "north", "punjab": "north", "chandigarh": "north", "haryana": "north",
+  "himachal pradesh": "north", "uttarakhand": "north", "uttar pradesh": "north",
+  "rajasthan": "north", "jammu and kashmir": "north", "jammu & kashmir": "north",
+  "ladakh": "north",
+  // South
+  "tamil nadu": "south", "kerala": "south", "karnataka": "south",
+  "andhra pradesh": "south", "telangana": "south", "puducherry": "south",
+  "pondicherry": "south",
+  // East
+  "bihar": "east", "jharkhand": "east", "odisha": "east", "west bengal": "east",
+  "chhattisgarh": "east",
+  // West
+  "gujarat": "west", "daman and diu": "west", "dadra and nagar haveli": "west",
+  "maharashtra": "west", "goa": "west", "madhya pradesh": "west",
+  // North East (Special)
+  "assam": "ne", "arunachal pradesh": "ne", "manipur": "ne", "meghalaya": "ne",
+  "mizoram": "ne", "nagaland": "ne", "tripura": "ne", "sikkim": "ne",
+};
+
+const SM_METRO_CITIES = new Set([
+  "delhi", "new delhi", "mumbai", "bengaluru", "bangalore",
+  "hyderabad", "chennai", "kolkata", "ahmedabad",
+]);
+
+// Air sheet's special column: NE & J&K & Kerala.
+const SM_AIR_SPECIAL_STATES = new Set([
+  "jammu and kashmir", "jammu & kashmir", "ladakh", "kerala",
+]);
+
+function smZone(p: PinInfo, d: PinInfo, isAir: boolean): SmZone {
   const pCity = norm(p.city), dCity = norm(d.city);
   const pState = norm(p.state), dState = norm(d.state);
-  if (SPECIAL_STATES.has(pState) || SPECIAL_STATES.has(dState)) return "Special";
+  const pReg = SM_REGION[pState], dReg = SM_REGION[dState];
+
+  // 1. Special — North East (plus J&K / Kerala for Air), islands stay special.
+  if (pReg === "ne" || dReg === "ne") return "Special";
+  if (SPECIAL_STATES.has(pState) || SPECIAL_STATES.has(dState)) {
+    if (!isAir && (pState === "jammu and kashmir" || dState === "jammu and kashmir")) {
+      // Surface: J&K sits in North zone per the contracted zone list.
+    } else {
+      return "Special";
+    }
+  }
+  if (isAir && (SM_AIR_SPECIAL_STATES.has(pState) || SM_AIR_SPECIAL_STATES.has(dState))) {
+    return "Special";
+  }
+
+  // 2. Local — same city / same pincode.
   if (p.pincode && d.pincode && p.pincode === d.pincode) return "Local";
   if (pCity && dCity && pCity === dCity) return "Local";
-  if (METRO_CITIES.has(pCity) && METRO_CITIES.has(dCity)) return "Metro";
-  if (pState && dState && pState === dState) return "WithinZone";
+
+  // 3. Metro — both ends among the 7 metro cities.
+  if (SM_METRO_CITIES.has(pCity) && SM_METRO_CITIES.has(dCity)) return "Metro";
+
+  // 4. WithinZone — both ends in the same regional zone.
+  if (pReg && dReg && pReg === dReg) return "WithinZone";
+
+  // 5. Rest of India.
   return "ROI";
 }
 
-function smPrice(slab: SmSlabs, kg: number): number | null {
-  if (slab.d025 == null && slab.upto_2 == null) return null;
-  if (kg <= 0.25 && slab.d025 != null) return slab.d025;
-  if (kg <= 0.5  && slab.d050 != null) return slab.d050;
-  if (kg <= 1    && slab.upto_1 != null) return slab.upto_1;
-  if (kg <= 2    && slab.upto_2 != null) return slab.upto_2;
-  if (slab.upto_2 != null && slab.add1 != null) {
-    const extra = Math.ceil(kg - 2);
-    return slab.upto_2 + extra * slab.add1;
-  }
-  return null;
+function smSurfacePrice(s: SmSurfaceSlabs, kg: number): number {
+  if (kg <= 0.5) return s.d050;
+  if (kg <= 1) return s.d100;
+  if (kg <= 1.5) return s.d150;
+  if (kg <= 2) return s.d200;
+  if (kg <= 3) return s.d300;
+  if (kg <= 4) return s.d400;
+  if (kg <= 5) return s.d500;
+  return s.d500 + Math.ceil(kg - 5) * s.add1;
 }
+
+function smAirPrice(s: SmAirSlabs, kg: number): number {
+  if (kg <= 0.5) return s.first050;
+  if (kg < 2) {
+    const extra = Math.ceil((kg - 0.5) / 0.5);
+    return s.first050 + extra * s.add050;
+  }
+  if (kg <= 2) return s.upto2;
+  return s.upto2 + Math.ceil(kg - 2) * s.add1;
+}
+
 
 // =============================================================================
 // URBANEBOLT — Zone A–E, simple 500g + Add 500g (FSC 15%)
