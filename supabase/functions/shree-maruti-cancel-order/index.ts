@@ -1,3 +1,4 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 // Shree Maruti cancellation.
 // PUT /fulfillment/public/seller/order/cancel-order  { orderId, cancelReason }
 // Updates booking row + auto-refund via Razorpay if payment was collected.
@@ -81,6 +82,8 @@ Deno.serve(async (req) => {
         .from("bookings")
         .update({ status: "CANCELLED", updated_at: new Date().toISOString() })
         .eq("id", booking_id);
+
+      dispatchEmail("order_cancelled", booking_id);
 
       if (paymentId && paymentStatus === "paid") {
         try {

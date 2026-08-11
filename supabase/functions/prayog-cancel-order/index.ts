@@ -1,3 +1,4 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getEnvironmentFromRequest, getPrayogConfig, getRazorpayConfig } from "../_shared/environment.ts";
 
@@ -79,6 +80,8 @@ Deno.serve(async (req) => {
         .from("bookings")
         .update({ status: "CANCELLED", updated_at: new Date().toISOString() })
         .eq("id", booking_id);
+
+      dispatchEmail("order_cancelled", booking_id);
 
       // Auto-refund if payment was collected
       if (bookingData?.payment_id && bookingData?.payment_status === "paid") {

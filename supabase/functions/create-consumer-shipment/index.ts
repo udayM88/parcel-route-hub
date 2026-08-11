@@ -1,3 +1,4 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 // Server-side consumer shipment creation.
 //
 // Called (a) by razorpay-verify-payment in the background right after a
@@ -205,6 +206,9 @@ Deno.serve(async (req) => {
         }).eq("id", bookingId);
       }
 
+      dispatchEmail("order_rejected", bookingId, { failure_reason: String(errDetail).slice(0, 500) });
+      if (refunded) dispatchEmail("order_refunded", bookingId, { refund_reason: "Partner booking failed" });
+
       return json({ booked: false, error: String(errDetail).slice(0, 500), refunded, refund_id: refundId });
     }
 
@@ -235,6 +239,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ booking_id: bookingId }),
       }).catch(() => {});
     } catch { /* ignore */ }
+    dispatchEmail("order_confirmed", bookingId);
 
     console.log(`[create-consumer-shipment] ${bookingId} booked, awb=${awb}`);
 

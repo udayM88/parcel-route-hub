@@ -1,3 +1,4 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 // Shadowfax Reverse Pickup — Cancel
 // Doc: POST /api/v2/clients/requests/mark_cancel
 // Allowed cancel_remarks: "Cancelled By Customer", "Incorrect/ Incomplete contact info", "Payment Issue"
@@ -100,6 +101,8 @@ Deno.serve(async (req) => {
         .from("bookings")
         .update({ status: "CANCELLED", refund_reason: remarks, updated_at: new Date().toISOString() })
         .eq("id", booking_id);
+
+      dispatchEmail("order_cancelled", booking_id);
 
       if (bookingData?.payment_id && bookingData?.payment_status === "paid") {
         try {

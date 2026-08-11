@@ -1,3 +1,4 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 // Delhivery cancellation via /api/p/edit (cancellation: true)
 // Triggers Razorpay refund if a payment was collected.
 
@@ -86,6 +87,8 @@ Deno.serve(async (req) => {
         .from("bookings")
         .update({ status: "CANCELLED", updated_at: new Date().toISOString() })
         .eq("id", booking_id);
+
+      dispatchEmail("order_cancelled", booking_id);
 
       if (bookingData?.payment_id && bookingData?.payment_status === "paid") {
         try {

@@ -723,6 +723,105 @@ export type Database = {
         }
         Relationships: []
       }
+      email_logs: {
+        Row: {
+          booking_id: string | null
+          cc_emails: string[]
+          created_at: string
+          error: string | null
+          event_key: string
+          id: string
+          is_test: boolean
+          provider_response: Json | null
+          reply_to: string | null
+          status: string
+          subject: string | null
+          to_email: string
+          triggered_by: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          cc_emails?: string[]
+          created_at?: string
+          error?: string | null
+          event_key: string
+          id?: string
+          is_test?: boolean
+          provider_response?: Json | null
+          reply_to?: string | null
+          status?: string
+          subject?: string | null
+          to_email: string
+          triggered_by?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          cc_emails?: string[]
+          created_at?: string
+          error?: string | null
+          event_key?: string
+          id?: string
+          is_test?: boolean
+          provider_response?: Json | null
+          reply_to?: string | null
+          status?: string
+          subject?: string | null
+          to_email?: string
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
+      email_templates: {
+        Row: {
+          body_html: string
+          cc_recipients: string[]
+          created_at: string
+          description: string | null
+          enabled: boolean
+          event_key: string
+          id: string
+          label: string
+          reply_to: string | null
+          send_to_customer: boolean
+          subject: string
+          to_recipients: string[]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          body_html?: string
+          cc_recipients?: string[]
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          event_key: string
+          id?: string
+          label: string
+          reply_to?: string | null
+          send_to_customer?: boolean
+          subject?: string
+          to_recipients?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          body_html?: string
+          cc_recipients?: string[]
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          event_key?: string
+          id?: string
+          label?: string
+          reply_to?: string | null
+          send_to_customer?: boolean
+          subject?: string
+          to_recipients?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       otp_verifications: {
         Row: {
           attempts: number
