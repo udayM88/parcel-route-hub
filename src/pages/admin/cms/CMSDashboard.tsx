@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, LayoutGrid, HelpCircle, Truck } from 'lucide-react';
+import { FileText, LayoutGrid, HelpCircle, Truck, Mail } from 'lucide-react';
 
 const TYPES = [
   { type: 'post', label: 'Blog Posts', icon: FileText, path: '/admin/cms/posts' },
