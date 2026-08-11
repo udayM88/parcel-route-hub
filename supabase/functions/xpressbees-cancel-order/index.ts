@@ -1,10 +1,10 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 // XpressBees cancellation — POST /api/shipments2/cancel  with { awb }.
 // Updates booking row + auto-refund via Razorpay if payment was collected.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
 import { xpressbeesFetch } from "../_shared/xpressbees-auth.ts";
-import { dispatchEmail } from "../_shared/notify-email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -1,9 +1,9 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 // Delhivery cancellation via /api/p/edit (cancellation: true)
 // Triggers Razorpay refund if a payment was collected.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import {
-import { dispatchEmail } from "../_shared/notify-email.ts";
   getDelhiveryConfig,
   getEnvironmentFromRequest,
   getRazorpayConfig,

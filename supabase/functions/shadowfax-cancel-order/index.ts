@@ -1,10 +1,10 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 // Shadowfax Reverse Pickup — Cancel
 // Doc: POST /api/v2/clients/requests/mark_cancel
 // Allowed cancel_remarks: "Cancelled By Customer", "Incorrect/ Incomplete contact info", "Payment Issue"
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getEnvironmentFromRequest, getShadowfaxConfig, getRazorpayConfig } from "../_shared/environment.ts";
-import { dispatchEmail } from "../_shared/notify-email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -1,10 +1,10 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 // Urbanebolt cancellation — POST /api/v1/services/cancel/
 // Updates booking row + auto-refund via Razorpay if payment was collected.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
 import { urbaneboltFetch } from "../_shared/urbanebolt-auth.ts";
-import { dispatchEmail } from "../_shared/notify-email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

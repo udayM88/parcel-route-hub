@@ -1,3 +1,4 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 // Shree Maruti cancellation.
 // PUT /fulfillment/public/seller/order/cancel-order  { orderId, cancelReason }
 // Updates booking row + auto-refund via Razorpay if payment was collected.
@@ -5,7 +6,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
 import { shreeMarutiFetch } from "../_shared/shree-maruti-auth.ts";
-import { dispatchEmail } from "../_shared/notify-email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
