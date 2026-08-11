@@ -5,6 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
 import { shreeMarutiFetch } from "../_shared/shree-maruti-auth.ts";
+import { dispatchEmail } from "../_shared/notify-email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -81,6 +82,8 @@ Deno.serve(async (req) => {
         .from("bookings")
         .update({ status: "CANCELLED", updated_at: new Date().toISOString() })
         .eq("id", booking_id);
+
+      dispatchEmail("order_cancelled", booking_id);
 
       if (paymentId && paymentStatus === "paid") {
         try {

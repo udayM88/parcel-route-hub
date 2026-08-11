@@ -4,6 +4,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
 import { xpressbeesFetch } from "../_shared/xpressbees-auth.ts";
+import { dispatchEmail } from "../_shared/notify-email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -62,6 +63,8 @@ Deno.serve(async (req) => {
         .from("bookings")
         .update({ status: "CANCELLED", updated_at: new Date().toISOString() })
         .eq("id", booking_id);
+
+      dispatchEmail("order_cancelled", booking_id);
 
       if (bookingData?.payment_id && bookingData?.payment_status === "paid") {
         try {
