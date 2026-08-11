@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CURRENT_ENV } from "@/config/environment";
 import {
   RefreshCw, Copy, ExternalLink, Loader2, KeyRound, CheckCircle2, Clock,
-  Truck, Download, PackageCheck,
+  Truck, Download, PackageCheck, PackagePlus,
 } from "lucide-react";
 import { resolvePartnerKey, trackingFunctionFor, trackingBody } from "@/lib/partner-functions";
 
@@ -56,6 +56,7 @@ const AssistedPendingBookings = () => {
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [labelBusyId, setLabelBusyId] = useState<string | null>(null);
   const [manualDialog, setManualDialog] = useState<{ booking: PendingRow } | null>(null);
+  const [awbDialogRow, setAwbDialogRow] = useState<PendingRow | null>(null);
   const [manualPaymentId, setManualPaymentId] = useState("");
   const [submittingManual, setSubmittingManual] = useState(false);
   const [trackingBusyId, setTrackingBusyId] = useState<string | null>(null);
@@ -513,6 +514,13 @@ const AssistedPendingBookings = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ManualAwbDialog
+        open={!!awbDialogRow}
+        onOpenChange={(open) => { if (!open) setAwbDialogRow(null); }}
+        booking={awbDialogRow}
+        onSuccess={() => { setAwbDialogRow(null); fetchRows(); }}
+      />
     </div>
   );
 };
