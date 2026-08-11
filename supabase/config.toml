@@ -137,3 +137,12 @@ verify_jwt = false
 
 [functions.track-booking-progress]
 verify_jwt = false
+
+[functions.create-consumer-shipment]
+verify_jwt = false
+
+[functions.retry-pending-shipments]
+verify_jwt = false
+
+[functions.admin-attach-manual-awb]
+verify_jwt = false
