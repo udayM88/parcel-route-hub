@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import ManualAwbDialog from "@/components/admin/ManualAwbDialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CURRENT_ENV } from "@/config/environment";
 import {
   RefreshCw, Copy, ExternalLink, Loader2, KeyRound, CheckCircle2, Clock,
-  Truck, Download, PackageCheck,
+  Truck, Download, PackageCheck, PackagePlus,
 } from "lucide-react";
 import { resolvePartnerKey, trackingFunctionFor, trackingBody } from "@/lib/partner-functions";
 
@@ -55,6 +56,7 @@ const AssistedPendingBookings = () => {
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [labelBusyId, setLabelBusyId] = useState<string | null>(null);
   const [manualDialog, setManualDialog] = useState<{ booking: PendingRow } | null>(null);
+  const [awbDialogRow, setAwbDialogRow] = useState<PendingRow | null>(null);
   const [manualPaymentId, setManualPaymentId] = useState("");
   const [submittingManual, setSubmittingManual] = useState(false);
   const [trackingBusyId, setTrackingBusyId] = useState<string | null>(null);
@@ -332,6 +334,11 @@ const AssistedPendingBookings = () => {
                   >
                     <KeyRound className="h-4 w-4 mr-2" /> Enter payment ID
                   </Button>
+                  {!row.prayog_awb && !row.tracking_id && (
+                    <Button size="sm" variant="outline" onClick={() => setAwbDialogRow(row)}>
+                      <PackagePlus className="h-4 w-4 mr-2" /> Add AWB manually
+                    </Button>
+                  )}
                   {row.payment_link_url && (
                     <>
                       <Button
@@ -507,6 +514,13 @@ const AssistedPendingBookings = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ManualAwbDialog
+        open={!!awbDialogRow}
+        onOpenChange={(open) => { if (!open) setAwbDialogRow(null); }}
+        booking={awbDialogRow}
+        onSuccess={() => { setAwbDialogRow(null); fetchRows(); }}
+      />
     </div>
   );
 };

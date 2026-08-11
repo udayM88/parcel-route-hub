@@ -47,6 +47,12 @@ interface BookingDraft {
   packaging_amount?: number;
   insurance_amount?: number;
   booking_source?: string;
+  partner_id?: string;
+  service_code?: string;
+  courier_rate?: number;
+  retail_price?: number;
+  margin_amount?: number;
+  account_type?: string;
 }
 
 Deno.serve(async (req) => {
@@ -170,6 +176,12 @@ Deno.serve(async (req) => {
             packaging_amount: booking_draft.packaging_amount ?? 0,
             insurance_amount: booking_draft.insurance_amount ?? 0,
             booking_source: booking_draft.booking_source ?? "unknown",
+            partner_id: booking_draft.partner_id ?? null,
+            service_code: booking_draft.service_code ?? null,
+            courier_rate: booking_draft.courier_rate ?? null,
+            retail_price: booking_draft.retail_price ?? null,
+            margin_amount: booking_draft.margin_amount ?? null,
+            account_type: booking_draft.account_type ?? "consumer",
           };
 
           const { data: inserted, error: insertErr } = await supabase
@@ -196,6 +208,39 @@ Deno.serve(async (req) => {
         "[verify-payment] skipping booking row insert (missing prayog auth or draft)",
       );
     }
+
+    // ── Create the partner shipment server-side ──────────────────
+    // Runs independently of the browser: even if the tab closes right after
+    // payment, the shipment still gets manifested (and auto-refunded on
+    // partner failure). The client polls get-booking-detail for the result.
+    if (bookingRowId) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const shipmentTask = fetch(`${supabaseUrl}/functions/v1/create-consumer-shipment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-key": serviceKey,
+          "x-environment": env,
+        },
+        body: JSON.stringify({ booking_id: bookingRowId }),
+      })
+        .then(async (r) => {
+          console.log(
+            "[verify-payment] create-consumer-shipment:",
+            r.status,
+            (await r.text()).slice(0, 500),
+          );
+        })
+        .catch((e) => console.error("[verify-payment] shipment trigger failed:", e));
+
+      // Keep the isolate alive until the shipment call finishes.
+      try {
+        // deno-lint-ignore no-explicit-any
+        (globalThis as any).EdgeRuntime?.waitUntil?.(shipmentTask);
+      } catch { /* ignore */ }
+    }
+
 
     return new Response(
       JSON.stringify({
