@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import ManualAwbDialog from "@/components/admin/ManualAwbDialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -332,6 +333,11 @@ const AssistedPendingBookings = () => {
                   >
                     <KeyRound className="h-4 w-4 mr-2" /> Enter payment ID
                   </Button>
+                  {!row.prayog_awb && !row.tracking_id && (
+                    <Button size="sm" variant="outline" onClick={() => setAwbDialogRow(row)}>
+                      <PackagePlus className="h-4 w-4 mr-2" /> Add AWB manually
+                    </Button>
+                  )}
                   {row.payment_link_url && (
                     <>
                       <Button

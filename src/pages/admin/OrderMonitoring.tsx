@@ -17,6 +17,7 @@ import { format, startOfDay, endOfDay, isWithinInterval, subDays, startOfMonth, 
 import { CURRENT_ENV } from "@/config/environment";
 import { useCancelOrder, isCancellable } from "@/hooks/useCancelOrder";
 import CancelOrderDialog from "@/components/booking/CancelOrderDialog";
+import ManualAwbDialog from "@/components/admin/ManualAwbDialog";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 import { useAdminAuth } from "@/contexts/useAdminAuth";
 import ParcelPhotoGallery from "@/components/admin/ParcelPhotoGallery";
@@ -96,6 +97,7 @@ const OrderMonitoring = () => {
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [manualAwbOpen, setManualAwbOpen] = useState(false);
   const [tracking, setTracking] = useState<{ loading: boolean; data: any | null; error: string | null }>({ loading: false, data: null, error: null });
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [labelLoading, setLabelLoading] = useState(false);
@@ -692,6 +694,13 @@ const OrderMonitoring = () => {
         </TabsContent>
       </Tabs>
 
+      <ManualAwbDialog
+        open={manualAwbOpen}
+        onOpenChange={setManualAwbOpen}
+        booking={selectedBooking}
+        onSuccess={() => { setDetailsOpen(false); fetchBookings(); }}
+      />
+
       {/* Order Details Modal */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -709,6 +718,17 @@ const OrderMonitoring = () => {
 
           {selectedBooking && (
             <div className="space-y-6">
+              {/* Manual AWB — for orders booked directly on a courier portal */}
+              {!selectedBooking.prayog_awb && !selectedBooking.tracking_id && (
+                <div className="flex items-center justify-between gap-3 p-4 rounded-lg border border-amber-200 bg-amber-50">
+                  <div className="text-sm text-amber-900">
+                    <p className="font-medium">No AWB on this order yet</p>
+                    <p className="text-xs">If it was booked directly with the courier, add the AWB to enable tracking and labels.</p>
+                  </div>
+                  <Button size="sm" onClick={() => setManualAwbOpen(true)}>Add AWB manually</Button>
+                </div>
+              )}
+
               {/* Status Bar */}
               <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
                 <div>
