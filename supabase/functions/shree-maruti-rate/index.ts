@@ -46,17 +46,12 @@ Deno.serve(async (req) => {
     const upperMode = String(mode).toUpperCase() === "AIR" ? "AIR" : "SURFACE";
     const dims = { l: Number(length_cm), w: Number(width_cm), h: Number(height_cm) };
 
-    const [pInfo, dInfo, live] = await Promise.all([
+    // Shree Maruti: contracted rate card only — live API pricing is intentionally not used.
+    const [pInfo, dInfo] = await Promise.all([
       pinInfo(String(pickup_pincode)),
       pinInfo(String(delivery_pincode)),
-      fetchShreeMarutiLiveRate(env, {
-        pickup_pincode, delivery_pincode,
-        weight_kg: Number(weight_kg),
-        length_cm: dims.l, width_cm: dims.w, height_cm: dims.h,
-        mode: upperMode,
-        declared_value,
-      }),
     ]);
+    const live: { amount: number } | null = null;
 
     const card = quoteFromCard(
       "shree_maruti",
