@@ -1,3 +1,4 @@
+import { dispatchEmail } from "../_shared/notify-email.ts";
 // Server-side safety net: refund a captured Razorpay payment with retry.
 // Called by the client whenever a booking cannot be created after payment.
 // Centralizes refund + audit-row insert so the browser closing mid-flow
@@ -210,6 +211,12 @@ Deno.serve(async (req) => {
       } else {
         bookingRecord = inserted;
       }
+    }
+
+    if (refunded && bookingRecord?.id) {
+      dispatchEmail("order_refunded", bookingRecord.id, {
+        refund_reason: reason || "booking_failed_after_payment",
+      });
     }
 
     return new Response(
