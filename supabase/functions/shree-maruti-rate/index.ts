@@ -4,7 +4,6 @@
 
 import { quoteFromCard, resolvePrice } from "../_shared/rate-cards.ts";
 import { getEnvironmentFromRequest } from "../_shared/environment.ts";
-import { fetchShreeMarutiLiveRate } from "../_shared/shree-maruti-rate-api.ts";
 
 async function pinInfo(pin: string) {
   try {
@@ -59,7 +58,7 @@ Deno.serve(async (req) => {
       pInfo, dInfo, Number(weight_kg), dims,
     );
 
-    const resolved = resolvePrice(live?.amount ?? null, card);
+    const resolved = resolvePrice(null, card);
 
     if (!resolved.price) {
       return new Response(
