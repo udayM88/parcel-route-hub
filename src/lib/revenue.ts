@@ -17,6 +17,7 @@ const EXCLUDED = new Set([
   "refunded",
   "refund_failed",
   "failed",
+  "external_settled", // admin-created booking; customer paid outside ViaSetu
 ]);
 
 export function isCollected(payment_status: PaymentStatus): boolean {
