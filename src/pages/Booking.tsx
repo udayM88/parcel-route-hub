@@ -24,7 +24,12 @@ import BottomNav from "@/components/BottomNav";
 import { extractInvokeError } from "@/lib/invoke-error";
 import { trackStep, markCompleted } from "@/lib/booking-progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Copy, CheckCircle2, UserCog } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Copy, CheckCircle2, UserCog, Loader2 } from "lucide-react";
+
 const Booking = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [pickupAddress, setPickupAddress] = useState("");
