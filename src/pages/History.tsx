@@ -101,6 +101,27 @@ const History = () => {
   const [draft, setDraft] = useState<any>(null);
   const [bookingsMap, setBookingsMap] = useState<Record<string, { id: string; booking_source: string; status: string; awb?: string | null; payment_status?: string | null }>>({});
   const [partialFailure, setPartialFailure] = useState<string | null>(null);
+  const [balances, setBalances] = useState<Record<string, BookingBalance>>({});
+
+  // Outstanding / recently settled price differences on re-booked shipments.
+  const fetchBalances = async () => {
+    try {
+      const auth = getAuthSession();
+      if (!auth) return;
+      const { data } = await supabase.functions.invoke('booking-balance', {
+        body: { action: 'list' },
+        headers: { 'x-prayog-auth': JSON.stringify(auth) },
+      });
+      const map: Record<string, BookingBalance> = {};
+      ((data as any)?.balances || []).forEach((b: BookingBalance) => {
+        if (!map[b.booking_id] || b.status === 'pending') map[b.booking_id] = b;
+      });
+      setBalances(map);
+    } catch (e) {
+      console.error('Failed to load balances', e);
+    }
+  };
+
 
 
   useEffect(() => {
