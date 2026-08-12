@@ -151,11 +151,11 @@ Deno.serve(async (req) => {
             "Authorization": `Bearer ${serviceKey}`,
             "x-environment": env,
           },
-          body: JSON.stringify({ booking_id: inserted.id, skip_refund: true }),
+          body: JSON.stringify({ booking_id: inserted.id }),
         });
         const payload = await res.json().catch(() => ({}));
         awb = payload?.awb_number || payload?.awb || payload?.tracking_id || null;
-        manifested = Boolean(payload?.success && awb);
+        manifested = Boolean(payload?.booked && awb);
         if (!manifested) manifestError = payload?.error || "Courier booking did not return an AWB";
       } catch (e) {
         manifestError = String(e);
