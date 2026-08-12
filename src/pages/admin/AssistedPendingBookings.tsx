@@ -439,6 +439,9 @@ const AssistedPendingBookings = () => {
                         <Copy className="h-4 w-4 mr-2" /> Copy AWB
                       </Button>
                     )}
+                    <Button size="sm" variant="outline" onClick={() => setAwbDialogRow(row)}>
+                      <PackagePlus className="h-4 w-4 mr-2" /> {awb ? "Update AWB / label" : "Add AWB manually"}
+                    </Button>
                   </div>
 
                   {tracking[row.id] && (

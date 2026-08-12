@@ -89,7 +89,9 @@ Deno.serve(async (req) => {
         awb_number: row.prayog_awb, tracking_id: row.tracking_id, label_url: row.label_url,
       });
     }
-    if (row.payment_status !== "paid") {
+    // 'external_settled' = admin-created booking where the customer paid
+    // outside ViaSetu; there is no Razorpay payment to verify or refund.
+    if (row.payment_status !== "paid" && row.payment_status !== "external_settled") {
       return json({ booked: false, error: `Payment not settled (payment_status=${row.payment_status})` });
     }
 

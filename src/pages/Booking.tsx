@@ -24,7 +24,12 @@ import BottomNav from "@/components/BottomNav";
 import { extractInvokeError } from "@/lib/invoke-error";
 import { trackStep, markCompleted } from "@/lib/booking-progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Copy, CheckCircle2, UserCog } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Copy, CheckCircle2, UserCog, Loader2 } from "lucide-react";
+
 const Booking = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [pickupAddress, setPickupAddress] = useState("");
@@ -85,6 +90,12 @@ const Booking = () => {
   const [assistedContext, setAssistedContext] = useState<{ userId: string; name: string; phone: string } | null>(null);
   const [paymentLinkInfo, setPaymentLinkInfo] = useState<{ url: string; bookingId: string } | null>(null);
   const [sendingPaymentLink, setSendingPaymentLink] = useState(false);
+  // Assisted booking without collecting payment (customer paid elsewhere).
+  const [unpaidDialogOpen, setUnpaidDialogOpen] = useState(false);
+  const [unpaidReason, setUnpaidReason] = useState("");
+  const [unpaidNote, setUnpaidNote] = useState("");
+  const [unpaidManifestNow, setUnpaidManifestNow] = useState(true);
+  const [creatingUnpaid, setCreatingUnpaid] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const {
@@ -504,6 +515,41 @@ const Booking = () => {
     setShowPaymentModal(true);
   };
 
+  // Shared booking payload used by both assisted paths (payment link / no payment).
+  const buildAssistedDraft = (selectedCourierData: any) => ({
+    sender_name: senderData.name,
+    sender_phone: senderData.phone,
+    sender_address: [senderData.flatNo, senderData.address].filter(Boolean).join(', '),
+    sender_city: senderData.city,
+    sender_state: senderData.state,
+    sender_pincode: senderData.pincode,
+    receiver_name: receiverData.name,
+    receiver_phone: receiverData.phone,
+    receiver_address: [receiverData.flatNo, receiverData.address].filter(Boolean).join(', '),
+    receiver_city: receiverData.city,
+    receiver_state: receiverData.state,
+    receiver_pincode: receiverData.pincode,
+    goods_type: goodsType || 'Package',
+    package_weight: String(weightUnit === 'g' ? (parseFloat(packageWeight) || 1000) / 1000 : parseFloat(packageWeight) || 1),
+    length: dimensions?.length || null,
+    width: dimensions?.width || null,
+    height: dimensions?.height || null,
+    shipment_value: shipmentValue ? parseFloat(shipmentValue) : null,
+    urgency: urgency || 'standard',
+    courier_name: selectedCourierData.name,
+    courier_price: totalAmount,
+    delivery_time: selectedCourierData.deliveryTime,
+    base_fare: baseFare,
+    platform_fee: effectivePlatformFee,
+    gst: gstAmount,
+    courier_rate: courierRateValue,
+    retail_price: retailPriceValue,
+    margin_amount: effectivePlatformFee,
+    account_type: 'consumer',
+    partner_id: selectedPartnerData?.partnerId || null,
+    service_code: selectedPartnerData?.serviceCode || null,
+  });
+
   // Admin-assisted flow: create a Razorpay Payment Link and SMS it to the
   // customer instead of opening the Razorpay checkout in-session.
   const handleSendAdminPaymentLink = async () => {
@@ -515,35 +561,7 @@ const Booking = () => {
     }
     setSendingPaymentLink(true);
     try {
-      const bookingDraft = {
-        sender_name: senderData.name,
-        sender_phone: senderData.phone,
-        sender_address: [senderData.flatNo, senderData.address].filter(Boolean).join(', '),
-        sender_city: senderData.city,
-        sender_state: senderData.state,
-        sender_pincode: senderData.pincode,
-        receiver_name: receiverData.name,
-        receiver_phone: receiverData.phone,
-        receiver_address: [receiverData.flatNo, receiverData.address].filter(Boolean).join(', '),
-        receiver_city: receiverData.city,
-        receiver_state: receiverData.state,
-        receiver_pincode: receiverData.pincode,
-        goods_type: goodsType || 'Package',
-        package_weight: String(weightUnit === 'g' ? (parseFloat(packageWeight) || 1000) / 1000 : parseFloat(packageWeight) || 1),
-        length: dimensions?.length || null,
-        width: dimensions?.width || null,
-        height: dimensions?.height || null,
-        shipment_value: shipmentValue ? parseFloat(shipmentValue) : null,
-        urgency: urgency || 'standard',
-        courier_name: selectedCourierData.name,
-        courier_price: totalAmount,
-        delivery_time: selectedCourierData.deliveryTime,
-        base_fare: baseFare,
-        platform_fee: effectivePlatformFee,
-        gst: gstAmount, courier_rate: courierRateValue, retail_price: retailPriceValue, margin_amount: effectivePlatformFee, account_type: 'consumer',
-        partner_id: selectedPartnerData?.partnerId || null,
-        service_code: selectedPartnerData?.serviceCode || null,
-      };
+      const bookingDraft = buildAssistedDraft(selectedCourierData);
       const { data, error } = await supabase.functions.invoke('admin-create-payment-link', {
         body: {
           customer_user_id: assistedContext.userId,
@@ -569,6 +587,52 @@ const Booking = () => {
       setSendingPaymentLink(false);
     }
   };
+
+  // Admin-assisted flow: place the booking without collecting payment through
+  // ViaSetu (customer already paid elsewhere / settled offline).
+  const handleCreateUnpaidBooking = async () => {
+    if (!assistedContext) return;
+    const selectedCourierData = getSelectedServiceDetails();
+    if (!selectedCourierData) {
+      toast({ title: "Select a courier first", variant: "destructive" });
+      return;
+    }
+    if (!unpaidReason.trim()) {
+      toast({ title: "Add a reason for skipping payment", variant: "destructive" });
+      return;
+    }
+    setCreatingUnpaid(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-create-unpaid-booking', {
+        body: {
+          customer_user_id: assistedContext.userId,
+          customer_name: assistedContext.name,
+          customer_phone: assistedContext.phone,
+          booking_draft: buildAssistedDraft(selectedCourierData),
+          reason: unpaidReason.trim(),
+          note: unpaidNote.trim() || undefined,
+          manifest_now: unpaidManifestNow,
+        },
+        headers: { 'x-environment': CURRENT_ENV },
+      });
+      if (error || !data?.success) {
+        throw new Error(error?.message || data?.error || 'Failed to create booking');
+      }
+      setUnpaidDialogOpen(false);
+      toast({
+        title: "Booking created without payment",
+        description: data.manifested
+          ? `Courier booked · AWB ${data.awb}`
+          : "Saved. Add the AWB manually from Order Monitoring once booked with the courier.",
+      });
+      navigate('/admin/assisted-pending');
+    } catch (e: any) {
+      toast({ title: "Could not create booking", description: e?.message || 'Please try again', variant: 'destructive' });
+    } finally {
+      setCreatingUnpaid(false);
+    }
+  };
+
   // Cash-on-Pickup: skip Razorpay entirely. TEMPORARY — see memory note
   // payments/no-cash-on-delivery-policy. Booking is created as Prepaid with the
   // courier; we settle internally and mark payment_status='cop_pending'.
@@ -1384,7 +1448,7 @@ const Booking = () => {
           baseFare: baseFare,
           // This already includes platform fee (merged into displayed price)
           deliveryTime: selectedCourierData?.deliveryTime || ""
-        }} selectedDate={selectedDate} onConfirm={handleProceedToPayment} onBack={handlePrevStep} />;
+        }} selectedDate={selectedDate} onConfirm={handleProceedToPayment} onBack={handlePrevStep} isAssisted={!!assistedContext} onBookWithoutPayment={assistedContext ? () => setUnpaidDialogOpen(true) : undefined} />;
       default:
         return null;
     }
@@ -1423,6 +1487,54 @@ const Booking = () => {
           )}
         </div>
 
+
+        {/* Assisted booking · place order without collecting payment */}
+        <Dialog open={unpaidDialogOpen} onOpenChange={setUnpaidDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Book without payment</DialogTitle>
+              <DialogDescription>
+                Use this only when the customer has already paid elsewhere or the amount is
+                settled offline. The order will not count towards ViaSetu collections.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Reason</Label>
+                <Select value={unpaidReason} onValueChange={setUnpaidReason}>
+                  <SelectTrigger><SelectValue placeholder="Select a reason" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Paid to another courier partner">Paid to another courier partner</SelectItem>
+                    <SelectItem value="Partner could not fulfil, rebooking with us">Partner could not fulfil, rebooking with us</SelectItem>
+                    <SelectItem value="Settled offline / cash collected">Settled offline / cash collected</SelectItem>
+                    <SelectItem value="Goodwill / service recovery">Goodwill / service recovery</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Internal note <span className="text-muted-foreground">(optional)</span></Label>
+                <Textarea value={unpaidNote} onChange={(e) => setUnpaidNote(e.target.value)} rows={2} maxLength={500} />
+              </div>
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div className="text-sm">
+                  <p className="font-medium">Book with courier now</p>
+                  <p className="text-xs text-muted-foreground">
+                    Off: save the order and add the AWB manually after booking on the courier portal.
+                  </p>
+                </div>
+                <Switch checked={unpaidManifestNow} onCheckedChange={setUnpaidManifestNow} />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setUnpaidDialogOpen(false)} disabled={creatingUnpaid}>Cancel</Button>
+              <Button onClick={handleCreateUnpaidBooking} disabled={creatingUnpaid || !unpaidReason}>
+                {creatingUnpaid ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating…</> : "Create booking"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <BottomNav />
 
