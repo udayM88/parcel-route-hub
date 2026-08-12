@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getAuthSession } from "@/lib/auth";
 import { isCancellable } from "@/hooks/useCancelOrder";
 import ParcelPhotoUpload from "@/components/booking/ParcelPhotoUpload";
+import BalanceDueCard, { type BookingBalance } from "@/components/booking/BalanceDueCard";
 
 interface OrderAddress {
   type: string;
