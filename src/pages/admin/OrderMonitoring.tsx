@@ -719,13 +719,21 @@ const OrderMonitoring = () => {
           {selectedBooking && (
             <div className="space-y-6">
               {/* Manual AWB — for orders booked directly on a courier portal */}
-              {!selectedBooking.prayog_awb && !selectedBooking.tracking_id && (
+              {!selectedBooking.prayog_awb && !selectedBooking.tracking_id ? (
                 <div className="flex items-center justify-between gap-3 p-4 rounded-lg border border-amber-200 bg-amber-50">
                   <div className="text-sm text-amber-900">
                     <p className="font-medium">No AWB on this order yet</p>
                     <p className="text-xs">If it was booked directly with the courier, add the AWB to enable tracking and labels.</p>
                   </div>
                   <Button size="sm" onClick={() => setManualAwbOpen(true)}>Add AWB manually</Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3 p-4 rounded-lg border bg-muted/40">
+                  <div className="text-sm">
+                    <p className="font-medium">Shipment moved to another courier?</p>
+                    <p className="text-xs text-muted-foreground">Replace the AWB, courier partner and label. The customer sees the update in History.</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => setManualAwbOpen(true)}>Update AWB / label</Button>
                 </div>
               )}
 
