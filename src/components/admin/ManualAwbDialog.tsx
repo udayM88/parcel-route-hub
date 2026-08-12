@@ -204,13 +204,88 @@ const ManualAwbDialog = ({ open, onOpenChange, booking, onSuccess }: ManualAwbDi
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>AWB / waybill number</Label>
+            <Label>
+              AWB / waybill number
+              {holdShipment && <span className="text-muted-foreground"> (optional — shipment held until paid)</span>}
+            </Label>
             <Input value={awb} onChange={(e) => setAwb(e.target.value)} placeholder="e.g. 1234567890" maxLength={64} />
           </div>
           <div className="space-y-1.5">
             <Label>Partner order ID <span className="text-muted-foreground">(optional)</span></Label>
             <Input value={orderId} onChange={(e) => setOrderId(e.target.value)} maxLength={64} />
           </div>
+
+          {/* ── Price difference ─────────────────────────────────── */}
+          <div className="rounded-md border p-3 space-y-3">
+            <div className="space-y-1.5">
+              <Label>New partner price (₹, incl. GST) <span className="text-muted-foreground">(optional)</span></Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                value={newPrice}
+                onChange={(e) => setNewPrice(e.target.value)}
+                placeholder={`Customer paid ₹${Math.round(paidAmount)}`}
+              />
+            </div>
+
+            {parsedNewPrice != null && !Number.isNaN(parsedNewPrice) && (
+              difference > 0.5 ? (
+                <div className="space-y-3">
+                  <p className="text-sm">
+                    Customer paid <strong>₹{Math.round(paidAmount)}</strong>, new price is{" "}
+                    <strong>₹{Math.round(parsedNewPrice)}</strong> — shortfall{" "}
+                    <strong className="text-destructive">₹{difference}</strong>.
+                  </p>
+                  <RadioGroup
+                    value={differenceAction}
+                    onValueChange={(v) => setDifferenceAction(v as typeof differenceAction)}
+                    className="space-y-1"
+                  >
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="link" id="diff-link" />
+                      <Label htmlFor="diff-link" className="font-normal">Send Razorpay payment link (SMS)</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="in_app" id="diff-app" />
+                      <Label htmlFor="diff-app" className="font-normal">Let customer pay from History</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="waive" id="diff-waive" />
+                      <Label htmlFor="diff-waive" className="font-normal">Waive — ViaSetu absorbs it</Label>
+                    </div>
+                  </RadioGroup>
+
+                  {differenceAction === "waive" ? (
+                    <div className="space-y-1.5">
+                      <Label>Reason for waiver</Label>
+                      <Input
+                        value={waiveReason}
+                        onChange={(e) => setWaiveReason(e.target.value)}
+                        placeholder="e.g. partner failure, goodwill"
+                        maxLength={300}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="hold-shipment"
+                        checked={bookAfterPayment}
+                        onCheckedChange={setBookAfterPayment}
+                      />
+                      <Label htmlFor="hold-shipment" className="font-normal">
+                        Book with the new partner only after the balance is paid
+                      </Label>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  New price is the same or lower — nothing to collect, no refund is issued.
+                </p>
+              )
+            )}
+          </div>
+
           <div className="space-y-1.5">
             <Label className="flex items-center gap-2">
               <Upload className="h-3.5 w-3.5" />
@@ -239,10 +314,13 @@ const ManualAwbDialog = ({ open, onOpenChange, booking, onSuccess }: ManualAwbDi
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={saving || !awb.trim() || !partner}>
-            {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving…</> : existingAwb ? "Replace AWB" : "Attach AWB"}
+          <Button onClick={handleSubmit} disabled={saving || !partner || (!holdShipment && !awb.trim())}>
+            {saving
+              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving…</>
+              : holdShipment ? "Save & request balance" : existingAwb ? "Replace AWB" : "Attach AWB"}
           </Button>
         </DialogFooter>
+
       </DialogContent>
     </Dialog>
   );
