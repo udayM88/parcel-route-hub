@@ -98,12 +98,30 @@ const OrderDetails = () => {
     status: string;
     awb?: string | null;
   } | null>(null);
+  const [balance, setBalance] = useState<BookingBalance | null>(null);
+
+  const fetchBalance = async (bookingId: string) => {
+    try {
+      const auth = getAuthSession();
+      if (!auth) return;
+      const { data } = await supabase.functions.invoke('booking-balance', {
+        body: { action: 'list' },
+        headers: { 'x-prayog-auth': JSON.stringify(auth) },
+      });
+      const list: BookingBalance[] = (data as any)?.balances || [];
+      const forThis = list.filter((b) => b.booking_id === bookingId);
+      setBalance(forThis.find((b) => b.status === 'pending') || forThis[0] || null);
+    } catch (e) {
+      console.error('Failed to load balance', e);
+    }
+  };
 
   useEffect(() => {
     if (orderId) {
       fetchOrderDetails();
     }
   }, [orderId]);
+
 
 
   const fetchOrderDetails = async () => {
