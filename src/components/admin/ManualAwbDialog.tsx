@@ -31,6 +31,7 @@ interface ManualAwbDialogProps {
     partner_id?: string | null;
     prayog_awb?: string | null;
     tracking_id?: string | null;
+    courier_price?: number | null;
   } | null;
   onSuccess?: () => void;
 }
@@ -47,6 +48,10 @@ const fileToBase64 = (file: File) =>
  * Admin action: attach (or replace) an AWB booked directly on a courier portal,
  * optionally uploading the label file, so tracking, label download and
  * cancellation start working through the normal partner integrations.
+ *
+ * When the new partner costs more than the customer already paid, the admin
+ * can send a Razorpay link for the difference, let the customer pay it from
+ * their History screen, or waive it with a reason.
  */
 const ManualAwbDialog = ({ open, onOpenChange, booking, onSuccess }: ManualAwbDialogProps) => {
   const { toast } = useToast();
@@ -57,8 +62,18 @@ const ManualAwbDialog = ({ open, onOpenChange, booking, onSuccess }: ManualAwbDi
   const [labelFile, setLabelFile] = useState<File | null>(null);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [newPrice, setNewPrice] = useState("");
+  const [differenceAction, setDifferenceAction] = useState<"link" | "in_app" | "waive">("in_app");
+  const [waiveReason, setWaiveReason] = useState("");
+  const [bookAfterPayment, setBookAfterPayment] = useState(false);
 
   const existingAwb = booking?.prayog_awb || booking?.tracking_id || null;
+  const paidAmount = Number(booking?.courier_price) || 0;
+  const parsedNewPrice = newPrice.trim() === "" ? null : Number(newPrice);
+  const difference = parsedNewPrice != null && !Number.isNaN(parsedNewPrice)
+    ? Math.round((parsedNewPrice - paidAmount) * 100) / 100
+    : 0;
+  const hasShortfall = difference > 0.5;
 
   const guessPartner = () => {
     const s = `${booking?.partner_id || ""} ${booking?.courier_name || ""}`.toLowerCase();
@@ -70,14 +85,20 @@ const ManualAwbDialog = ({ open, onOpenChange, booking, onSuccess }: ManualAwbDi
     if (next) {
       setPartner(guessPartner());
       setAwb(""); setOrderId(""); setLabelUrl(""); setNote(""); setLabelFile(null);
+      setNewPrice(""); setDifferenceAction("in_app"); setWaiveReason(""); setBookAfterPayment(false);
     }
     onOpenChange(next);
   };
 
+  const holdShipment = hasShortfall && bookAfterPayment && differenceAction !== "waive";
+
   const handleSubmit = async () => {
     if (!booking) return;
     if (!partner) { toast({ title: "Select the courier partner", variant: "destructive" }); return; }
-    if (awb.trim().length < 4) { toast({ title: "Enter a valid AWB number", variant: "destructive" }); return; }
+    if (!holdShipment && awb.trim().length < 4) {
+      toast({ title: "Enter a valid AWB number", variant: "destructive" });
+      return;
+    }
     if (labelUrl.trim() && !/^https?:\/\//i.test(labelUrl.trim())) {
       toast({ title: "Label URL must start with http:// or https://", variant: "destructive" });
       return;
@@ -86,6 +107,11 @@ const ManualAwbDialog = ({ open, onOpenChange, booking, onSuccess }: ManualAwbDi
       toast({ title: "Label file must be under 5 MB", variant: "destructive" });
       return;
     }
+    if (hasShortfall && differenceAction === "waive" && waiveReason.trim().length < 3) {
+      toast({ title: "Add a reason for waiving the difference", variant: "destructive" });
+      return;
+    }
+
 
     setSaving(true);
     try {
