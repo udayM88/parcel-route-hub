@@ -5,6 +5,7 @@
 // Input: { booking_id, partner, awb, partner_order_id?, label_url?, note? }
 // partner ∈ delhivery | urbanebolt | xpressbees | shadowfax | shree_maruti
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
