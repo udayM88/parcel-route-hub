@@ -500,6 +500,15 @@ const OrderDetails = () => {
             </span>
           </div>
 
+          {balance && (
+            <BalanceDueCard
+              balance={balance}
+              onPaid={() => { fetchOrderDetails(); if (bookingMeta?.id) fetchBalance(bookingMeta.id); }}
+            />
+          )}
+
+
+
           {/* Cancellation notice — customers must email support */}
           {bookingMeta && isCancellable(order.orderStatus || bookingMeta.status) && (
             <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 flex gap-2">
