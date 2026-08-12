@@ -161,6 +161,8 @@ const OrderDetails = () => {
           status: b.status || '',
           awb: b.awb || b.prayog_awb || b.tracking_id || null,
         });
+        fetchBalance(b.id);
+
         if (
           b.payment_status === 'refunded' ||
           b.payment_status === 'refund_failed' ||
