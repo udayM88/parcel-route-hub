@@ -504,6 +504,41 @@ const Booking = () => {
     setShowPaymentModal(true);
   };
 
+  // Shared booking payload used by both assisted paths (payment link / no payment).
+  const buildAssistedDraft = (selectedCourierData: any) => ({
+    sender_name: senderData.name,
+    sender_phone: senderData.phone,
+    sender_address: [senderData.flatNo, senderData.address].filter(Boolean).join(', '),
+    sender_city: senderData.city,
+    sender_state: senderData.state,
+    sender_pincode: senderData.pincode,
+    receiver_name: receiverData.name,
+    receiver_phone: receiverData.phone,
+    receiver_address: [receiverData.flatNo, receiverData.address].filter(Boolean).join(', '),
+    receiver_city: receiverData.city,
+    receiver_state: receiverData.state,
+    receiver_pincode: receiverData.pincode,
+    goods_type: goodsType || 'Package',
+    package_weight: String(weightUnit === 'g' ? (parseFloat(packageWeight) || 1000) / 1000 : parseFloat(packageWeight) || 1),
+    length: dimensions?.length || null,
+    width: dimensions?.width || null,
+    height: dimensions?.height || null,
+    shipment_value: shipmentValue ? parseFloat(shipmentValue) : null,
+    urgency: urgency || 'standard',
+    courier_name: selectedCourierData.name,
+    courier_price: totalAmount,
+    delivery_time: selectedCourierData.deliveryTime,
+    base_fare: baseFare,
+    platform_fee: effectivePlatformFee,
+    gst: gstAmount,
+    courier_rate: courierRateValue,
+    retail_price: retailPriceValue,
+    margin_amount: effectivePlatformFee,
+    account_type: 'consumer',
+    partner_id: selectedPartnerData?.partnerId || null,
+    service_code: selectedPartnerData?.serviceCode || null,
+  });
+
   // Admin-assisted flow: create a Razorpay Payment Link and SMS it to the
   // customer instead of opening the Razorpay checkout in-session.
   const handleSendAdminPaymentLink = async () => {
@@ -515,35 +550,7 @@ const Booking = () => {
     }
     setSendingPaymentLink(true);
     try {
-      const bookingDraft = {
-        sender_name: senderData.name,
-        sender_phone: senderData.phone,
-        sender_address: [senderData.flatNo, senderData.address].filter(Boolean).join(', '),
-        sender_city: senderData.city,
-        sender_state: senderData.state,
-        sender_pincode: senderData.pincode,
-        receiver_name: receiverData.name,
-        receiver_phone: receiverData.phone,
-        receiver_address: [receiverData.flatNo, receiverData.address].filter(Boolean).join(', '),
-        receiver_city: receiverData.city,
-        receiver_state: receiverData.state,
-        receiver_pincode: receiverData.pincode,
-        goods_type: goodsType || 'Package',
-        package_weight: String(weightUnit === 'g' ? (parseFloat(packageWeight) || 1000) / 1000 : parseFloat(packageWeight) || 1),
-        length: dimensions?.length || null,
-        width: dimensions?.width || null,
-        height: dimensions?.height || null,
-        shipment_value: shipmentValue ? parseFloat(shipmentValue) : null,
-        urgency: urgency || 'standard',
-        courier_name: selectedCourierData.name,
-        courier_price: totalAmount,
-        delivery_time: selectedCourierData.deliveryTime,
-        base_fare: baseFare,
-        platform_fee: effectivePlatformFee,
-        gst: gstAmount, courier_rate: courierRateValue, retail_price: retailPriceValue, margin_amount: effectivePlatformFee, account_type: 'consumer',
-        partner_id: selectedPartnerData?.partnerId || null,
-        service_code: selectedPartnerData?.serviceCode || null,
-      };
+      const bookingDraft = buildAssistedDraft(selectedCourierData);
       const { data, error } = await supabase.functions.invoke('admin-create-payment-link', {
         body: {
           customer_user_id: assistedContext.userId,
@@ -569,6 +576,52 @@ const Booking = () => {
       setSendingPaymentLink(false);
     }
   };
+
+  // Admin-assisted flow: place the booking without collecting payment through
+  // ViaSetu (customer already paid elsewhere / settled offline).
+  const handleCreateUnpaidBooking = async () => {
+    if (!assistedContext) return;
+    const selectedCourierData = getSelectedServiceDetails();
+    if (!selectedCourierData) {
+      toast({ title: "Select a courier first", variant: "destructive" });
+      return;
+    }
+    if (!unpaidReason.trim()) {
+      toast({ title: "Add a reason for skipping payment", variant: "destructive" });
+      return;
+    }
+    setCreatingUnpaid(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-create-unpaid-booking', {
+        body: {
+          customer_user_id: assistedContext.userId,
+          customer_name: assistedContext.name,
+          customer_phone: assistedContext.phone,
+          booking_draft: buildAssistedDraft(selectedCourierData),
+          reason: unpaidReason.trim(),
+          note: unpaidNote.trim() || undefined,
+          manifest_now: unpaidManifestNow,
+        },
+        headers: { 'x-environment': CURRENT_ENV },
+      });
+      if (error || !data?.success) {
+        throw new Error(error?.message || data?.error || 'Failed to create booking');
+      }
+      setUnpaidDialogOpen(false);
+      toast({
+        title: "Booking created without payment",
+        description: data.manifested
+          ? `Courier booked · AWB ${data.awb}`
+          : "Saved. Add the AWB manually from Order Monitoring once booked with the courier.",
+      });
+      navigate('/admin/assisted-pending');
+    } catch (e: any) {
+      toast({ title: "Could not create booking", description: e?.message || 'Please try again', variant: 'destructive' });
+    } finally {
+      setCreatingUnpaid(false);
+    }
+  };
+
   // Cash-on-Pickup: skip Razorpay entirely. TEMPORARY — see memory note
   // payments/no-cash-on-delivery-policy. Booking is created as Prepaid with the
   // courier; we settle internally and mark payment_status='cop_pending'.
