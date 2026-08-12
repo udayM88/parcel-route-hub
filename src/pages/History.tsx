@@ -398,7 +398,13 @@ const History = () => {
                 {(() => {
                   const bookingId = (order as any)._localBookingId || bookingsMap[order.orderId]?.id;
                   const bal = bookingId ? balances[bookingId] : null;
-                  return bal ? <BalanceDueCard balance={bal} onPaid={fetchOrders} /> : null;
+                  return bal ? (
+                    <BalanceDueCard
+                      balance={bal}
+                      onPaid={() => { fetchOrders(); fetchBalances(); }}
+                    />
+                  ) : null;
+
                 })()}
 
 
