@@ -133,18 +133,32 @@ const ManualAwbDialog = ({ open, onOpenChange, booking, onSuccess }: ManualAwbDi
           label_file,
           note: note.trim() || undefined,
           replace: Boolean(existingAwb),
+          new_price: parsedNewPrice != null && !Number.isNaN(parsedNewPrice) ? parsedNewPrice : undefined,
+          difference_action: hasShortfall ? differenceAction : undefined,
+          waive_reason: hasShortfall && differenceAction === "waive" ? waiveReason.trim() : undefined,
+          book_after_payment: holdShipment,
         },
         headers: { "x-environment": CURRENT_ENV },
       });
       if (error || (data as any)?.error) {
         throw new Error((data as any)?.error || error?.message || "Failed to attach AWB");
       }
+      const balanceLink = (data as any)?.balance?.razorpay_payment_link_url;
       toast({
-        title: existingAwb ? "Shipment updated" : "AWB attached",
-        description: `Tracking is now live for ${awb.trim()}`,
+        title: holdShipment
+          ? "Balance requested — shipment on hold"
+          : existingAwb ? "Shipment updated" : "AWB attached",
+        description: hasShortfall
+          ? differenceAction === "waive"
+            ? `Difference of ₹${difference} waived.`
+            : balanceLink
+              ? `Payment link for ₹${difference}: ${balanceLink}`
+              : `₹${difference} balance is now payable by the customer in their History.`
+          : `Tracking is now live for ${awb.trim()}`,
       });
       onOpenChange(false);
       onSuccess?.();
+
     } catch (e: any) {
       toast({ title: "Could not attach AWB", description: e?.message, variant: "destructive" });
     } finally {
