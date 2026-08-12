@@ -371,6 +371,14 @@ const History = () => {
                   </div>
                 </div>
 
+                {(() => {
+                  const bookingId = (order as any)._localBookingId || bookingsMap[order.orderId]?.id;
+                  const bal = bookingId ? balances[bookingId] : null;
+                  return bal ? <BalanceDueCard balance={bal} onPaid={fetchOrders} /> : null;
+                })()}
+
+
+
                 <div className="flex gap-2 flex-wrap">
                   {(() => {
                     const bm = bookingsMap[order.orderId];
