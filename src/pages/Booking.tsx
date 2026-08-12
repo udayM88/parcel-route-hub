@@ -1448,7 +1448,7 @@ const Booking = () => {
           baseFare: baseFare,
           // This already includes platform fee (merged into displayed price)
           deliveryTime: selectedCourierData?.deliveryTime || ""
-        }} selectedDate={selectedDate} onConfirm={handleProceedToPayment} onBack={handlePrevStep} />;
+        }} selectedDate={selectedDate} onConfirm={handleProceedToPayment} onBack={handlePrevStep} isAssisted={!!assistedContext} onBookWithoutPayment={assistedContext ? () => setUnpaidDialogOpen(true) : undefined} />;
       default:
         return null;
     }
@@ -1487,6 +1487,54 @@ const Booking = () => {
           )}
         </div>
 
+
+        {/* Assisted booking · place order without collecting payment */}
+        <Dialog open={unpaidDialogOpen} onOpenChange={setUnpaidDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Book without payment</DialogTitle>
+              <DialogDescription>
+                Use this only when the customer has already paid elsewhere or the amount is
+                settled offline. The order will not count towards ViaSetu collections.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Reason</Label>
+                <Select value={unpaidReason} onValueChange={setUnpaidReason}>
+                  <SelectTrigger><SelectValue placeholder="Select a reason" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Paid to another courier partner">Paid to another courier partner</SelectItem>
+                    <SelectItem value="Partner could not fulfil, rebooking with us">Partner could not fulfil, rebooking with us</SelectItem>
+                    <SelectItem value="Settled offline / cash collected">Settled offline / cash collected</SelectItem>
+                    <SelectItem value="Goodwill / service recovery">Goodwill / service recovery</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Internal note <span className="text-muted-foreground">(optional)</span></Label>
+                <Textarea value={unpaidNote} onChange={(e) => setUnpaidNote(e.target.value)} rows={2} maxLength={500} />
+              </div>
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div className="text-sm">
+                  <p className="font-medium">Book with courier now</p>
+                  <p className="text-xs text-muted-foreground">
+                    Off: save the order and add the AWB manually after booking on the courier portal.
+                  </p>
+                </div>
+                <Switch checked={unpaidManifestNow} onCheckedChange={setUnpaidManifestNow} />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setUnpaidDialogOpen(false)} disabled={creatingUnpaid}>Cancel</Button>
+              <Button onClick={handleCreateUnpaidBooking} disabled={creatingUnpaid || !unpaidReason}>
+                {creatingUnpaid ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating…</> : "Create booking"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <BottomNav />
 
