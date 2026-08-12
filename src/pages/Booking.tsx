@@ -85,6 +85,12 @@ const Booking = () => {
   const [assistedContext, setAssistedContext] = useState<{ userId: string; name: string; phone: string } | null>(null);
   const [paymentLinkInfo, setPaymentLinkInfo] = useState<{ url: string; bookingId: string } | null>(null);
   const [sendingPaymentLink, setSendingPaymentLink] = useState(false);
+  // Assisted booking without collecting payment (customer paid elsewhere).
+  const [unpaidDialogOpen, setUnpaidDialogOpen] = useState(false);
+  const [unpaidReason, setUnpaidReason] = useState("");
+  const [unpaidNote, setUnpaidNote] = useState("");
+  const [unpaidManifestNow, setUnpaidManifestNow] = useState(true);
+  const [creatingUnpaid, setCreatingUnpaid] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const {
