@@ -126,6 +126,8 @@ const History = () => {
 
   useEffect(() => {
     fetchOrders();
+    fetchBalances();
+
     try {
       const d = localStorage.getItem('booking_draft');
       if (d) setDraft(JSON.parse(d));
