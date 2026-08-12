@@ -50,6 +50,9 @@ interface BookingReviewStepProps {
   selectedDate?: Date;
   onConfirm: () => void;
   onBack: () => void;
+  /** Admin-assisted booking: swaps the CTA and exposes the no-payment path. */
+  isAssisted?: boolean;
+  onBookWithoutPayment?: () => void;
 }
 
 const BookingReviewStep = ({
@@ -60,6 +63,8 @@ const BookingReviewStep = ({
   selectedDate,
   onConfirm,
   onBack,
+  isAssisted = false,
+  onBookWithoutPayment,
 }: BookingReviewStepProps) => {
   const [submitting] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
@@ -249,13 +254,23 @@ const BookingReviewStep = ({
         {/* Action Buttons */}
         <div className="space-y-2">
           <Button
-            onClick={() => setShowCancelWarning(true)}
+            onClick={() => (isAssisted ? onConfirm() : setShowCancelWarning(true))}
             className="w-full"
             disabled={submitting}
           >
             <CreditCard className="h-4 w-4" />
-            Pay Now (₹{totalAmount})
+            {isAssisted ? `Send payment link (₹${totalAmount})` : `Pay Now (₹${totalAmount})`}
           </Button>
+          {isAssisted && onBookWithoutPayment && (
+            <Button
+              variant="outline"
+              onClick={onBookWithoutPayment}
+              className="w-full"
+              disabled={submitting}
+            >
+              Book without payment
+            </Button>
+          )}
           <Button variant="ghost" onClick={onBack} className="w-full" disabled={submitting}>
             Back to Edit
           </Button>
