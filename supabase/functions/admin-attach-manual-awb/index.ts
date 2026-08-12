@@ -67,15 +67,37 @@ Deno.serve(async (req) => {
     // Optional uploaded label file: { name, content_type, data(base64) }
     const labelFile = body?.label_file && body.label_file.data ? body.label_file : null;
 
+    // ── Price difference handling ────────────────────────────────────
+    // new_price = final customer-facing price with the new partner.
+    const newPrice = body?.new_price != null && body.new_price !== ""
+      ? Number(body.new_price)
+      : null;
+    const differenceAction = body?.difference_action
+      ? String(body.difference_action).trim().toLowerCase() // link | in_app | waive
+      : null;
+    const waiveReason = body?.waive_reason ? String(body.waive_reason).trim().slice(0, 300) : null;
+    const bookAfterPayment = body?.book_after_payment === true;
+
     if (!bookingId) return json({ error: "booking_id is required" }, 400);
     if (!PARTNERS[partner]) {
       return json({ error: `partner must be one of: ${Object.keys(PARTNERS).join(", ")}` }, 400);
     }
-    if (!awb || awb.length < 4 || awb.length > 64) {
+    // AWB is optional only when the shipment is deliberately held back until
+    // the customer settles the balance.
+    if (!bookAfterPayment && (!awb || awb.length < 4 || awb.length > 64)) {
+      return json({ error: "awb must be between 4 and 64 characters" }, 400);
+    }
+    if (awb && (awb.length < 4 || awb.length > 64)) {
       return json({ error: "awb must be between 4 and 64 characters" }, 400);
     }
     if (labelUrl && !/^https?:\/\//i.test(labelUrl)) {
       return json({ error: "label_url must be a valid http(s) URL" }, 400);
+    }
+    if (differenceAction && !["link", "in_app", "waive"].includes(differenceAction)) {
+      return json({ error: "difference_action must be link, in_app or waive" }, 400);
+    }
+    if (differenceAction === "waive" && !waiveReason) {
+      return json({ error: "A reason is required to waive the difference" }, 400);
     }
 
     const { data: row } = await admin
@@ -89,6 +111,7 @@ Deno.serve(async (req) => {
         requires_replace: true,
       }, 409);
     }
+
 
     // Upload a manually supplied label (PDF/image) to the private bucket and
     // keep a long-lived signed URL on the booking so admins and the customer
