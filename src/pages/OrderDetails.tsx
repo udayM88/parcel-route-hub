@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getAuthSession } from "@/lib/auth";
 import { isCancellable } from "@/hooks/useCancelOrder";
 import ParcelPhotoUpload from "@/components/booking/ParcelPhotoUpload";
+import BalanceDueCard, { type BookingBalance } from "@/components/booking/BalanceDueCard";
 
 interface OrderAddress {
   type: string;
@@ -98,12 +99,30 @@ const OrderDetails = () => {
     status: string;
     awb?: string | null;
   } | null>(null);
+  const [balance, setBalance] = useState<BookingBalance | null>(null);
+
+  const fetchBalance = async (bookingId: string) => {
+    try {
+      const auth = getAuthSession();
+      if (!auth) return;
+      const { data } = await supabase.functions.invoke('booking-balance', {
+        body: { action: 'list' },
+        headers: { 'x-prayog-auth': JSON.stringify(auth) },
+      });
+      const list: BookingBalance[] = (data as any)?.balances || [];
+      const forThis = list.filter((b) => b.booking_id === bookingId);
+      setBalance(forThis.find((b) => b.status === 'pending') || forThis[0] || null);
+    } catch (e) {
+      console.error('Failed to load balance', e);
+    }
+  };
 
   useEffect(() => {
     if (orderId) {
       fetchOrderDetails();
     }
   }, [orderId]);
+
 
 
   const fetchOrderDetails = async () => {
@@ -142,6 +161,8 @@ const OrderDetails = () => {
           status: b.status || '',
           awb: b.awb || b.prayog_awb || b.tracking_id || null,
         });
+        fetchBalance(b.id);
+
         if (
           b.payment_status === 'refunded' ||
           b.payment_status === 'refund_failed' ||
@@ -478,6 +499,15 @@ const OrderDetails = () => {
               {order.deliveryPromise || 'Standard'}
             </span>
           </div>
+
+          {balance && (
+            <BalanceDueCard
+              balance={balance}
+              onPaid={() => { fetchOrderDetails(); if (bookingMeta?.id) fetchBalance(bookingMeta.id); }}
+            />
+          )}
+
+
 
           {/* Cancellation notice — customers must email support */}
           {bookingMeta && isCancellable(order.orderStatus || bookingMeta.status) && (

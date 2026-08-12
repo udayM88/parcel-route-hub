@@ -44,6 +44,92 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_balance_payments: {
+        Row: {
+          amount_due: number
+          book_after_payment: boolean
+          booking_id: string
+          collection_mode: string
+          created_at: string
+          created_by_admin_email: string | null
+          created_by_admin_id: string | null
+          id: string
+          new_amount: number
+          new_courier_name: string | null
+          paid_at: string | null
+          payment_id: string | null
+          previous_amount: number
+          previous_courier_name: string | null
+          razorpay_order_id: string | null
+          razorpay_payment_link_id: string | null
+          razorpay_payment_link_url: string | null
+          reason: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          waive_reason: string | null
+          waived_by: string | null
+        }
+        Insert: {
+          amount_due?: number
+          book_after_payment?: boolean
+          booking_id: string
+          collection_mode?: string
+          created_at?: string
+          created_by_admin_email?: string | null
+          created_by_admin_id?: string | null
+          id?: string
+          new_amount?: number
+          new_courier_name?: string | null
+          paid_at?: string | null
+          payment_id?: string | null
+          previous_amount?: number
+          previous_courier_name?: string | null
+          razorpay_order_id?: string | null
+          razorpay_payment_link_id?: string | null
+          razorpay_payment_link_url?: string | null
+          reason?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          waive_reason?: string | null
+          waived_by?: string | null
+        }
+        Update: {
+          amount_due?: number
+          book_after_payment?: boolean
+          booking_id?: string
+          collection_mode?: string
+          created_at?: string
+          created_by_admin_email?: string | null
+          created_by_admin_id?: string | null
+          id?: string
+          new_amount?: number
+          new_courier_name?: string | null
+          paid_at?: string | null
+          payment_id?: string | null
+          previous_amount?: number
+          previous_courier_name?: string | null
+          razorpay_order_id?: string | null
+          razorpay_payment_link_id?: string | null
+          razorpay_payment_link_url?: string | null
+          reason?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          waive_reason?: string | null
+          waived_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_balance_payments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_boxes: {
         Row: {
           booking_id: string

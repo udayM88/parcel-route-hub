@@ -5,6 +5,7 @@
 // Input: { booking_id, partner, awb, partner_order_id?, label_url?, note? }
 // partner ∈ delhivery | urbanebolt | xpressbees | shadowfax | shree_maruti
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,15 +68,37 @@ Deno.serve(async (req) => {
     // Optional uploaded label file: { name, content_type, data(base64) }
     const labelFile = body?.label_file && body.label_file.data ? body.label_file : null;
 
+    // ── Price difference handling ────────────────────────────────────
+    // new_price = final customer-facing price with the new partner.
+    const newPrice = body?.new_price != null && body.new_price !== ""
+      ? Number(body.new_price)
+      : null;
+    const differenceAction = body?.difference_action
+      ? String(body.difference_action).trim().toLowerCase() // link | in_app | waive
+      : null;
+    const waiveReason = body?.waive_reason ? String(body.waive_reason).trim().slice(0, 300) : null;
+    const bookAfterPayment = body?.book_after_payment === true;
+
     if (!bookingId) return json({ error: "booking_id is required" }, 400);
     if (!PARTNERS[partner]) {
       return json({ error: `partner must be one of: ${Object.keys(PARTNERS).join(", ")}` }, 400);
     }
-    if (!awb || awb.length < 4 || awb.length > 64) {
+    // AWB is optional only when the shipment is deliberately held back until
+    // the customer settles the balance.
+    if (!bookAfterPayment && (!awb || awb.length < 4 || awb.length > 64)) {
+      return json({ error: "awb must be between 4 and 64 characters" }, 400);
+    }
+    if (awb && (awb.length < 4 || awb.length > 64)) {
       return json({ error: "awb must be between 4 and 64 characters" }, 400);
     }
     if (labelUrl && !/^https?:\/\//i.test(labelUrl)) {
       return json({ error: "label_url must be a valid http(s) URL" }, 400);
+    }
+    if (differenceAction && !["link", "in_app", "waive"].includes(differenceAction)) {
+      return json({ error: "difference_action must be link, in_app or waive" }, 400);
+    }
+    if (differenceAction === "waive" && !waiveReason) {
+      return json({ error: "A reason is required to waive the difference" }, 400);
     }
 
     const { data: row } = await admin
@@ -89,6 +112,7 @@ Deno.serve(async (req) => {
         requires_replace: true,
       }, 409);
     }
+
 
     // Upload a manually supplied label (PDF/image) to the private bucket and
     // keep a long-lived signed URL on the booking so admins and the customer
@@ -122,21 +146,24 @@ Deno.serve(async (req) => {
       }
     }
 
+    const previousAmount = Number(row.courier_price) || 0;
+    const difference = newPrice != null ? Math.round((newPrice - previousAmount) * 100) / 100 : 0;
+    const hasShortfall = difference > 0.5 && !!differenceAction;
+    const holdForPayment = hasShortfall && bookAfterPayment && differenceAction !== "waive";
+
     const auditTrail = [
       row.partner_error_raw || null,
       [
         `${existingAwb ? "AWB replaced" : "Manual AWB added"} by ${adminRow.email} at ${new Date().toISOString()}`,
         existingAwb ? `Previous AWB: ${existingAwb}` : null,
+        newPrice != null ? `Re-booked price ₹${newPrice} (was ₹${previousAmount})` : null,
+        hasShortfall ? `Difference ₹${difference} → ${differenceAction}${waiveReason ? ` (${waiveReason})` : ""}` : null,
         note ? `Note: ${note}` : null,
       ].filter(Boolean).join(" | "),
     ].filter(Boolean).join("\n").slice(0, 2000);
 
-    const { data: updated, error: updErr } = await admin.from("bookings").update({
-      status: "CREATED",
-      prayog_awb: awb,
-      tracking_id: awb,
-      prayog_order_id: partnerOrderId || row.prayog_order_id || awb,
-      label_url: uploadedLabelUrl || labelUrl || (replaceExisting ? null : row.label_url),
+    const patch: Record<string, unknown> = {
+      status: holdForPayment ? "BALANCE_DUE" : "CREATED",
       partner_id: `${partner}_direct`,
       // keep the standard `<partner>_direct` source so tracking/label lookups work
       booking_source: `${partner}_direct`,
@@ -144,15 +171,96 @@ Deno.serve(async (req) => {
       failure_reason: null,
       failure_step: null,
       partner_error_raw: auditTrail,
-    }).eq("id", bookingId).select().single();
+    };
+    if (awb) {
+      patch.prayog_awb = awb;
+      patch.tracking_id = awb;
+      patch.prayog_order_id = partnerOrderId || row.prayog_order_id || awb;
+      patch.label_url = uploadedLabelUrl || labelUrl || (replaceExisting ? null : row.label_url);
+    }
+    // The customer's payable price moves to the new partner's price only once
+    // the difference has been settled or waived.
+    if (newPrice != null && (!hasShortfall || differenceAction === "waive")) {
+      patch.courier_price = newPrice;
+    }
+
+    const { data: updated, error: updErr } = await admin
+      .from("bookings").update(patch).eq("id", bookingId).select().single();
 
     if (updErr) {
       console.error("[admin-attach-manual-awb] update failed:", updErr);
       return json({ error: updErr.message }, 500);
     }
 
-    console.log(`[admin-attach-manual-awb] ${bookingId} → ${partner} ${awb} by ${adminRow.email}`);
-    return json({ success: true, booking: updated });
+    // ── Record / collect the price difference ────────────────────────
+    let balance: Record<string, unknown> | null = null;
+    if (hasShortfall) {
+      let linkId: string | null = null;
+      let linkUrl: string | null = null;
+
+      if (differenceAction === "link") {
+        const env = getEnvironmentFromRequest(req);
+        const rz = getRazorpayConfig(env);
+        if (!rz.keyId || !rz.keySecret) {
+          return json({ error: `Razorpay not configured for ${env}` }, 500);
+        }
+        const basic = btoa(`${rz.keyId}:${rz.keySecret}`);
+        const phone = String(row.sender_phone || "").replace(/\D/g, "").slice(-10);
+        const rzRes = await fetch("https://api.razorpay.com/v1/payment_links", {
+          method: "POST",
+          headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: Math.round(difference * 100),
+            currency: "INR",
+            accept_partial: false,
+            reference_id: `BAL${Date.now()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+            description: `Balance for shipment re-booked with ${PARTNERS[partner]}`.slice(0, 2048),
+            customer: { name: row.sender_name || "Customer", contact: phone ? `+91${phone}` : undefined },
+            notify: { sms: true, email: false },
+            reminder_enable: true,
+            notes: { type: "booking_balance", booking_id: bookingId, admin_email: adminRow.email },
+          }),
+        });
+        const rzText = await rzRes.text();
+        if (!rzRes.ok) {
+          console.error("[admin-attach-manual-awb] payment link failed", rzText);
+          return json({ error: "Razorpay payment link creation failed", details: rzText }, 502);
+        }
+        const rzJson = JSON.parse(rzText);
+        linkId = rzJson.id;
+        linkUrl = rzJson.short_url;
+      }
+
+      const { data: balRow, error: balErr } = await admin
+        .from("booking_balance_payments").insert({
+          booking_id: bookingId,
+          user_id: row.user_id,
+          reason: `Re-booked with ${PARTNERS[partner]}`,
+          previous_courier_name: row.courier_name,
+          previous_amount: previousAmount,
+          new_courier_name: PARTNERS[partner],
+          new_amount: newPrice,
+          amount_due: difference,
+          status: differenceAction === "waive" ? "waived" : "pending",
+          collection_mode: differenceAction === "link" ? "link" : "in_app",
+          razorpay_payment_link_id: linkId,
+          razorpay_payment_link_url: linkUrl,
+          waive_reason: differenceAction === "waive" ? waiveReason : null,
+          waived_by: differenceAction === "waive" ? adminRow.email : null,
+          book_after_payment: holdForPayment,
+          created_by_admin_id: userData.user.id,
+          created_by_admin_email: adminRow.email,
+        }).select().single();
+      if (balErr) {
+        console.error("[admin-attach-manual-awb] balance insert failed:", balErr);
+        return json({ error: `Shipment updated but balance record failed: ${balErr.message}` }, 500);
+      }
+      balance = balRow;
+    }
+
+    console.log(`[admin-attach-manual-awb] ${bookingId} → ${partner} ${awb || "(no awb)"} by ${adminRow.email}`);
+    return json({ success: true, booking: updated, balance });
+
   } catch (err) {
     console.error("[admin-attach-manual-awb] error:", err);
     return json({ error: "Internal server error", details: String(err) }, 500);
