@@ -12,6 +12,7 @@ import EmptyBoxIllustration from "@/components/illustrations/EmptyBoxIllustratio
 import PageBackground from "@/components/PageBackground";
 import BottomNav from "@/components/BottomNav";
 import PageSeo from "@/components/PageSeo";
+import BalanceDueCard, { type BookingBalance } from "@/components/booking/BalanceDueCard";
 
 interface OrderAddress {
   type: string;
