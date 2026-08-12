@@ -58,14 +58,26 @@ async function checkPincodes(
   const json = await res.json();
   const records: any[] = json?.delivery_codes || [];
 
-  const findOk = (pin: string) => {
+  // Remarks like "Embargo" / "Temporarily Suspended" mean the pin is not
+  // actually operable even though the capability flags stay "Y".
+  const BLOCKING_REMARKS = ["embargo", "suspend", "closed", "discontinued", "stop"];
+
+  const findOk = (pin: string, need: "pickup" | "pre_paid") => {
     const rec = records.find((r) => String(r?.postal_code?.pin) === String(pin));
     if (!rec) return false;
-    return String(rec.postal_code?.pre_paid || "").toUpperCase() === "Y";
+    const pc = rec.postal_code || {};
+    const remarks = String(pc.remarks || "").toLowerCase();
+    if (remarks && BLOCKING_REMARKS.some((k) => remarks.includes(k))) {
+      console.warn(`Delhivery pin ${pin} blocked by remarks: ${pc.remarks}`);
+      return false;
+    }
+    return String(pc[need] || "").toUpperCase() === "Y";
   };
 
-  return { pickupOk: findOk(pickup), deliveryOk: findOk(delivery) };
+  // Reverse pickup: parcel is collected at the sender pin and delivered at the receiver pin.
+  return { pickupOk: findOk(pickup, "pickup"), deliveryOk: findOk(delivery, "pre_paid") };
 }
+
 
 async function fetchRate(
   baseUrl: string,

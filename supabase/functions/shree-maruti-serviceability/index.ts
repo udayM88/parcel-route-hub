@@ -59,12 +59,15 @@ async function checkMode(env: any, fromPin: number, toPin: number, mode: "SURFAC
       return { ok: false, data };
     }
     const inner = data?.data ?? data;
-    const serviceable =
-      inner?.isServiceable === true ||
-      inner?.serviceable === true ||
-      inner?.feasible === true ||
-      (data?.status === 200 && inner !== false);
-    return { ok: !!serviceable, data: inner };
+    // The API answers with { status: 200, data: { serviceability: true|false } }.
+    // Only an explicit positive flag counts — a 200 alone means nothing.
+    const flag = inner?.serviceability ?? inner?.isServiceable ?? inner?.serviceable ?? inner?.feasible;
+    const serviceable = flag === true || String(flag).toLowerCase() === "true";
+    if (!serviceable) {
+      console.log("[shree-maruti-serviceability]", mode, "not serviceable", text.slice(0, 200));
+    }
+    return { ok: serviceable, data: inner };
+
   } catch (e) {
     console.warn("[shree-maruti-serviceability]", mode, "error", String(e));
     return { ok: false, data: null };
