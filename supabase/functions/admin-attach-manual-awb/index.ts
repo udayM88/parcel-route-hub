@@ -138,7 +138,8 @@ Deno.serve(async (req) => {
       prayog_order_id: partnerOrderId || row.prayog_order_id || awb,
       label_url: uploadedLabelUrl || labelUrl || (replaceExisting ? null : row.label_url),
       partner_id: `${partner}_direct`,
-      booking_source: `manual_${partner}`,
+      // keep the standard `<partner>_direct` source so tracking/label lookups work
+      booking_source: `${partner}_direct`,
       courier_name: PARTNERS[partner],
       failure_reason: null,
       failure_step: null,
