@@ -7,6 +7,7 @@
 import { createHmac } from "node:crypto";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
+import { buildBookingRow, type BookingDraft } from "../_shared/booking-draft.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,46 +15,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-environment, x-prayog-auth",
 };
 
-interface BookingDraft {
-  // Buyer / sender
-  sender_name?: string;
-  sender_phone?: string;
-  sender_address?: string;
-  sender_city?: string;
-  sender_state?: string;
-  sender_pincode?: string;
-  // Receiver
-  receiver_name?: string;
-  receiver_phone?: string;
-  receiver_address?: string;
-  receiver_city?: string;
-  receiver_state?: string;
-  receiver_pincode?: string;
-  // Package
-  goods_type?: string;
-  package_weight?: string | number;
-  length?: string | number | null;
-  width?: string | number | null;
-  height?: string | number | null;
-  shipment_value?: number | null;
-  urgency?: string;
-  // Courier
-  courier_name?: string;
-  courier_price?: number;
-  delivery_time?: string;
-  base_fare?: number;
-  platform_fee?: number;
-  gst?: number;
-  packaging_amount?: number;
-  insurance_amount?: number;
-  booking_source?: string;
-  partner_id?: string;
-  service_code?: string;
-  courier_rate?: number;
-  retail_price?: number;
-  margin_amount?: number;
-  account_type?: string;
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
