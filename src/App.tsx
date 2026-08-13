@@ -30,6 +30,7 @@ const Contact = lazy(() => import("./pages/Contact"));
 const HowItWorks = lazy(() => import("./pages/HowItWorks"));
 const CourierPartners = lazy(() => import("./pages/CourierPartners"));
 const Careers = lazy(() => import("./pages/Careers"));
+const ForBusiness = lazy(() => import("./pages/ForBusiness"));
 const ServicePage = lazy(() => import("./pages/ServicePage"));
 const ParcelTrackingPage = lazy(() => import("./pages/ParcelTrackingPage"));
 const CityPage = lazy(() => import("./pages/CityPage"));
@@ -50,6 +51,7 @@ const RealTimeTracking = lazy(() => import("./pages/admin/RealTimeTracking"));
 const UserManagement = lazy(() => import("./pages/admin/UserManagement"));
 const AdminUserManagement = lazy(() => import("./pages/admin/AdminUserManagement"));
 const BusinessManagement = lazy(() => import("./pages/admin/BusinessManagement"));
+const BusinessInquiries = lazy(() => import("./pages/admin/BusinessInquiries"));
 const BusinessLogin = lazy(() => import("./pages/business/BusinessLogin"));
 const BusinessResetPassword = lazy(() => import("./pages/business/BusinessResetPassword"));
 const BusinessDashboard = lazy(() => import("./pages/business/BusinessDashboard"));
@@ -108,6 +110,8 @@ const App = () => (
           <Route path="/contact" element={<Contact />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/careers" element={<Careers />} />
+          <Route path="/for-business" element={<ForBusiness />} />
+          <Route path="/business" element={<Navigate to="/for-business" replace />} />
           <Route path="/courier-partners" element={<CourierPartners />} />
           <Route path="/services/parcel-tracking" element={<ParcelTrackingPage />} />
           {SERVICES.filter((s) => s.slug !== "parcel-tracking").map((s) => (
@@ -150,6 +154,7 @@ const App = () => (
             <Route path="users" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><UserManagement /></ProtectedAdminRoute>} />
             <Route path="admin-users" element={<ProtectedAdminRoute allowedRoles={["super_admin"]}><AdminUserManagement /></ProtectedAdminRoute>} />
             <Route path="businesses" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations"]}><BusinessManagement /></ProtectedAdminRoute>} />
+            <Route path="business-inquiries" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><BusinessInquiries /></ProtectedAdminRoute>} />
             <Route path="revenue" element={<ProtectedAdminRoute allowedRoles={["super_admin"]}><RevenueManagement /></ProtectedAdminRoute>} />
             <Route path="reconciliation" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><Reconciliation /></ProtectedAdminRoute>} />
             <Route path="support" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><SupportManagement /></ProtectedAdminRoute>} />

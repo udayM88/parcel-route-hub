@@ -20,7 +20,8 @@ import {
   AlertOctagon,
   TrendingDown,
   PackagePlus,
-  Clock
+  Clock,
+  Inbox
 } from "lucide-react";
 import { 
   Sidebar, 
@@ -48,6 +49,7 @@ const adminMenuItems: { title: string; url: string; icon: any; allowedRoles: Rol
   { title: "User & Partner Management", url: "/admin/users", icon: Users, allowedRoles: ["super_admin", "operations", "support"] },
   { title: "Admin Users", url: "/admin/admin-users", icon: Shield, allowedRoles: ["super_admin"] },
   { title: "Manage Businesses", url: "/admin/businesses", icon: Building2, allowedRoles: ["super_admin", "operations"] },
+  { title: "Business Inquiries", url: "/admin/business-inquiries", icon: Inbox, allowedRoles: ["super_admin", "operations", "support"] },
   { title: "Revenue & Commission", url: "/admin/revenue", icon: DollarSign, allowedRoles: ["super_admin"] },
   { title: "Payment Reconciliation", url: "/admin/reconciliation", icon: AlertTriangle, allowedRoles: ["super_admin", "operations", "support"] },
   { title: "Support Management", url: "/admin/support", icon: MessageSquare, allowedRoles: ["super_admin", "operations", "support"] },
