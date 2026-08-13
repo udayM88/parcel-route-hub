@@ -165,49 +165,13 @@ Deno.serve(async (req) => {
         } else {
 
           const row = {
-            user_id: userId,
+            ...buildBookingRow(booking_draft, userId),
             payment_id: razorpay_payment_id,
+            razorpay_order_id: razorpay_order_id,
             payment_status: "paid",
             status: "PAYMENT_RECEIVED",
-            // sender
-            sender_name: booking_draft.sender_name ?? "",
-            sender_phone: booking_draft.sender_phone ?? "",
-            sender_address: booking_draft.sender_address ?? "",
-            sender_city: booking_draft.sender_city ?? "",
-            sender_state: booking_draft.sender_state ?? "",
-            sender_pincode: booking_draft.sender_pincode ?? "",
-            // receiver
-            receiver_name: booking_draft.receiver_name ?? "",
-            receiver_phone: booking_draft.receiver_phone ?? "",
-            receiver_address: booking_draft.receiver_address ?? "",
-            receiver_city: booking_draft.receiver_city ?? "",
-            receiver_state: booking_draft.receiver_state ?? "",
-            receiver_pincode: booking_draft.receiver_pincode ?? "",
-            // package
-            goods_type: booking_draft.goods_type ?? "Package",
-            package_weight: String(booking_draft.package_weight ?? "1"),
-            length: booking_draft.length != null ? String(booking_draft.length) : null,
-            width: booking_draft.width != null ? String(booking_draft.width) : null,
-            height: booking_draft.height != null ? String(booking_draft.height) : null,
-            shipment_value: booking_draft.shipment_value ?? null,
-            urgency: booking_draft.urgency ?? "standard",
-            // courier + financials
-            courier_name: booking_draft.courier_name ?? "",
-            courier_price: booking_draft.courier_price ?? 0,
-            delivery_time: booking_draft.delivery_time ?? "Standard",
-            base_fare: booking_draft.base_fare ?? 0,
-            platform_fee: booking_draft.platform_fee ?? 0,
-            gst: booking_draft.gst ?? 0,
-            packaging_amount: booking_draft.packaging_amount ?? 0,
-            insurance_amount: booking_draft.insurance_amount ?? 0,
-            booking_source: booking_draft.booking_source ?? "unknown",
-            partner_id: booking_draft.partner_id ?? null,
-            service_code: booking_draft.service_code ?? null,
-            courier_rate: booking_draft.courier_rate ?? null,
-            retail_price: booking_draft.retail_price ?? null,
-            margin_amount: booking_draft.margin_amount ?? null,
-            account_type: booking_draft.account_type ?? "consumer",
           };
+
 
           const { data: inserted, error: insertErr } = await supabase
             .from("bookings")
