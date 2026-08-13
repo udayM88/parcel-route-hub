@@ -138,7 +138,48 @@ Deno.serve(async (req) => {
         }
         linkResults.push({ balance_payment_id: bal.id, payment_id: link.paymentId });
       }
+
+      // 0c. Orphan captured payments: money taken but no bookings row at all.
+      // Surfaced here (and logged) so support can refund or rebuild the order
+      // instead of it silently disappearing.
+      const fromSec = Math.floor((now - 7 * 24 * 60 * 60 * 1000) / 1000);
+      const orphRes = await fetch(
+        `https://api.razorpay.com/v1/payments?from=${fromSec}&to=${Math.floor(now / 1000)}&count=100`,
+        { headers: { Authorization: `Basic ${basic}` } },
+      );
+      if (orphRes.ok) {
+        const orphData = await orphRes.json();
+        const captured = (orphData.items || []).filter((p: any) => p.status === "captured");
+        const ids = captured.map((p: any) => p.id);
+        const { data: known } = await admin
+          .from("bookings")
+          .select("payment_id")
+          .in("payment_id", ids.length ? ids : ["__none__"]);
+        const { data: knownBal } = await admin
+          .from("booking_balance_payments")
+          .select("payment_id")
+          .in("payment_id", ids.length ? ids : ["__none__"]);
+        const seen = new Set([
+          ...(known || []).map((r: any) => r.payment_id),
+          ...(knownBal || []).map((r: any) => r.payment_id),
+        ]);
+        for (const p of captured) {
+          if (seen.has(p.id)) continue;
+          orphans.push({
+            payment_id: p.id,
+            order_id: p.order_id,
+            amount: p.amount / 100,
+            contact: p.contact,
+            email: p.email,
+            amount_refunded: p.amount_refunded / 100,
+            created_at: new Date(p.created_at * 1000).toISOString(),
+            notes: p.notes,
+          });
+          console.warn("[retry] ORPHAN captured payment with no booking row:", p.id, p.amount / 100, p.contact);
+        }
+      }
     }
+
 
     // 1. Unstick abandoned in-progress claims.
 
