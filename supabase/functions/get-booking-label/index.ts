@@ -64,8 +64,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const source = b.booking_source || "";
+    // Resolve the courier from partner_id / courier_name too — assisted and
+    // manually-attached bookings carry booking_source "admin_assisted".
+    const key = resolvePartnerKey(b.partner_id, b.courier_name, b.booking_source);
+    const source = key ? `${key}_direct` : (b.booking_source || "");
     const awb = b.prayog_awb || b.tracking_id;
+
 
     // 2) Delhivery: fetch on demand and persist
     if (source === "delhivery_direct") {
