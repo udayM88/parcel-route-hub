@@ -166,6 +166,30 @@ Deno.serve(async (req) => {
         ]);
         for (const p of captured) {
           if (seen.has(p.id)) continue;
+
+          // Recover: match the captured payment to the PENDING_PAYMENT row that
+          // razorpay-create-order persisted before checkout opened.
+          if (p.order_id) {
+            const { data: preRow } = await admin
+              .from("bookings")
+              .select("id, status")
+              .eq("razorpay_order_id", p.order_id)
+              .maybeSingle();
+            if (preRow?.id && ["PENDING_PAYMENT", "PAYMENT_RECEIVED"].includes(String(preRow.status))) {
+              await admin
+                .from("bookings")
+                .update({
+                  payment_id: p.id,
+                  payment_status: "paid",
+                  status: "PAYMENT_RECEIVED",
+                })
+                .eq("id", preRow.id);
+              linkResults.push({ recovered_booking_id: preRow.id, payment_id: p.id });
+              console.log("[retry] recovered orphan payment onto booking", preRow.id, p.id);
+              continue;
+            }
+          }
+
           orphans.push({
             payment_id: p.id,
             order_id: p.order_id,
@@ -180,6 +204,7 @@ Deno.serve(async (req) => {
         }
       }
     }
+
 
 
     // 1. Unstick abandoned in-progress claims.
