@@ -530,6 +530,51 @@ export type Database = {
         }
         Relationships: []
       }
+      business_inquiries: {
+        Row: {
+          business_type: string
+          company_name: string
+          created_at: string
+          email: string
+          id: string
+          monthly_volume: string
+          name: string
+          notes: string | null
+          phone: string
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          business_type: string
+          company_name: string
+          created_at?: string
+          email: string
+          id?: string
+          monthly_volume: string
+          name: string
+          notes?: string | null
+          phone: string
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          business_type?: string
+          company_name?: string
+          created_at?: string
+          email?: string
+          id?: string
+          monthly_volume?: string
+          name?: string
+          notes?: string | null
+          phone?: string
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cancellation_disputes: {
         Row: {
           admin_notes: Json

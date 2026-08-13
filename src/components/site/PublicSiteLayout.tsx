@@ -20,6 +20,7 @@ const plainLinks = [
   { href: "/tracking", label: "Track Parcel" },
   { href: "/about", label: "About Us" },
   { href: "/courier-partners", label: "Courier Partners" },
+  { href: "/for-business", label: "For Business" },
   { href: "/contact", label: "Contact Us" },
 ];
 
