@@ -55,6 +55,7 @@ Deno.serve(async (req) => {
     // 0. Reconcile Razorpay Payment Links that were paid but never reported.
     const rz = getRazorpayConfig(env);
     const linkResults: unknown[] = [];
+    const orphans: Record<string, unknown>[] = [];
     if (rz.keyId && rz.keySecret) {
       const basic = btoa(`${rz.keyId}:${rz.keySecret}`);
 
@@ -226,7 +227,7 @@ Deno.serve(async (req) => {
       `[retry-pending-shipments] processed ${results.length} rows, reconciled ${linkResults.length} payment links`,
     );
     return new Response(
-      JSON.stringify({ processed: results.length, results, payment_links: linkResults }),
+      JSON.stringify({ processed: results.length, results, payment_links: linkResults, orphan_payments: orphans }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
