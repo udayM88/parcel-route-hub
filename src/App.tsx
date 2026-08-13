@@ -19,6 +19,7 @@ const History = lazy(() => import("./pages/History"));
 const OrderDetails = lazy(() => import("./pages/OrderDetails"));
 const Support = lazy(() => import("./pages/Support"));
 const Settings = lazy(() => import("./pages/Settings"));
+const DeleteAccount = lazy(() => import("./pages/DeleteAccount"));
 const Blog = lazy(() => import("./pages/cms/Blog"));
 const CmsArticle = lazy(() => import("./pages/cms/CmsArticle"));
 const FaqPage = lazy(() => import("./pages/cms/FaqPage"));
@@ -93,6 +94,8 @@ const App = () => (
           <Route path="/order/:orderId" element={<OrderDetails />} />
           <Route path="/support" element={<Support />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/delete-account" element={<DeleteAccount />} />
+          <Route path="/account-deletion" element={<Navigate to="/delete-account" replace />} />
 
           {/* Public CMS Routes */}
           <Route path="/blog" element={<Blog />} />
