@@ -14,7 +14,7 @@ import {
   RefreshCw, Copy, ExternalLink, Loader2, KeyRound, CheckCircle2, Clock,
   Truck, Download, PackageCheck, PackagePlus,
 } from "lucide-react";
-import { resolvePartnerKey, trackingFunctionFor, trackingBody } from "@/lib/partner-functions";
+import { resolvePartnerKey, trackingFunctionFor, trackingBody, labelFunctionFor } from "@/lib/partner-functions";
 
 interface TrackEvent {
   status: string;
