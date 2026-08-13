@@ -219,23 +219,17 @@ const AssistedPendingBookings = () => {
       toast({ title: "AWB not available yet", variant: "destructive" });
       return;
     }
-    const source = (row.booking_source || "").toLowerCase();
-    const fnMap: Record<string, string> = {
-      delhivery_direct: "delhivery-label",
-      shadowfax_direct: "shadowfax-label",
-      xpressbees_direct: "xpressbees-label",
-      urbanebolt_direct: "urbanebolt-label",
-      shree_maruti_direct: "shree-maruti-label",
-    };
-    const fnName = fnMap[source];
-    if (!fnName) {
+    const key = resolvePartnerKey(row.partner_id, `${row.booking_source || ""} ${row.courier_name || ""}`);
+    if (!key) {
       toast({
         title: "Label unavailable",
-        description: `Cached label missing for source ${source || "unknown"}.`,
+        description: "Unknown courier partner on this order.",
         variant: "destructive",
       });
       return;
     }
+    const fnName = labelFunctionFor(key);
+
     setLabelBusyId(row.id);
     try {
       const { data, error } = await supabase.functions.invoke(fnName, {
