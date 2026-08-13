@@ -94,6 +94,8 @@ const App = () => (
           <Route path="/order/:orderId" element={<OrderDetails />} />
           <Route path="/support" element={<Support />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/delete-account" element={<DeleteAccount />} />
+          <Route path="/account-deletion" element={<Navigate to="/delete-account" replace />} />
 
           {/* Public CMS Routes */}
           <Route path="/blog" element={<Blog />} />
