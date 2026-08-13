@@ -140,11 +140,6 @@ export default function ForBusiness() {
                style={{ background: C.teal, color: C.bg }}>
               Get Business Pricing <ArrowRight className="inline h-4 w-4 ml-1" />
             </a>
-            <a href="/viasetuforbusinesses"
-               className="px-6 h-12 inline-flex items-center rounded-lg font-semibold text-[14px] border-2 transition-colors hover:bg-[#00C8C8]/10"
-               style={{ borderColor: C.teal, color: C.teal }}>
-              Business Login
-            </a>
           </div>
         </div>
       </section>
