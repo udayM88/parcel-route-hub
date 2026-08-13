@@ -48,8 +48,16 @@ Deno.serve(async (req) => {
       throw error;
     }
 
+    // Hide un-paid checkout drafts (rows pre-created before Razorpay checkout).
+    // Assisted payment-link rows stay visible so the customer can still pay.
+    const visible = (data || []).filter((b: any) =>
+      !(!b.payment_id && !b.payment_link_id &&
+        ["PENDING_PAYMENT", "PAYMENT_ABANDONED"].includes(String(b.status || "")))
+    );
+
     // Normalize Supabase rows into the same shape as Prayog orders (subset used by History UI)
-    const orders = (data || []).map((b: any) => {
+    const orders = visible.map((b: any) => {
+
       const docs = b.label_url
         ? [{ id: 1, type: 'label', url: b.label_url, is_active: true }]
         : [];
