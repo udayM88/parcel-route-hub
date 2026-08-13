@@ -107,17 +107,23 @@ const PaymentModal = ({ isOpen, onClose, orderDetails, onPaymentSuccess, custome
       // Step 1: Create Razorpay order via edge function
       console.log('Creating Razorpay order for amount:', totalAmount);
       
+      const prayogAuthPre = localStorage.getItem('prayog_auth');
       const { data: orderData, error: orderError } = await supabase.functions.invoke('razorpay-create-order', {
         body: {
           amount: totalAmount,
           currency: 'INR',
           receipt: `booking_${Date.now()}`,
+          // Persisted server-side as a PENDING_PAYMENT row before checkout opens,
+          // so a captured payment can never be orphaned if the browser closes.
+          booking_draft: bookingDraft || null,
           notes: {
             courierName: orderDetails.courierName,
             courierId: orderDetails.courierId,
           }
-        }
+        },
+        headers: prayogAuthPre ? { 'x-prayog-auth': prayogAuthPre } : {},
       });
+
 
       if (orderError || !orderData?.orderId) {
         console.error('Failed to create order:', orderError || orderData);

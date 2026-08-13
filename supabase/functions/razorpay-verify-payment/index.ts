@@ -7,6 +7,7 @@
 import { createHmac } from "node:crypto";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
+import { buildBookingRow, type BookingDraft } from "../_shared/booking-draft.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,46 +15,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-environment, x-prayog-auth",
 };
 
-interface BookingDraft {
-  // Buyer / sender
-  sender_name?: string;
-  sender_phone?: string;
-  sender_address?: string;
-  sender_city?: string;
-  sender_state?: string;
-  sender_pincode?: string;
-  // Receiver
-  receiver_name?: string;
-  receiver_phone?: string;
-  receiver_address?: string;
-  receiver_city?: string;
-  receiver_state?: string;
-  receiver_pincode?: string;
-  // Package
-  goods_type?: string;
-  package_weight?: string | number;
-  length?: string | number | null;
-  width?: string | number | null;
-  height?: string | number | null;
-  shipment_value?: number | null;
-  urgency?: string;
-  // Courier
-  courier_name?: string;
-  courier_price?: number;
-  delivery_time?: string;
-  base_fare?: number;
-  platform_fee?: number;
-  gst?: number;
-  packaging_amount?: number;
-  insurance_amount?: number;
-  booking_source?: string;
-  partner_id?: string;
-  service_code?: string;
-  courier_rate?: number;
-  retail_price?: number;
-  margin_amount?: number;
-  account_type?: string;
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -135,54 +96,43 @@ Deno.serve(async (req) => {
           .eq("user_id", userId)
           .maybeSingle();
 
+        // Otherwise claim the PENDING_PAYMENT row pre-created at order time.
+        const { data: preRow } = existing?.id ? { data: null } : await supabase
+          .from("bookings")
+          .select("id")
+          .eq("razorpay_order_id", razorpay_order_id)
+          .eq("user_id", userId)
+          .maybeSingle();
+
         if (existing?.id) {
           bookingRowId = existing.id;
           console.log("[verify-payment] reusing existing booking row:", bookingRowId);
+        } else if (preRow?.id) {
+          const { error: updErr } = await supabase
+            .from("bookings")
+            .update({
+              payment_id: razorpay_payment_id,
+              payment_status: "paid",
+              status: "PAYMENT_RECEIVED",
+            })
+            .eq("id", preRow.id);
+          if (updErr) {
+            persistError = updErr.message;
+            console.error("[verify-payment] failed to claim pre-payment row:", updErr);
+          } else {
+            bookingRowId = preRow.id;
+            console.log("[verify-payment] claimed pre-payment row:", bookingRowId);
+          }
         } else {
+
           const row = {
-            user_id: userId,
+            ...buildBookingRow(booking_draft, userId),
             payment_id: razorpay_payment_id,
+            razorpay_order_id: razorpay_order_id,
             payment_status: "paid",
             status: "PAYMENT_RECEIVED",
-            // sender
-            sender_name: booking_draft.sender_name ?? "",
-            sender_phone: booking_draft.sender_phone ?? "",
-            sender_address: booking_draft.sender_address ?? "",
-            sender_city: booking_draft.sender_city ?? "",
-            sender_state: booking_draft.sender_state ?? "",
-            sender_pincode: booking_draft.sender_pincode ?? "",
-            // receiver
-            receiver_name: booking_draft.receiver_name ?? "",
-            receiver_phone: booking_draft.receiver_phone ?? "",
-            receiver_address: booking_draft.receiver_address ?? "",
-            receiver_city: booking_draft.receiver_city ?? "",
-            receiver_state: booking_draft.receiver_state ?? "",
-            receiver_pincode: booking_draft.receiver_pincode ?? "",
-            // package
-            goods_type: booking_draft.goods_type ?? "Package",
-            package_weight: String(booking_draft.package_weight ?? "1"),
-            length: booking_draft.length != null ? String(booking_draft.length) : null,
-            width: booking_draft.width != null ? String(booking_draft.width) : null,
-            height: booking_draft.height != null ? String(booking_draft.height) : null,
-            shipment_value: booking_draft.shipment_value ?? null,
-            urgency: booking_draft.urgency ?? "standard",
-            // courier + financials
-            courier_name: booking_draft.courier_name ?? "",
-            courier_price: booking_draft.courier_price ?? 0,
-            delivery_time: booking_draft.delivery_time ?? "Standard",
-            base_fare: booking_draft.base_fare ?? 0,
-            platform_fee: booking_draft.platform_fee ?? 0,
-            gst: booking_draft.gst ?? 0,
-            packaging_amount: booking_draft.packaging_amount ?? 0,
-            insurance_amount: booking_draft.insurance_amount ?? 0,
-            booking_source: booking_draft.booking_source ?? "unknown",
-            partner_id: booking_draft.partner_id ?? null,
-            service_code: booking_draft.service_code ?? null,
-            courier_rate: booking_draft.courier_rate ?? null,
-            retail_price: booking_draft.retail_price ?? null,
-            margin_amount: booking_draft.margin_amount ?? null,
-            account_type: booking_draft.account_type ?? "consumer",
           };
+
 
           const { data: inserted, error: insertErr } = await supabase
             .from("bookings")

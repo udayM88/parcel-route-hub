@@ -279,6 +279,7 @@ export type Database = {
           prayog_awb: string | null
           prayog_commission: number | null
           prayog_order_id: string | null
+          razorpay_order_id: string | null
           receiver_address: string
           receiver_city: string
           receiver_name: string
@@ -348,6 +349,7 @@ export type Database = {
           prayog_awb?: string | null
           prayog_commission?: number | null
           prayog_order_id?: string | null
+          razorpay_order_id?: string | null
           receiver_address: string
           receiver_city: string
           receiver_name: string
@@ -417,6 +419,7 @@ export type Database = {
           prayog_awb?: string | null
           prayog_commission?: number | null
           prayog_order_id?: string | null
+          razorpay_order_id?: string | null
           receiver_address?: string
           receiver_city?: string
           receiver_name?: string
