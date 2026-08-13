@@ -76,12 +76,48 @@ Deno.serve(async (req) => {
 
     console.log('Razorpay order created successfully:', data.id);
 
+    // Persist a PENDING_PAYMENT booking row *before* the customer pays, keyed by
+    // the Razorpay order id. If the browser dies after payment, the sweeper can
+    // still match the captured payment to this row and complete the shipment —
+    // no captured payment can end up orphaned.
+    let bookingRowId: string | null = null;
+    const prayogAuthHeader = req.headers.get('x-prayog-auth');
+    if (prayogAuthHeader && booking_draft) {
+      try {
+        const userId = JSON.parse(prayogAuthHeader)?.user_id;
+        if (userId) {
+          const supabase = createClient(
+            Deno.env.get('SUPABASE_URL')!,
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+          );
+          const { data: inserted, error: insErr } = await supabase
+            .from('bookings')
+            .insert({
+              ...buildBookingRow(booking_draft, userId),
+              razorpay_order_id: data.id,
+              status: 'PENDING_PAYMENT',
+              payment_status: 'pending',
+            })
+            .select('id')
+            .single();
+          if (insErr) console.error('[create-order] draft persist failed:', insErr);
+          else {
+            bookingRowId = inserted.id;
+            console.log('[create-order] pre-payment booking row:', bookingRowId);
+          }
+        }
+      } catch (e) {
+        console.error('[create-order] draft persist threw:', e);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         orderId: data.id,
         amount: data.amount,
         currency: data.currency,
         keyId: razorpayConfig.keyId, // Send key ID to frontend for checkout
+        booking_id: bookingRowId,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -90,6 +126,7 @@ Deno.serve(async (req) => {
     console.error('Error in razorpay-create-order:', error);
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
+
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
