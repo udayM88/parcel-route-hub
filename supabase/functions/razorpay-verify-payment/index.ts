@@ -135,10 +135,35 @@ Deno.serve(async (req) => {
           .eq("user_id", userId)
           .maybeSingle();
 
+        // Otherwise claim the PENDING_PAYMENT row pre-created at order time.
+        const { data: preRow } = existing?.id ? { data: null } : await supabase
+          .from("bookings")
+          .select("id")
+          .eq("razorpay_order_id", razorpay_order_id)
+          .eq("user_id", userId)
+          .maybeSingle();
+
         if (existing?.id) {
           bookingRowId = existing.id;
           console.log("[verify-payment] reusing existing booking row:", bookingRowId);
+        } else if (preRow?.id) {
+          const { error: updErr } = await supabase
+            .from("bookings")
+            .update({
+              payment_id: razorpay_payment_id,
+              payment_status: "paid",
+              status: "PAYMENT_RECEIVED",
+            })
+            .eq("id", preRow.id);
+          if (updErr) {
+            persistError = updErr.message;
+            console.error("[verify-payment] failed to claim pre-payment row:", updErr);
+          } else {
+            bookingRowId = preRow.id;
+            console.log("[verify-payment] claimed pre-payment row:", bookingRowId);
+          }
         } else {
+
           const row = {
             user_id: userId,
             payment_id: razorpay_payment_id,
