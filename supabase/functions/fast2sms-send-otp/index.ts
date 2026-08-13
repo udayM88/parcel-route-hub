@@ -7,7 +7,6 @@ const corsHeaders = {
 
 // Google Play review test account: no SMS is sent, fixed OTP is accepted.
 const TEST_PHONE = "8830306901";
-const TEST_OTP = "818181";
 
 const RESEND_COOLDOWN_SECONDS = 30;
 const MAX_PER_HOUR = 5;
