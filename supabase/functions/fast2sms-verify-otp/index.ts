@@ -5,6 +5,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Google Play review test account: fixed OTP, no SMS/DB record involved.
+const TEST_PHONE = "8830306901";
+const TEST_OTP = "818181";
+
 const MAX_ATTEMPTS = 5;
 
 async function sha256Hex(input: string): Promise<string> {
@@ -34,6 +38,20 @@ Deno.serve(async (req) => {
     }
 
     const phoneE164 = `+91${phone}`;
+
+    // Isolated test-number short-circuit (Google Play review).
+    if (phone === TEST_PHONE) {
+      if (otp === TEST_OTP) {
+        return new Response(
+          JSON.stringify({ success: true }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(
+        JSON.stringify({ error: "Incorrect OTP." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
