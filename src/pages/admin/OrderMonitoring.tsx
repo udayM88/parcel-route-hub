@@ -284,16 +284,15 @@ const OrderMonitoring = () => {
       window.open(selectedBooking.label_url, "_blank");
       return;
     }
-    const src = selectedBooking.booking_source || "";
-    const fn = PARTNER_FN[src]?.label;
+    const key = partnerKeyOf(selectedBooking);
     const awb = selectedBooking.prayog_awb || selectedBooking.tracking_id;
-    if (!fn || !awb) {
+    if (!key || !awb) {
       toast({ title: "Label unavailable", description: "Label not supported for this partner or AWB missing.", variant: "destructive" });
       return;
     }
     setLabelLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke(fn, {
+      const { data, error } = await supabase.functions.invoke(labelFunctionFor(key), {
         body: { waybill: awb, awb, booking_id: selectedBooking.id, order_id: selectedBooking.prayog_order_id || awb },
         headers: { "x-environment": CURRENT_ENV },
       });
