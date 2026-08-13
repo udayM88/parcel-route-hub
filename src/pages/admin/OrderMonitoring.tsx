@@ -24,14 +24,14 @@ import ParcelPhotoGallery from "@/components/admin/ParcelPhotoGallery";
 import { bucketOfStatus } from "@/lib/booking-status";
 import { cn } from "@/lib/utils";
 
-// Map booking_source -> partner edge function names
-const PARTNER_FN: Record<string, { tracking: string; label?: string }> = {
-  shadowfax_direct: { tracking: "shadowfax-tracking", label: "shadowfax-label" },
-  delhivery_direct: { tracking: "delhivery-tracking", label: "delhivery-label" },
-  urbanebolt_direct: { tracking: "urbanebolt-tracking", label: "urbanebolt-label" },
-  xpressbees_direct: { tracking: "xpressbees-tracking", label: "xpressbees-label" },
-  shree_maruti_direct: { tracking: "shree-maruti-tracking", label: "shree-maruti-label" },
-};
+import { resolvePartnerKey, trackingFunctionFor, labelFunctionFor, trackingBody } from "@/lib/partner-functions";
+
+// Resolve the courier partner from partner_id / booking_source / courier_name.
+// Assisted + manually-attached orders have booking_source like "admin_assisted",
+// so we must not rely on booking_source alone.
+const partnerKeyOf = (b: { partner_id?: string | null; booking_source?: string | null; courier_name?: string | null }) =>
+  resolvePartnerKey(b.partner_id, `${b.booking_source || ""} ${b.courier_name || ""}`);
+
 
 interface Booking {
   id: string;
