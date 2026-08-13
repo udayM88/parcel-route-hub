@@ -5,6 +5,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Google Play review test account: no SMS is sent, fixed OTP is accepted.
+const TEST_PHONE = "8830306901";
+
 const RESEND_COOLDOWN_SECONDS = 30;
 const MAX_PER_HOUR = 5;
 const OTP_TTL_MINUTES = 5;
@@ -36,6 +39,14 @@ Deno.serve(async (req) => {
     }
 
     const phoneE164 = `+91${phone}`;
+
+    // Isolated test-number short-circuit (Google Play review).
+    if (phone === TEST_PHONE) {
+      return new Response(
+        JSON.stringify({ success: true, expires_in: OTP_TTL_MINUTES * 60 }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const apiKey = Deno.env.get("FAST2SMS_API_KEY");
     const senderId = Deno.env.get("FAST2SMS_SENDER_ID");
