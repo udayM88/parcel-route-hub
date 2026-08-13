@@ -181,10 +181,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`[retry-pending-shipments] processed ${results.length} rows`);
-    return new Response(JSON.stringify({ processed: results.length, results }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.log(
+      `[retry-pending-shipments] processed ${results.length} rows, reconciled ${linkResults.length} payment links`,
+    );
+    return new Response(
+      JSON.stringify({ processed: results.length, results, payment_links: linkResults }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (err) {
     console.error("[retry-pending-shipments] error:", err);
     return new Response(JSON.stringify({ error: "Internal server error", details: String(err) }), {
