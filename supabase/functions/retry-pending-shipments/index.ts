@@ -215,6 +215,17 @@ Deno.serve(async (req) => {
       .is("prayog_awb", null)
       .lt("updated_at", tenMinAgo);
 
+    // 1b. Expire pre-payment drafts the customer never paid for (checkout
+    // abandoned), so they don't linger in the customer's history.
+    await admin.from("bookings")
+      .update({ status: "PAYMENT_ABANDONED" })
+      .eq("status", "PENDING_PAYMENT")
+      .eq("payment_status", "pending")
+      .not("razorpay_order_id", "is", null)
+      .is("payment_id", null)
+      .lt("created_at", new Date(now - 2 * 60 * 60 * 1000).toISOString());
+
+
     // 2. Find paid, AWB-less rows to retry.
     const { data: rows, error } = await admin
       .from("bookings")
