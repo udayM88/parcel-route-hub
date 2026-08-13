@@ -1,8 +1,10 @@
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildBookingRow, type BookingDraft } from "../_shared/booking-draft.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-environment',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-environment, x-prayog-auth',
 };
 
 Deno.serve(async (req) => {
@@ -12,7 +14,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { amount, currency = 'INR', receipt, notes } = await req.json();
+    const { amount, currency = 'INR', receipt, notes, booking_draft } = await req.json() as {
+      amount?: number; currency?: string; receipt?: string; notes?: Record<string, unknown>;
+      booking_draft?: BookingDraft;
+    };
+
 
     if (!amount || amount <= 0) {
       console.error('Invalid amount provided:', amount);
