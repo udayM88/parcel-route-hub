@@ -77,6 +77,7 @@ interface Booking {
   prayog_order_id?: string;
   prayog_awb?: string;
   booking_source?: string | null;
+  partner_id?: string | null;
   label_url?: string | null;
   failure_reason?: string | null;
   failure_step?: string | null;
