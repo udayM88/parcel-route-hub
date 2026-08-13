@@ -257,20 +257,19 @@ const OrderMonitoring = () => {
   };
 
   const fetchTrackingForBooking = async (booking: Booking) => {
-    const src = booking.booking_source || "";
-    const fn = PARTNER_FN[src]?.tracking;
+    const key = partnerKeyOf(booking);
     const awb = booking.prayog_awb || booking.tracking_id;
-    if (!fn || !awb) {
-      setTracking({ loading: false, data: null, error: !fn ? `Tracking not supported for ${src || "this partner"}` : "No AWB on order yet" });
+    if (!key || !awb) {
+      setTracking({ loading: false, data: null, error: !key ? `Tracking not supported for ${booking.courier_name || booking.booking_source || "this partner"}` : "No AWB on order yet" });
       return;
     }
     setTracking({ loading: true, data: null, error: null });
     try {
-      const body: Record<string, any> = { waybill: awb, awb, client_request_id: awb, order_id: booking.prayog_order_id || awb };
-      const { data, error } = await supabase.functions.invoke(fn, {
-        body,
+      const { data, error } = await supabase.functions.invoke(trackingFunctionFor(key), {
+        body: { ...trackingBody(key, awb, booking.prayog_order_id), awb, client_request_id: awb },
         headers: { "x-environment": CURRENT_ENV },
       });
+
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setTracking({ loading: false, data, error: null });
