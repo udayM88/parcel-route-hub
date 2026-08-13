@@ -7,7 +7,7 @@ const corsHeaders = {
 
 // Google Play review test account: fixed OTP, no SMS/DB record involved.
 const TEST_PHONE = "8830306901";
-const TEST_OTP = "818181";
+const TEST_OTP = "12345";
 
 const MAX_ATTEMPTS = 5;
 
