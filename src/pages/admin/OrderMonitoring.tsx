@@ -1094,7 +1094,7 @@ const OrderMonitoring = () => {
                     Open in Tracking Console
                   </Button>
                 )}
-                {PARTNER_FN[selectedBooking.booking_source || ""]?.label && (selectedBooking.prayog_awb || selectedBooking.tracking_id) && (
+                {(selectedBooking.label_url || partnerKeyOf(selectedBooking)) && (selectedBooking.prayog_awb || selectedBooking.tracking_id) && (
                   <Button variant="outline" onClick={handleDownloadLabel} disabled={labelLoading}>
                     {labelLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
                     Download Label
