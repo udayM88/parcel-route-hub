@@ -24,14 +24,14 @@ import ParcelPhotoGallery from "@/components/admin/ParcelPhotoGallery";
 import { bucketOfStatus } from "@/lib/booking-status";
 import { cn } from "@/lib/utils";
 
-// Map booking_source -> partner edge function names
-const PARTNER_FN: Record<string, { tracking: string; label?: string }> = {
-  shadowfax_direct: { tracking: "shadowfax-tracking", label: "shadowfax-label" },
-  delhivery_direct: { tracking: "delhivery-tracking", label: "delhivery-label" },
-  urbanebolt_direct: { tracking: "urbanebolt-tracking", label: "urbanebolt-label" },
-  xpressbees_direct: { tracking: "xpressbees-tracking", label: "xpressbees-label" },
-  shree_maruti_direct: { tracking: "shree-maruti-tracking", label: "shree-maruti-label" },
-};
+import { resolvePartnerKey, trackingFunctionFor, labelFunctionFor, trackingBody } from "@/lib/partner-functions";
+
+// Resolve the courier partner from partner_id / booking_source / courier_name.
+// Assisted + manually-attached orders have booking_source like "admin_assisted",
+// so we must not rely on booking_source alone.
+const partnerKeyOf = (b: { partner_id?: string | null; booking_source?: string | null; courier_name?: string | null }) =>
+  resolvePartnerKey(b.partner_id, `${b.booking_source || ""} ${b.courier_name || ""}`);
+
 
 interface Booking {
   id: string;
@@ -77,6 +77,7 @@ interface Booking {
   prayog_order_id?: string;
   prayog_awb?: string;
   booking_source?: string | null;
+  partner_id?: string | null;
   label_url?: string | null;
   failure_reason?: string | null;
   failure_step?: string | null;
@@ -257,20 +258,19 @@ const OrderMonitoring = () => {
   };
 
   const fetchTrackingForBooking = async (booking: Booking) => {
-    const src = booking.booking_source || "";
-    const fn = PARTNER_FN[src]?.tracking;
+    const key = partnerKeyOf(booking);
     const awb = booking.prayog_awb || booking.tracking_id;
-    if (!fn || !awb) {
-      setTracking({ loading: false, data: null, error: !fn ? `Tracking not supported for ${src || "this partner"}` : "No AWB on order yet" });
+    if (!key || !awb) {
+      setTracking({ loading: false, data: null, error: !key ? `Tracking not supported for ${booking.courier_name || booking.booking_source || "this partner"}` : "No AWB on order yet" });
       return;
     }
     setTracking({ loading: true, data: null, error: null });
     try {
-      const body: Record<string, any> = { waybill: awb, awb, client_request_id: awb, order_id: booking.prayog_order_id || awb };
-      const { data, error } = await supabase.functions.invoke(fn, {
-        body,
+      const { data, error } = await supabase.functions.invoke(trackingFunctionFor(key), {
+        body: { ...trackingBody(key, awb, booking.prayog_order_id), awb, client_request_id: awb },
         headers: { "x-environment": CURRENT_ENV },
       });
+
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setTracking({ loading: false, data, error: null });
@@ -285,16 +285,15 @@ const OrderMonitoring = () => {
       window.open(selectedBooking.label_url, "_blank");
       return;
     }
-    const src = selectedBooking.booking_source || "";
-    const fn = PARTNER_FN[src]?.label;
+    const key = partnerKeyOf(selectedBooking);
     const awb = selectedBooking.prayog_awb || selectedBooking.tracking_id;
-    if (!fn || !awb) {
+    if (!key || !awb) {
       toast({ title: "Label unavailable", description: "Label not supported for this partner or AWB missing.", variant: "destructive" });
       return;
     }
     setLabelLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke(fn, {
+      const { data, error } = await supabase.functions.invoke(labelFunctionFor(key), {
         body: { waybill: awb, awb, booking_id: selectedBooking.id, order_id: selectedBooking.prayog_order_id || awb },
         headers: { "x-environment": CURRENT_ENV },
       });
@@ -1096,7 +1095,7 @@ const OrderMonitoring = () => {
                     Open in Tracking Console
                   </Button>
                 )}
-                {PARTNER_FN[selectedBooking.booking_source || ""]?.label && (selectedBooking.prayog_awb || selectedBooking.tracking_id) && (
+                {(selectedBooking.label_url || partnerKeyOf(selectedBooking)) && (selectedBooking.prayog_awb || selectedBooking.tracking_id) && (
                   <Button variant="outline" onClick={handleDownloadLabel} disabled={labelLoading}>
                     {labelLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
                     Download Label
