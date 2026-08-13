@@ -19,6 +19,7 @@ const History = lazy(() => import("./pages/History"));
 const OrderDetails = lazy(() => import("./pages/OrderDetails"));
 const Support = lazy(() => import("./pages/Support"));
 const Settings = lazy(() => import("./pages/Settings"));
+const DeleteAccount = lazy(() => import("./pages/DeleteAccount"));
 const Blog = lazy(() => import("./pages/cms/Blog"));
 const CmsArticle = lazy(() => import("./pages/cms/CmsArticle"));
 const FaqPage = lazy(() => import("./pages/cms/FaqPage"));
