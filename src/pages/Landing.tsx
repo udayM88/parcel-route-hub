@@ -486,8 +486,12 @@ const Landing = () => {
           <div
             className="max-w-xl mx-auto md:ml-0 md:mr-auto rounded-2xl p-5 md:p-7 md:backdrop-blur-sm bg-white md:bg-white/95 shadow-sm"
           >
-            <h1 className="font-bold leading-[1.2] text-[24px] md:text-[32px] lg:text-[36px] text-[#0B1220]">
-              India's First Consumer Courier Aggregator Compare top couriers. Doorstep Pickup. Real-Time Tracking. All in One App.
+            <h1 className="font-bold leading-[1.2] text-[24px] md:text-[32px] lg:text-[36px] text-[#0B1220] whitespace-pre-line">
+              Send Anything. Anywhere. Easily.{"\n"}
+              Compare top couriers.&nbsp;{"\n"}
+              Doorstep Pickup.&nbsp;{"\n"}
+              Real-Time Tracking.&nbsp;{"\n"}
+              All at one place.
             </h1>
             <h2 className="mt-3 text-[14px] md:text-[16px] font-normal" style={{ color: C.gray }}>
               Compare Courier Prices &amp; Book Online <span style={{ color: C.teal }}>Save Up to 40%</span> on Every Parcel
