@@ -102,6 +102,7 @@ const OrderMonitoring = () => {
   const [tracking, setTracking] = useState<{ loading: boolean; data: any | null; error: string | null }>({ loading: false, data: null, error: null });
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [labelLoading, setLabelLoading] = useState(false);
+  const [refreshingStatuses, setRefreshingStatuses] = useState(false);
   const { toast } = useToast();
   const { cancelOrder, cancelling } = useCancelOrder({
     onSuccess: () => {
@@ -114,6 +115,40 @@ const OrderMonitoring = () => {
   useEffect(() => {
     fetchBookings();
   }, []);
+
+  // Pull live partner statuses on mount and every 5 minutes so delivered
+  // parcels flip to Delivered without manual intervention.
+  useEffect(() => {
+    refreshStatuses(true);
+    const t = setInterval(() => refreshStatuses(true), 5 * 60 * 1000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const refreshStatuses = async (silent = false) => {
+    if (refreshingStatuses) return;
+    setRefreshingStatuses(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-refresh-order-statuses", {
+        body: {},
+        headers: { "x-environment": CURRENT_ENV },
+      });
+      if (error) throw error;
+      await fetchBookings();
+      if (!silent) {
+        toast({
+          title: "Statuses refreshed",
+          description: `Checked ${data?.checked ?? 0} active orders · ${data?.updated ?? 0} updated`,
+        });
+      }
+    } catch (e: any) {
+      if (!silent) {
+        toast({ title: "Refresh failed", description: e?.message || "Could not refresh statuses", variant: "destructive" });
+      }
+    } finally {
+      setRefreshingStatuses(false);
+    }
+  };
 
   useRealtimeTable("bookings", () => fetchBookings(), { channelName: "admin-order-monitoring", debounceMs: 2500 });
 
@@ -425,8 +460,9 @@ const OrderMonitoring = () => {
             )}
           </div>
 
-          <Button variant="outline" onClick={fetchBookings}>
-            Refresh
+          <Button variant="outline" onClick={() => refreshStatuses(false)} disabled={refreshingStatuses}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshingStatuses ? "animate-spin" : ""}`} />
+            {refreshingStatuses ? "Refreshing..." : "Refresh"}
           </Button>
         </div>
 

@@ -1,6 +1,7 @@
 import { dispatchEmail } from "../_shared/notify-email.ts";
 // Bulk-refresh tracking + status for active bookings (admin only).
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolvePartnerKey } from "../_shared/partner-key.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,11 +10,11 @@ const corsHeaders = {
 };
 
 const PARTNER_FN: Record<string, string> = {
-  shadowfax_direct: "shadowfax-tracking",
-  delhivery_direct: "delhivery-tracking",
-  urbanebolt_direct: "urbanebolt-tracking",
-  xpressbees_direct: "xpressbees-tracking",
-  shree_maruti_direct: "shree-maruti-tracking",
+  shadowfax: "shadowfax-tracking",
+  delhivery: "delhivery-tracking",
+  urbanebolt: "urbanebolt-tracking",
+  xpressbees: "xpressbees-tracking",
+  shree_maruti: "shree-maruti-tracking",
 };
 
 type Bucket =
@@ -85,11 +86,11 @@ Deno.serve(async (req) => {
 
     const env = req.headers.get("x-environment") || "sandbox";
     const body = await req.json().catch(() => ({}));
-    const limit = Math.min(Number(body?.limit) || 200, 500);
+    const limit = Math.min(Number(body?.limit) || 500, 1000);
     const bookingIds: string[] | undefined = Array.isArray(body?.booking_ids) ? body.booking_ids : undefined;
 
     let query = admin.from("bookings")
-      .select("id,status,booking_source,prayog_awb,tracking_id,prayog_order_id")
+      .select("id,status,booking_source,partner_id,courier_name,prayog_awb,tracking_id,prayog_order_id")
       .order("created_at", { ascending: false })
       .limit(limit);
     if (bookingIds && bookingIds.length) query = query.in("id", bookingIds);
@@ -108,8 +109,9 @@ Deno.serve(async (req) => {
     const errors: { id: string; reason: string }[] = [];
 
     await pLimit(candidates, 5, async (b: any) => {
-      const fn = PARTNER_FN[b.booking_source || ""];
-      if (!fn) { skipped.push({ id: b.id, reason: `no tracking fn for ${b.booking_source || "unknown"}` }); return; }
+      const key = resolvePartnerKey(b.booking_source, b.partner_id, b.courier_name);
+      const fn = key ? PARTNER_FN[key] : undefined;
+      if (!fn) { skipped.push({ id: b.id, reason: `no tracking fn for ${b.courier_name || b.booking_source || "unknown"}` }); return; }
       const awb = b.prayog_awb || b.tracking_id;
       try {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
