@@ -1,6 +1,7 @@
 import { dispatchEmail } from "../_shared/notify-email.ts";
 // Bulk-refresh tracking + status for active bookings (admin only).
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolvePartnerKey } from "../_shared/partner-key.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
