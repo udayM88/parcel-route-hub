@@ -601,7 +601,7 @@ const BookingStep2 = ({
         </Card>
       )}
 
-      <div className="flex flex-col-reverse sm:flex-row gap-3">
+      <div className="flex flex-row gap-3">
         <Button variant="outline" onClick={onBack} className="flex-1 h-12">
           Back
         </Button>
