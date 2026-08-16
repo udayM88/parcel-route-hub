@@ -377,6 +377,11 @@ All colors MUST be HSL.
     word-break: break-word;
   }
 
+  /* Booking flow: keep action buttons clear of the bottom nav + device safe area */
+  .booking-safe-bottom {
+    padding-bottom: calc(7.5rem + env(safe-area-inset-bottom)) !important;
+  }
+
   /* Booking flow: compact internals on mobile only */
   .booking-shell .p-6 { padding: 0.75rem !important; }
   .booking-shell .p-8 { padding: 1rem !important; }
