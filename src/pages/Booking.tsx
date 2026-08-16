@@ -1479,7 +1479,11 @@ const Booking = () => {
           </div>
         )}
 
-        <div className="booking-shell p-3 md:p-4 max-w-2xl mx-auto pb-24 md:pb-4">
+        <div
+          className="booking-shell p-3 md:p-4 max-w-2xl mx-auto md:pb-4"
+          style={{ paddingBottom: "calc(7.5rem + env(safe-area-inset-bottom))" }}
+        >
+
           <BookingProgress currentStep={currentStep} totalSteps={totalSteps} />
           {renderCurrentStep()}
           {assistedContext && currentStep === 6 && sendingPaymentLink && (
