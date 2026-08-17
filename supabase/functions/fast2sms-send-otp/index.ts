@@ -115,12 +115,21 @@ Deno.serve(async (req) => {
     const smsBody = await smsResp.json().catch(() => ({}));
 
     if (!smsResp.ok || smsBody?.return !== true) {
-      console.error("Fast2SMS error", smsResp.status, smsBody);
+      console.error("Fast2SMS error", smsResp.status, JSON.stringify(smsBody));
+      const raw = `${smsBody?.message ?? ""} ${smsBody?.status_code ?? ""}`.toLowerCase();
+      const insufficientBalance =
+        raw.includes("insufficient") || raw.includes("balance") || smsBody?.status_code === 402;
       return new Response(
-        JSON.stringify({ error: smsBody?.message || "Failed to send OTP" }),
+        JSON.stringify({
+          error: insufficientBalance
+            ? "SMS service temporarily unavailable. Please try again shortly or contact support."
+            : (typeof smsBody?.message === "string" ? smsBody.message : "Failed to send OTP"),
+          code: insufficientBalance ? "SMS_BALANCE_EXHAUSTED" : "SMS_SEND_FAILED",
+        }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
 
     // Persist hash AFTER successful send
     const { error: insErr } = await supabase.from("otp_verifications").insert({
