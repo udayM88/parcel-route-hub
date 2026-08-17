@@ -130,7 +130,7 @@ const Login = () => {
         body: { phone: phoneNumber, otp },
       });
       if (verifyErr || !verifyResp?.success) {
-        const msg = (verifyResp as any)?.error || verifyErr?.message || "Invalid OTP";
+        const msg = await getInvokeErrorMessage(verifyResp, verifyErr, "Invalid OTP");
         toast({ title: "Verification failed", description: msg, variant: "destructive" });
         return;
       }
