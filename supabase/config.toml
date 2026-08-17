@@ -152,12 +152,3 @@ verify_jwt = false
 
 [functions.business-inquiry]
 verify_jwt = false
-
-[functions.fast2sms-send-otp]
-verify_jwt = false
-
-[functions.fast2sms-verify-otp]
-verify_jwt = false
-
-[functions.delete-account]
-verify_jwt = false

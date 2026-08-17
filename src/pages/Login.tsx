@@ -21,8 +21,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { deriveUserId, setAuthSession, isAuthenticated } from "@/lib/auth";
 import PageBackground from "@/components/PageBackground";
 import PageSeo from "@/components/PageSeo";
-import { getInvokeErrorMessage, getInvokeRetryAfter } from "@/lib/invoke-error";
-
 
 type Step = "details" | "otp";
 
@@ -96,13 +94,10 @@ const Login = () => {
         body: { phone: phoneNumber },
       });
       if (error || !data?.success) {
-        const msg = await getInvokeErrorMessage(data, error, "Failed to send OTP. Please try again.");
-        const retryAfter = await getInvokeRetryAfter(error);
-        if (retryAfter) setResendIn(retryAfter);
+        const msg = (data as any)?.error || error?.message || "Failed to send OTP. Please try again.";
         toast({ title: "Could not send OTP", description: msg, variant: "destructive" });
         return;
       }
-
       setStep("otp");
       setOtp('');
       setResendIn(30);
@@ -130,7 +125,7 @@ const Login = () => {
         body: { phone: phoneNumber, otp },
       });
       if (verifyErr || !verifyResp?.success) {
-        const msg = await getInvokeErrorMessage(verifyResp, verifyErr, "Invalid OTP");
+        const msg = (verifyResp as any)?.error || verifyErr?.message || "Invalid OTP";
         toast({ title: "Verification failed", description: msg, variant: "destructive" });
         return;
       }

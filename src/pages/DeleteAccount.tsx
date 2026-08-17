@@ -10,7 +10,6 @@ import { useToast } from "@/hooks/use-toast";
 import { clearAuthSession } from "@/lib/auth";
 import PageSeo from "@/components/PageSeo";
 import Logo from "@/components/Logo";
-import { getInvokeErrorMessage } from "@/lib/invoke-error";
 
 type Step = "phone" | "otp" | "done";
 
@@ -31,8 +30,7 @@ const DeleteAccount = () => {
     const { data, error } = await supabase.functions.invoke("fast2sms-send-otp", { body: { phone } });
     setLoading(false);
     if (error || data?.error) {
-      const msg = await getInvokeErrorMessage(data, error, "Failed to send OTP. Please try again.");
-      toast({ title: "Could not send OTP", description: msg, variant: "destructive" });
+      toast({ title: "Could not send OTP", description: data?.error || error?.message, variant: "destructive" });
       return;
     }
     setStep("otp");
@@ -48,10 +46,9 @@ const DeleteAccount = () => {
     const { data, error } = await supabase.functions.invoke("delete-account", { body: { phone, otp } });
     setLoading(false);
     if (error || data?.error) {
-      const msg = await getInvokeErrorMessage(data, error, "Please try again or contact support.");
       toast({
         title: "Account deletion failed",
-        description: msg,
+        description: data?.error || error?.message || "Please try again or contact support.",
         variant: "destructive",
       });
       return;

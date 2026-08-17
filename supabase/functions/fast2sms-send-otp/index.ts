@@ -9,7 +9,7 @@ const corsHeaders = {
 const TEST_PHONE = "8830306901";
 
 const RESEND_COOLDOWN_SECONDS = 30;
-const MAX_PER_HOUR = 8;
+const MAX_PER_HOUR = 5;
 const OTP_TTL_MINUTES = 5;
 
 async function sha256Hex(input: string): Promise<string> {
@@ -81,17 +81,13 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({
             error: `Please wait ${Math.ceil(RESEND_COOLDOWN_SECONDS - sinceLast)}s before requesting another OTP.`,
-            retry_after: Math.ceil(RESEND_COOLDOWN_SECONDS - sinceLast),
           }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
       if (recent.length >= MAX_PER_HOUR) {
         return new Response(
-          JSON.stringify({
-            error: `Too many OTP requests for this number. Please try again in about an hour, or contact support if you still cannot log in.`,
-            retry_after: 3600,
-          }),
+          JSON.stringify({ error: "Too many OTP requests. Please try again in an hour." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
@@ -119,16 +115,9 @@ Deno.serve(async (req) => {
     const smsBody = await smsResp.json().catch(() => ({}));
 
     if (!smsResp.ok || smsBody?.return !== true) {
-      console.error(
-        `[fast2sms-send-otp] provider rejected send status=${smsResp.status} body=${JSON.stringify(smsBody).slice(0, 800)}`,
-      );
-      const providerMsg = typeof smsBody?.message === "string"
-        ? smsBody.message
-        : Array.isArray(smsBody?.message)
-        ? smsBody.message.join(", ")
-        : null;
+      console.error("Fast2SMS error", smsResp.status, smsBody);
       return new Response(
-        JSON.stringify({ error: providerMsg || "Failed to send OTP. Please try again in a moment." }),
+        JSON.stringify({ error: smsBody?.message || "Failed to send OTP" }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -142,20 +131,19 @@ Deno.serve(async (req) => {
       attempts: 0,
     });
     if (insErr) {
-      console.error(`[fast2sms-send-otp] OTP insert error: ${insErr.message}`);
+      console.error("OTP insert error", insErr);
       return new Response(
         JSON.stringify({ error: "Failed to record OTP" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    console.log(`[fast2sms-send-otp] OTP sent ok to ${phone.slice(0, 3)}xxxxx${phone.slice(-2)}`);
     return new Response(
       JSON.stringify({ success: true, expires_in: OTP_TTL_MINUTES * 60 }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
-    console.error(`[fast2sms-send-otp] unhandled error: ${(err as Error)?.message}`);
+    console.error("fast2sms-send-otp error", err);
     return new Response(
       JSON.stringify({ error: (err as Error).message || "Internal error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
