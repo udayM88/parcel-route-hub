@@ -21,6 +21,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { deriveUserId, setAuthSession, isAuthenticated } from "@/lib/auth";
 import PageBackground from "@/components/PageBackground";
 import PageSeo from "@/components/PageSeo";
+import { getInvokeErrorMessage, getInvokeRetryAfter } from "@/lib/invoke-error";
+
 
 type Step = "details" | "otp";
 
