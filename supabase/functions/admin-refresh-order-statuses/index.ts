@@ -194,6 +194,8 @@ Deno.serve(async (req) => {
       checked: candidates.length,
       total: bookings?.length || 0,
       updated,
+      cancelled,
+
       skipped,
       errors,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
