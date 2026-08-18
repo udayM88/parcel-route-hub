@@ -8,7 +8,14 @@ import { resolvePartnerKey } from "@/lib/partner-functions";
 const CANCELLABLE_STATUSES = [
   "pending", "booked", "created", "confirmed", "new", "assigned",
   "order_confirmed", "order received",
+  // Pre-pickup partner states — cancellation is still allowed until the
+  // parcel is physically picked up. The partner API is the final authority
+  // and returns a friendly error if it is already too late.
+  "manifested", "order created", "order_created", "payment_received",
+  "ready_for_dispatch", "ready for dispatch", "pickup_scheduled",
+  "pickup scheduled", "out for pickup", "not picked",
 ];
+
 
 export const isCancellable = (status: string | null | undefined): boolean => {
   if (!status) return false;
