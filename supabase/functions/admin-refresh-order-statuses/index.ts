@@ -1,7 +1,9 @@
 import { dispatchEmail } from "../_shared/notify-email.ts";
-// Bulk-refresh tracking + status for active bookings (admin only).
+// Bulk-refresh tracking + status for active bookings (admin or cron/service-role).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolvePartnerKey } from "../_shared/partner-key.ts";
+import { refundBookingIfPaid } from "../_shared/refund.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,29 +62,34 @@ Deno.serve(async (req) => {
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Auth: caller must be an active admin.
+    // Auth: caller must be an active admin, OR the scheduled cron using the
+    // service-role key (no user context).
     const authHeader = req.headers.get("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: claims, error: claimsErr } = await userClient.auth.getClaims(authHeader.replace("Bearer ", ""));
-    if (claimsErr || !claims?.claims?.sub) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-    const userId = claims.claims.sub;
-
+    const bearer = authHeader.replace("Bearer ", "").trim();
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-    const { data: adminRow } = await admin.from("admin_users")
-      .select("id").eq("user_id", userId).eq("is_active", true).maybeSingle();
-    if (!adminRow) {
-      return new Response(JSON.stringify({ error: "Forbidden" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const isServiceRole = bearer === SERVICE_ROLE;
+
+    if (!isServiceRole) {
+      const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: claims, error: claimsErr } = await userClient.auth.getClaims(bearer);
+      if (claimsErr || !claims?.claims?.sub) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const { data: adminRow } = await admin.from("admin_users")
+        .select("id").eq("user_id", claims.claims.sub).eq("is_active", true).maybeSingle();
+      if (!adminRow) {
+        return new Response(JSON.stringify({ error: "Forbidden" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
     }
+
 
     const env = req.headers.get("x-environment") || "sandbox";
     const body = await req.json().catch(() => ({}));
@@ -105,6 +112,8 @@ Deno.serve(async (req) => {
     });
 
     let updated = 0;
+    let cancelled = 0;
+
     const skipped: { id: string; reason: string }[] = [];
     const errors: { id: string; reason: string }[] = [];
 
@@ -136,17 +145,46 @@ Deno.serve(async (req) => {
         const newStatus: string = latest.subcategory || latest.status || latest.category || "";
         if (!newStatus) { skipped.push({ id: b.id, reason: "empty status" }); return; }
         if (newStatus === b.status) return;
+
+        const bucket = bucketOfStatus(newStatus);
+
+        // Partner-side cancellation (customer/courier cancelled outside the app):
+        // normalise the status, keep the raw partner wording, refund + notify.
+        if (bucket === "cancelled") {
+          const { error: cancelErr } = await admin.from("bookings")
+            .update({
+              status: "CANCELLED",
+              refund_reason: `Cancelled at partner: ${newStatus}`,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", b.id);
+          if (cancelErr) { errors.push({ id: b.id, reason: cancelErr.message }); return; }
+
+          const refund = await refundBookingIfPaid(
+            admin,
+            b.id,
+            env === "production" ? "production" : "sandbox",
+            `Cancelled at partner: ${newStatus}`,
+          );
+          console.log(`[admin-refresh] booking ${b.id} cancelled at partner; refund:`, JSON.stringify(refund));
+
+          dispatchEmail("order_cancelled", b.id, { status: newStatus });
+          cancelled++;
+          updated++;
+          return;
+        }
+
         const { error: upErr } = await admin.from("bookings")
           .update({ status: newStatus, updated_at: new Date().toISOString() })
           .eq("id", b.id);
         if (upErr) { errors.push({ id: b.id, reason: upErr.message }); return; }
-        const bucket = bucketOfStatus(newStatus);
         if (bucket === "delivered") {
           dispatchEmail("order_completed", b.id, { status: newStatus });
         } else {
           dispatchEmail("status_change", b.id, { status: newStatus });
         }
         updated++;
+
       } catch (e: any) {
         errors.push({ id: b.id, reason: String(e?.message || e) });
       }
@@ -156,6 +194,8 @@ Deno.serve(async (req) => {
       checked: candidates.length,
       total: bookings?.length || 0,
       updated,
+      cancelled,
+
       skipped,
       errors,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
