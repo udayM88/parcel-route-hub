@@ -671,6 +671,8 @@ const OrderMonitoring = () => {
                               {booking.payment_status === 'cop_pending' && (
                                 <Badge className="bg-yellow-500 text-yellow-950 text-xs">💵 COP</Badge>
                               )}
+                              {renderRefundBadge(booking.payment_status)}
+
                             </div>
                           </TableCell>
                           <TableCell>
