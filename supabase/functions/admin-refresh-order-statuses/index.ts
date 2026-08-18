@@ -112,6 +112,8 @@ Deno.serve(async (req) => {
     });
 
     let updated = 0;
+    let cancelled = 0;
+
     const skipped: { id: string; reason: string }[] = [];
     const errors: { id: string; reason: string }[] = [];
 
