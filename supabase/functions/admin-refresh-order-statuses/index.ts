@@ -62,29 +62,34 @@ Deno.serve(async (req) => {
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Auth: caller must be an active admin.
+    // Auth: caller must be an active admin, OR the scheduled cron using the
+    // service-role key (no user context).
     const authHeader = req.headers.get("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: claims, error: claimsErr } = await userClient.auth.getClaims(authHeader.replace("Bearer ", ""));
-    if (claimsErr || !claims?.claims?.sub) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-    const userId = claims.claims.sub;
-
+    const bearer = authHeader.replace("Bearer ", "").trim();
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-    const { data: adminRow } = await admin.from("admin_users")
-      .select("id").eq("user_id", userId).eq("is_active", true).maybeSingle();
-    if (!adminRow) {
-      return new Response(JSON.stringify({ error: "Forbidden" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const isServiceRole = bearer === SERVICE_ROLE;
+
+    if (!isServiceRole) {
+      const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: claims, error: claimsErr } = await userClient.auth.getClaims(bearer);
+      if (claimsErr || !claims?.claims?.sub) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const { data: adminRow } = await admin.from("admin_users")
+        .select("id").eq("user_id", claims.claims.sub).eq("is_active", true).maybeSingle();
+      if (!adminRow) {
+        return new Response(JSON.stringify({ error: "Forbidden" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
     }
+
 
     const env = req.headers.get("x-environment") || "sandbox";
     const body = await req.json().catch(() => ({}));
