@@ -194,6 +194,17 @@ const OrderMonitoring = () => {
     return status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
   };
 
+  const renderRefundBadge = (paymentStatus?: string | null) => {
+    if (paymentStatus === "refunded") {
+      return <Badge className="bg-emerald-600 text-white text-xs">Refunded</Badge>;
+    }
+    if (paymentStatus === "refund_failed") {
+      return <Badge variant="destructive" className="text-xs">Refund failed</Badge>;
+    }
+    return null;
+  };
+
+
   const inTransitBuckets = new Set(["confirmed", "picked_up", "in_transit", "out_for_delivery"]);
 
   const filteredBookings = bookings.filter(booking => {
@@ -593,6 +604,8 @@ const OrderMonitoring = () => {
                               {booking.payment_status === 'cop_pending' && (
                                 <Badge className="bg-yellow-500 text-yellow-950 text-xs">💵 COP</Badge>
                               )}
+                              {renderRefundBadge(booking.payment_status)}
+
                             </div>
                           </TableCell>
                           <TableCell>
@@ -658,6 +671,8 @@ const OrderMonitoring = () => {
                               {booking.payment_status === 'cop_pending' && (
                                 <Badge className="bg-yellow-500 text-yellow-950 text-xs">💵 COP</Badge>
                               )}
+                              {renderRefundBadge(booking.payment_status)}
+
                             </div>
                           </TableCell>
                           <TableCell>
