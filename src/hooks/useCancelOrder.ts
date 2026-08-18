@@ -2,6 +2,8 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { CURRENT_ENV } from "@/config/environment";
 import { useToast } from "@/hooks/use-toast";
+import { resolvePartnerKey } from "@/lib/partner-functions";
+
 
 const CANCELLABLE_STATUSES = [
   "pending", "booked", "created", "confirmed", "new", "assigned",
@@ -92,6 +94,8 @@ export const useCancelOrder = (options?: UseCancelOrderOptions) => {
     awb,
     userId,
     currentStatus,
+    partnerId,
+    courierName,
   }: {
     orderId: string;
     bookingSource: string;
@@ -100,10 +104,19 @@ export const useCancelOrder = (options?: UseCancelOrderOptions) => {
     awb?: string | null;
     userId?: string | null;
     currentStatus?: string | null;
+    partnerId?: string | null;
+    courierName?: string | null;
   }) => {
     setCancelling(true);
     try {
-      if (bookingSource === "shadowfax_direct") {
+      // Assisted / manually-attached bookings carry booking_source like
+      // "admin_assisted", so never rely on booking_source alone.
+      const partnerKey = resolvePartnerKey(
+        partnerId,
+        `${bookingSource || ""} ${courierName || ""}`,
+      );
+
+      if (partnerKey === "shadowfax") {
         const { data, error } = await supabase.functions.invoke("shadowfax-cancel-order", {
           body: {
             client_order_id: orderId,
@@ -117,58 +130,28 @@ export const useCancelOrder = (options?: UseCancelOrderOptions) => {
         if (error || !data?.success) {
           throw new Error(friendlyCancelError(extractCancelError(data, error)));
         }
-      } else if (bookingSource === "delhivery_direct") {
-        if (!awb) {
-          throw new Error("AWB number required to cancel a Delhivery shipment");
-        }
-        const { data, error } = await supabase.functions.invoke("delhivery-cancel-order", {
-          body: {
-            waybill: awb,
-            cancel_remarks: reason,
-            booking_id: bookingId,
-          },
-          headers: { "x-environment": CURRENT_ENV },
-        });
-
-        if (error || !data?.success) {
-          throw new Error(friendlyCancelError(extractCancelError(data, error)));
-        }
-      } else if (bookingSource === "urbanebolt_direct") {
-        if (!awb) {
-          throw new Error("AWB number required to cancel an Urbanebolt shipment");
-        }
-        const { data, error } = await supabase.functions.invoke("urbanebolt-cancel-order", {
-          body: {
-            waybill: awb,
-            cancel_remarks: reason,
-            booking_id: bookingId,
-          },
-          headers: { "x-environment": CURRENT_ENV },
-        });
-
-        if (error || !data?.success) {
-          throw new Error(friendlyCancelError(extractCancelError(data, error)));
-        }
-      } else if (bookingSource === "xpressbees_direct") {
-        if (!awb) {
-          throw new Error("AWB number required to cancel an XpressBees shipment");
-        }
-        const { data, error } = await supabase.functions.invoke("xpressbees-cancel-order", {
-          body: {
-            waybill: awb,
-            cancel_remarks: reason,
-            booking_id: bookingId,
-          },
-          headers: { "x-environment": CURRENT_ENV },
-        });
-
-        if (error || !data?.success) {
-          throw new Error(friendlyCancelError(extractCancelError(data, error)));
-        }
-      } else if (bookingSource === "shree_maruti_direct") {
+      } else if (partnerKey === "shree_maruti") {
         const { data, error } = await supabase.functions.invoke("shree-maruti-cancel-order", {
           body: {
             waybill: awb || undefined,
+            cancel_remarks: reason,
+            booking_id: bookingId,
+          },
+          headers: { "x-environment": CURRENT_ENV },
+        });
+
+        if (error || !data?.success) {
+          throw new Error(friendlyCancelError(extractCancelError(data, error)));
+        }
+      } else if (partnerKey) {
+        // delhivery / urbanebolt / xpressbees — all need an AWB
+        if (!awb) {
+          throw new Error(`AWB number required to cancel this ${partnerKey} shipment`);
+        }
+        const fn = `${partnerKey.replace(/_/g, "-")}-cancel-order`;
+        const { data, error } = await supabase.functions.invoke(fn, {
+          body: {
+            waybill: awb,
             cancel_remarks: reason,
             booking_id: bookingId,
           },
@@ -198,6 +181,7 @@ export const useCancelOrder = (options?: UseCancelOrderOptions) => {
           `This order was placed with a partner (${bookingSource}) that doesn't support online cancellation. Please contact support.`
         );
       }
+
 
       toast({
         title: "Order Cancelled",

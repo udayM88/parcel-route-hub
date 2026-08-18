@@ -351,6 +351,8 @@ const OrderMonitoring = () => {
       bookingId: selectedBooking.id,
       reason,
       awb: selectedBooking.prayog_awb || selectedBooking.tracking_id,
+      partnerId: selectedBooking.partner_id,
+      courierName: selectedBooking.courier_name,
     });
   };
 
