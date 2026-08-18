@@ -2,6 +2,8 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { CURRENT_ENV } from "@/config/environment";
 import { useToast } from "@/hooks/use-toast";
+import { resolvePartnerKey } from "@/lib/partner-functions";
+
 
 const CANCELLABLE_STATUSES = [
   "pending", "booked", "created", "confirmed", "new", "assigned",
