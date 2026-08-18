@@ -143,17 +143,46 @@ Deno.serve(async (req) => {
         const newStatus: string = latest.subcategory || latest.status || latest.category || "";
         if (!newStatus) { skipped.push({ id: b.id, reason: "empty status" }); return; }
         if (newStatus === b.status) return;
+
+        const bucket = bucketOfStatus(newStatus);
+
+        // Partner-side cancellation (customer/courier cancelled outside the app):
+        // normalise the status, keep the raw partner wording, refund + notify.
+        if (bucket === "cancelled") {
+          const { error: cancelErr } = await admin.from("bookings")
+            .update({
+              status: "CANCELLED",
+              refund_reason: `Cancelled at partner: ${newStatus}`,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", b.id);
+          if (cancelErr) { errors.push({ id: b.id, reason: cancelErr.message }); return; }
+
+          const refund = await refundBookingIfPaid(
+            admin,
+            b.id,
+            env === "production" ? "production" : "sandbox",
+            `Cancelled at partner: ${newStatus}`,
+          );
+          console.log(`[admin-refresh] booking ${b.id} cancelled at partner; refund:`, JSON.stringify(refund));
+
+          dispatchEmail("order_cancelled", b.id, { status: newStatus });
+          cancelled++;
+          updated++;
+          return;
+        }
+
         const { error: upErr } = await admin.from("bookings")
           .update({ status: newStatus, updated_at: new Date().toISOString() })
           .eq("id", b.id);
         if (upErr) { errors.push({ id: b.id, reason: upErr.message }); return; }
-        const bucket = bucketOfStatus(newStatus);
         if (bucket === "delivered") {
           dispatchEmail("order_completed", b.id, { status: newStatus });
         } else {
           dispatchEmail("status_change", b.id, { status: newStatus });
         }
         updated++;
+
       } catch (e: any) {
         errors.push({ id: b.id, reason: String(e?.message || e) });
       }
