@@ -62,18 +62,21 @@ Deno.serve(async (req) => {
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Auth: caller must be an active admin, OR the scheduled cron using the
-    // service-role key (no user context).
-    const authHeader = req.headers.get("Authorization") || "";
-    if (!authHeader.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-    const bearer = authHeader.replace("Bearer ", "").trim();
+    // Auth: caller must be an active admin, OR the scheduled cron presenting
+    // the service-role key / CRON_SECRET (no user context).
+    const CRON_SECRET = Deno.env.get("CRON_SECRET") || "";
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-    const isServiceRole = bearer === SERVICE_ROLE;
+    const cronHeader = (req.headers.get("x-cron-secret") || "").trim();
+    const authHeader = req.headers.get("Authorization") || "";
+    const bearer = authHeader.replace("Bearer ", "").trim();
+    const isMachine =
+      (CRON_SECRET && cronHeader === CRON_SECRET) || (bearer && bearer === SERVICE_ROLE);
 
-    if (!isServiceRole) {
+    if (!isMachine) {
+      if (!authHeader.startsWith("Bearer ")) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
       const userClient = createClient(SUPABASE_URL, ANON_KEY, {
         global: { headers: { Authorization: authHeader } },
       });
@@ -89,6 +92,7 @@ Deno.serve(async (req) => {
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
+
 
 
     const env = req.headers.get("x-environment") || "sandbox";
