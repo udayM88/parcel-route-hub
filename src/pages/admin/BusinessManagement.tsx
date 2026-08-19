@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Building2, UserPlus, FileText } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Building2, UserPlus, FileText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 
@@ -29,7 +31,24 @@ type BusinessAccountRow = {
   is_active: boolean;
   notes: string | null;
   created_at: string;
+  deleted_at: string | null;
+  deletion_reason: string | null;
+  deletion_note: string | null;
+  deleted_by_email: string | null;
 };
+
+const DELETION_REASONS: { value: string; label: string }[] = [
+  { value: "duplicate_account", label: "Duplicate account" },
+  { value: "business_closed", label: "Business closed / no longer shipping" },
+  { value: "fraud_or_misuse", label: "Fraud or misuse" },
+  { value: "kyc_invalid", label: "KYC documents invalid or expired" },
+  { value: "requested_by_business", label: "Requested by the business" },
+  { value: "non_payment", label: "Non-payment / dispute" },
+  { value: "other", label: "Other" },
+];
+
+const reasonLabel = (value: string | null) =>
+  DELETION_REASONS.find((r) => r.value === value)?.label ?? value ?? "—";
 
 const emptyForm = {
   company_name: "",
@@ -46,6 +65,7 @@ const emptyForm = {
   pincode: "",
   notes: "",
 };
+
 
 const BusinessManagement = () => {
   const [rows, setRows] = useState<BusinessAccountRow[]>([]);
