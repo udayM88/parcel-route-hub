@@ -74,6 +74,13 @@ const BusinessManagement = () => {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [docFiles, setDocFiles] = useState<File[]>([]);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<BusinessAccountRow | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteNote, setDeleteNote] = useState("");
+  const [confirmName, setConfirmName] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
 
   const fetchRows = async () => {
     setLoading(true);
