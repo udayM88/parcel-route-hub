@@ -157,4 +157,4 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.delete-business-user]
-verify_jwt = true
+verify_jwt = false
