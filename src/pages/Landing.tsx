@@ -50,7 +50,7 @@ import personaSeller from "@/assets/persona-seller.png.asset.json";
 import warehouseBg from "@/assets/warehouse-bg.jpg";
 import parcelsBg from "@/assets/parcels-bg.jpg";
 import shippingBg from "@/assets/shipping-bg.jpg";
-import deliveryHero from "@/assets/delivery-hero.jpg";
+
 import heroDesktopImage from "@/assets/hero-desktop.webp.asset.json";
 import appPreview from "@/assets/app-preview.png";
 import appPreview2 from "@/assets/app-preview-2.png";
