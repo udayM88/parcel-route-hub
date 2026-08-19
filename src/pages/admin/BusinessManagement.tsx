@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Building2, UserPlus, FileText } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Building2, UserPlus, FileText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 
@@ -29,7 +31,24 @@ type BusinessAccountRow = {
   is_active: boolean;
   notes: string | null;
   created_at: string;
+  deleted_at: string | null;
+  deletion_reason: string | null;
+  deletion_note: string | null;
+  deleted_by_email: string | null;
 };
+
+const DELETION_REASONS: { value: string; label: string }[] = [
+  { value: "duplicate_account", label: "Duplicate account" },
+  { value: "business_closed", label: "Business closed / no longer shipping" },
+  { value: "fraud_or_misuse", label: "Fraud or misuse" },
+  { value: "kyc_invalid", label: "KYC documents invalid or expired" },
+  { value: "requested_by_business", label: "Requested by the business" },
+  { value: "non_payment", label: "Non-payment / dispute" },
+  { value: "other", label: "Other" },
+];
+
+const reasonLabel = (value: string | null) =>
+  DELETION_REASONS.find((r) => r.value === value)?.label ?? value ?? "—";
 
 const emptyForm = {
   company_name: "",
@@ -47,6 +66,7 @@ const emptyForm = {
   notes: "",
 };
 
+
 const BusinessManagement = () => {
   const [rows, setRows] = useState<BusinessAccountRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +74,13 @@ const BusinessManagement = () => {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [docFiles, setDocFiles] = useState<File[]>([]);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<BusinessAccountRow | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteNote, setDeleteNote] = useState("");
+  const [confirmName, setConfirmName] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
 
   const fetchRows = async () => {
     setLoading(true);
@@ -122,6 +149,43 @@ const BusinessManagement = () => {
     toast.success("Business account updated");
     fetchRows();
   };
+
+  const openDelete = (row: BusinessAccountRow) => {
+    setDeleteTarget(row);
+    setDeleteReason("");
+    setDeleteNote("");
+    setConfirmName("");
+  };
+
+  const canConfirmDelete =
+    !!deleteTarget &&
+    !!deleteReason &&
+    (deleteReason !== "other" || deleteNote.trim().length >= 3) &&
+    confirmName.trim().toLowerCase() === (deleteTarget?.company_name ?? "").trim().toLowerCase();
+
+  const handleDelete = async () => {
+    if (!deleteTarget || !canConfirmDelete) return;
+    setDeleting(true);
+    try {
+      const response = await supabase.functions.invoke("delete-business-user", {
+        body: { business_id: deleteTarget.id, reason: deleteReason, note: deleteNote.trim() || null },
+      });
+      if (response.error) throw response.error;
+      if (response.data?.error) { toast.error(response.data.error); return; }
+      toast.success(`${deleteTarget.company_name} deleted. Login has been revoked.`);
+      setDeleteTarget(null);
+      fetchRows();
+    } catch (err) {
+      console.error(err);
+      toast.error((err as Error).message || "Failed to delete business account");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const visibleRows = showDeleted ? rows : rows.filter((r) => !r.deleted_at);
+
+
 
   return (
     <div className="space-y-6">
@@ -216,13 +280,21 @@ const BusinessManagement = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Business Accounts</CardTitle>
-          <CardDescription>All business rates are shown inclusive of GST.</CardDescription>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Business Accounts</CardTitle>
+              <CardDescription>All business rates are shown inclusive of GST.</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch id="show-deleted" checked={showDeleted} onCheckedChange={setShowDeleted} />
+              <Label htmlFor="show-deleted" className="text-sm text-muted-foreground">Show deleted</Label>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">Loading...</div>
-          ) : rows.length === 0 ? (
+          ) : visibleRows.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No business accounts yet</div>
           ) : (
             <div className="overflow-x-auto">
@@ -239,8 +311,8 @@ const BusinessManagement = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row) => (
-                    <TableRow key={row.id}>
+                  {visibleRows.map((row) => (
+                    <TableRow key={row.id} className={row.deleted_at ? "opacity-60" : undefined}>
                       <TableCell>
                         <p className="font-medium">{row.company_name}</p>
                         <p className="text-xs text-muted-foreground">{row.city || "—"}</p>
@@ -270,29 +342,50 @@ const BusinessManagement = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={row.status === "approved" && row.is_active ? "default" : "secondary"}>
-                          {row.is_active ? row.status : "disabled"}
-                        </Badge>
+                        {row.deleted_at ? (
+                          <div className="space-y-1">
+                            <Badge variant="destructive">Deleted</Badge>
+                            <p className="text-xs text-muted-foreground">{reasonLabel(row.deletion_reason)}</p>
+                            {row.deletion_note && (
+                              <p className="text-xs text-muted-foreground italic">{row.deletion_note}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              by {row.deleted_by_email || "admin"} · {new Date(row.deleted_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        ) : (
+                          <Badge variant={row.status === "approved" && row.is_active ? "default" : "secondary"}>
+                            {row.is_active ? row.status : "disabled"}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col gap-1">
-                          {row.status !== "approved" && (
+                        {row.deleted_at ? (
+                          <span className="text-xs text-muted-foreground">Login revoked</span>
+                        ) : (
+                          <div className="flex flex-col gap-1 items-start">
+                            {row.status !== "approved" && (
+                              <Button size="sm" variant="ghost"
+                                onClick={() => updateRow(row.id, { status: "approved", is_active: true })}>
+                                Approve
+                              </Button>
+                            )}
+                            {row.status !== "info_requested" && (
+                              <Button size="sm" variant="ghost"
+                                onClick={() => updateRow(row.id, { status: "info_requested" })}>
+                                Request Info
+                              </Button>
+                            )}
                             <Button size="sm" variant="ghost"
-                              onClick={() => updateRow(row.id, { status: "approved", is_active: true })}>
-                              Approve
+                              onClick={() => updateRow(row.id, { is_active: !row.is_active })}>
+                              {row.is_active ? "Disable" : "Enable"}
                             </Button>
-                          )}
-                          {row.status !== "info_requested" && (
-                            <Button size="sm" variant="ghost"
-                              onClick={() => updateRow(row.id, { status: "info_requested" })}>
-                              Request Info
+                            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
+                              onClick={() => openDelete(row)}>
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />Delete
                             </Button>
-                          )}
-                          <Button size="sm" variant="ghost"
-                            onClick={() => updateRow(row.id, { is_active: !row.is_active })}>
-                            {row.is_active ? "Disable" : "Enable"}
-                          </Button>
-                        </div>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -302,8 +395,50 @@ const BusinessManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete business account</DialogTitle>
+            <DialogDescription>
+              This revokes login for {deleteTarget?.company_name} immediately. Past shipments and invoices
+              are kept for audit and accounting.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Reason for deletion *</Label>
+              <Select value={deleteReason} onValueChange={setDeleteReason}>
+                <SelectTrigger><SelectValue placeholder="Select a reason" /></SelectTrigger>
+                <SelectContent>
+                  {DELETION_REASONS.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Note {deleteReason === "other" ? "*" : "(optional)"}</Label>
+              <Textarea value={deleteNote} onChange={(e) => setDeleteNote(e.target.value)}
+                placeholder="Add context for the audit trail" rows={3} />
+            </div>
+            <div className="space-y-2">
+              <Label>Type the company name to confirm</Label>
+              <Input value={confirmName} onChange={(e) => setConfirmName(e.target.value)}
+                placeholder={deleteTarget?.company_name} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={!canConfirmDelete || deleting}>
+              {deleting ? "Deleting..." : "Delete account"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+
 };
 
 export default BusinessManagement;

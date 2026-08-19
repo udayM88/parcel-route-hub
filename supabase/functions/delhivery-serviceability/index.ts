@@ -4,6 +4,7 @@
 // rt=R tells Delhivery this is a Reverse Pickup shipment.
 
 import { getDelhiveryConfig, getEnvironmentFromRequest } from "../_shared/environment.ts";
+import { isPartnerEnabled, partnerDisabledResponse } from "../_shared/partner-toggle.ts";
 import { quoteFromCard, resolvePrice, type PinInfo } from "../_shared/rate-cards.ts";
 
 async function lookupPinInfo(pin: string): Promise<PinInfo> {
@@ -150,6 +151,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+    if (!(await isPartnerEnabled("delhivery"))) return partnerDisabledResponse("delhivery", corsHeaders);
 
   try {
     const env = getEnvironmentFromRequest(req);

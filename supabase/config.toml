@@ -155,3 +155,6 @@ verify_jwt = false
 
 [functions.admin-refresh-order-statuses]
 verify_jwt = false
+
+[functions.delete-business-user]
+verify_jwt = true

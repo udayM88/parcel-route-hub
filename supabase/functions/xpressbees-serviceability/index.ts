@@ -5,6 +5,7 @@
 // by Shadowfax / Delhivery / Urbanebolt.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { isPartnerEnabled, partnerDisabledResponse } from "../_shared/partner-toggle.ts";
 import { getEnvironmentFromRequest } from "../_shared/environment.ts";
 import { detectZone, quote, tatDays, zoneLabel, type XbMode } from "../_shared/xpressbees-rates.ts";
 
@@ -37,6 +38,8 @@ async function geocodeFallback(pin: string): Promise<{ city: string; state: stri
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+    if (!(await isPartnerEnabled("xpressbees"))) return partnerDisabledResponse("xpressbees", corsHeaders);
 
   try {
     getEnvironmentFromRequest(req); // env header forwarded for parity

@@ -4,6 +4,7 @@
 // Source of truth for rates: supabase/functions/_shared/rate-cards.ts
 
 import { getEnvironmentFromRequest } from "../_shared/environment.ts";
+import { isPartnerEnabled, partnerDisabledResponse } from "../_shared/partner-toggle.ts";
 import { urbaneboltFetch } from "../_shared/urbanebolt-auth.ts";
 import { quoteFromCard, type PinInfo } from "../_shared/rate-cards.ts";
 
@@ -66,6 +67,8 @@ const TAT_BY_ZONE: Record<string, { surface: { days: number; label: string }; ai
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+    if (!(await isPartnerEnabled("urbanebolt"))) return partnerDisabledResponse("urbanebolt", corsHeaders);
 
   try {
     const env = getEnvironmentFromRequest(req);

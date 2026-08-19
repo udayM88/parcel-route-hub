@@ -52,6 +52,7 @@ const RealTimeTracking = lazy(() => import("./pages/admin/RealTimeTracking"));
 const UserManagement = lazy(() => import("./pages/admin/UserManagement"));
 const AdminUserManagement = lazy(() => import("./pages/admin/AdminUserManagement"));
 const BusinessManagement = lazy(() => import("./pages/admin/BusinessManagement"));
+const PartnerManagement = lazy(() => import("./pages/admin/PartnerManagement"));
 const BusinessInquiries = lazy(() => import("./pages/admin/BusinessInquiries"));
 const BusinessLogin = lazy(() => import("./pages/business/BusinessLogin"));
 const BusinessResetPassword = lazy(() => import("./pages/business/BusinessResetPassword"));
@@ -155,6 +156,7 @@ const App = () => (
             <Route path="users" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><UserManagement /></ProtectedAdminRoute>} />
             <Route path="admin-users" element={<ProtectedAdminRoute allowedRoles={["super_admin"]}><AdminUserManagement /></ProtectedAdminRoute>} />
             <Route path="businesses" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations"]}><BusinessManagement /></ProtectedAdminRoute>} />
+            <Route path="courier-partners" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations"]}><PartnerManagement /></ProtectedAdminRoute>} />
             <Route path="business-inquiries" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><BusinessInquiries /></ProtectedAdminRoute>} />
             <Route path="revenue" element={<ProtectedAdminRoute allowedRoles={["super_admin"]}><RevenueManagement /></ProtectedAdminRoute>} />
             <Route path="reconciliation" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><Reconciliation /></ProtectedAdminRoute>} />
