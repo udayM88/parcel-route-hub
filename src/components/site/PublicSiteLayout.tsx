@@ -146,7 +146,7 @@ function SiteHeader() {
         <nav className="hidden lg:flex items-center gap-3 xl:gap-5 flex-1 justify-center">
           <NavDropdown label="Our Services" items={serviceItems} width="w-64" />
           {plainLinks
-            .filter((l) => l.label !== "Contact Us")
+            .filter((l) => l.label !== "Contact Us" && l.label !== "Track Parcel")
             .map((l) => (
               <span key={l.label} className="contents">
                 <Link to={l.href} className="text-[13px] xl:text-[14px] font-bold whitespace-nowrap transition-colors hover:text-[#00C8C8]" style={{ color: C.text }}>
