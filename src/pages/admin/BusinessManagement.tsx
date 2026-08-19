@@ -150,6 +150,43 @@ const BusinessManagement = () => {
     fetchRows();
   };
 
+  const openDelete = (row: BusinessAccountRow) => {
+    setDeleteTarget(row);
+    setDeleteReason("");
+    setDeleteNote("");
+    setConfirmName("");
+  };
+
+  const canConfirmDelete =
+    !!deleteTarget &&
+    !!deleteReason &&
+    (deleteReason !== "other" || deleteNote.trim().length >= 3) &&
+    confirmName.trim().toLowerCase() === (deleteTarget?.company_name ?? "").trim().toLowerCase();
+
+  const handleDelete = async () => {
+    if (!deleteTarget || !canConfirmDelete) return;
+    setDeleting(true);
+    try {
+      const response = await supabase.functions.invoke("delete-business-user", {
+        body: { business_id: deleteTarget.id, reason: deleteReason, note: deleteNote.trim() || null },
+      });
+      if (response.error) throw response.error;
+      if (response.data?.error) { toast.error(response.data.error); return; }
+      toast.success(`${deleteTarget.company_name} deleted. Login has been revoked.`);
+      setDeleteTarget(null);
+      fetchRows();
+    } catch (err) {
+      console.error(err);
+      toast.error((err as Error).message || "Failed to delete business account");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const visibleRows = showDeleted ? rows : rows.filter((r) => !r.deleted_at);
+
+
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
