@@ -21,8 +21,10 @@ import {
   TrendingDown,
   PackagePlus,
   Clock,
-  Inbox
+  Inbox,
+  Truck
 } from "lucide-react";
+
 import { 
   Sidebar, 
   SidebarContent, 
