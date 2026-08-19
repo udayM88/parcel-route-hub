@@ -469,21 +469,16 @@ const Landing = () => {
           backgroundColor: "#F4F7FB",
         }}
       >
-        {/* Desktop-only background video */}
-        <video
-          className="hidden lg:block absolute inset-0 w-full h-full object-cover pointer-events-none"
-          src={heroDesktopVideo.url}
-          poster={deliveryHero}
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="auto"
-          disablePictureInPicture
+        {/* Desktop-only background image */}
+        <img
+          className="hidden lg:block absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none"
+          src={heroDesktopImage.url}
+          alt=""
           aria-hidden="true"
+          draggable={false}
           style={{ zIndex: 0 }}
         />
-        <div className="hidden lg:block absolute top-0 left-0 w-[600px] h-[600px] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(0,200,200,0.15) 0%, transparent 70%)", zIndex: 2 }} />
+
 
         <div className="relative w-full lg:pl-12 self-start lg:self-center" style={{ zIndex: 3 }}>
 
