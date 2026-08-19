@@ -464,6 +464,11 @@ export type Database = {
           contact_person: string
           created_at: string
           created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_by_email: string | null
+          deletion_note: string | null
+          deletion_reason: string | null
           documents: Json
           email: string
           gst_number: string | null
@@ -488,6 +493,11 @@ export type Database = {
           contact_person: string
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_by_email?: string | null
+          deletion_note?: string | null
+          deletion_reason?: string | null
           documents?: Json
           email: string
           gst_number?: string | null
@@ -512,6 +522,11 @@ export type Database = {
           contact_person?: string
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_by_email?: string | null
+          deletion_note?: string | null
+          deletion_reason?: string | null
           documents?: Json
           email?: string
           gst_number?: string | null
