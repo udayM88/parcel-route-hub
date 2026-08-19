@@ -17,6 +17,7 @@ import AddressAutocomplete from "@/components/booking/AddressAutocomplete";
 import DisclaimerStep from "@/components/booking/DisclaimerStep";
 import { CURRENT_ENV } from "@/config/environment";
 import { computeBusinessBreakdown, computeChargeableKg } from "@/lib/pricing";
+import { filterEnabledPartners } from "@/lib/partnerSettings";
 
 const DIRECT_PARTNERS = [
   { code: "shadowfax", name: "Shadowfax", fn: "shadowfax-serviceability" },
@@ -187,8 +188,9 @@ const BusinessBooking = () => {
             width_cm: parseFloat(b.width) || 10,
             height_cm: parseFloat(b.height) || 10,
           };
+          const activePartners = await filterEnabledPartners(DIRECT_PARTNERS);
           const settled = await Promise.allSettled(
-            DIRECT_PARTNERS.map((p) =>
+            activePartners.map((p) =>
               supabase.functions
                 .invoke(p.fn, { body: payload, headers: { "x-environment": CURRENT_ENV } })
                 .then((res) => ({ res, meta: p })),
@@ -196,7 +198,7 @@ const BusinessBooking = () => {
           );
           const map = new Map<string, { partner: any; service: any }>();
           settled.forEach((s, idx) => {
-            const meta = DIRECT_PARTNERS[idx];
+            const meta = activePartners[idx];
             if (s.status !== "fulfilled") return;
             const { data, error } = (s.value as any).res;
             if (error || !data?.is_serviceable || !data?.partner) return;
