@@ -251,7 +251,7 @@ function SiteHeader() {
             </div>
 
             {plainLinks
-              .filter((l) => l.label !== "Contact Us")
+              .filter((l) => l.label !== "Contact Us" && l.label !== "Track Parcel")
               .map((l) => (
                 <span key={l.label} className="contents">
                   <Link to={l.href} onClick={() => setOpen(false)} className="text-lg font-bold" style={{ color: C.text }}>{l.label}</Link>
