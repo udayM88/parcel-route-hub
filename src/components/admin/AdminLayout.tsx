@@ -21,5 +21,7 @@ import {
   TrendingDown,
   PackagePlus,
   Clock,
-  Inbox
+  Inbox,
+  Truck
+
 }
