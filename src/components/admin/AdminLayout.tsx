@@ -23,5 +23,4 @@ import {
   Clock,
   Inbox,
   Truck
-
 }
