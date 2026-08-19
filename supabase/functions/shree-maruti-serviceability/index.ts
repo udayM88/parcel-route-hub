@@ -8,6 +8,7 @@
 // SURFACE / AIR is available for the pincode pair before quoting from the card.
 
 import { getEnvironmentFromRequest } from "../_shared/environment.ts";
+import { isPartnerEnabled, partnerDisabledResponse } from "../_shared/partner-toggle.ts";
 import { shreeMarutiFetch } from "../_shared/shree-maruti-auth.ts";
 import { quoteFromCard, resolvePrice, type PinInfo } from "../_shared/rate-cards.ts";
 
@@ -76,6 +77,8 @@ async function checkMode(env: any, fromPin: number, toPin: number, mode: "SURFAC
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+    if (!(await isPartnerEnabled("shree_maruti"))) return partnerDisabledResponse("shree_maruti", corsHeaders);
 
   try {
     const env = getEnvironmentFromRequest(req);
