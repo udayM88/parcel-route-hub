@@ -214,9 +214,12 @@ const BookingStep2 = ({
         height_cm: parseFloat(dimensions.height) || 10,
       };
 
+      // Only quote partners operations have left enabled.
+      const activePartners = await filterEnabledPartners(DIRECT_PARTNERS);
+
       // Run serviceability checks for all direct partners in parallel.
       const results = await Promise.allSettled(
-        DIRECT_PARTNERS.map((p) =>
+        activePartners.map((p) =>
           supabase.functions.invoke(p.fn, {
             body: partnerPayload,
             headers: { 'x-environment': CURRENT_ENV },
@@ -226,7 +229,8 @@ const BookingStep2 = ({
 
       const partners: any[] = [];
       results.forEach((result, idx) => {
-        const meta = DIRECT_PARTNERS[idx];
+        const meta = activePartners[idx];
+
         const partnerCode = meta.code;
         const partnerName = meta.name;
         const partnerId = `${partnerCode}_direct`;
