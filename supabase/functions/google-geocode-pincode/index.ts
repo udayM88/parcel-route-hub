@@ -12,6 +12,29 @@ interface GeocodeResult {
   country: string;
 }
 
+// India Post is authoritative for Indian pincode -> district mapping.
+// Google often returns a small locality/village name (e.g. 461001 -> "Raipur"
+// instead of "Hoshangabad"), so we try India Post first and fall back to Google.
+async function lookupIndiaPost(pincode: string): Promise<{ city: string; state: string } | null> {
+  try {
+    const res = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const entry = json?.[0];
+    if (entry?.Status !== "Success") return null;
+    const offices: any[] = entry.PostOffice || [];
+    if (!offices.length) return null;
+    // Prefer a Head Office name if it matches the district; otherwise use district.
+    const district = offices[0].District || "";
+    const state = offices[0].State || "";
+    if (!district) return null;
+    return { city: district, state };
+  } catch (e) {
+    console.warn("India Post lookup failed", pincode, String(e));
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -42,6 +65,11 @@ Deno.serve(async (req) => {
     // Fetch city names for all pincodes in parallel
     const geocodePromises = pincodes.map(async (pincode: string) => {
       try {
+        const postal = await lookupIndiaPost(pincode);
+        if (postal?.city) {
+          return { pincode, city: postal.city, state: postal.state || 'Unknown', country: 'India' };
+        }
+
         const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${pincode}+India&key=${apiKey}`;
         const response = await fetch(url);
         const data = await response.json();
