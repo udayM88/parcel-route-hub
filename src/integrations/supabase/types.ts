@@ -243,6 +243,7 @@ export type Database = {
           box_count: number
           business_account_id: string | null
           chargeable_weight_g: number | null
+          consumer_platform_fee: number
           courier_name: string
           courier_price: number
           courier_rate: number | null
@@ -313,6 +314,7 @@ export type Database = {
           box_count?: number
           business_account_id?: string | null
           chargeable_weight_g?: number | null
+          consumer_platform_fee?: number
           courier_name: string
           courier_price: number
           courier_rate?: number | null
@@ -383,6 +385,7 @@ export type Database = {
           box_count?: number
           business_account_id?: string | null
           chargeable_weight_g?: number | null
+          consumer_platform_fee?: number
           courier_name?: string
           courier_price?: number
           courier_rate?: number | null
