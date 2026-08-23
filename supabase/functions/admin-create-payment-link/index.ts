@@ -171,6 +171,7 @@ Deno.serve(async (req) => {
       delivery_time: draft.delivery_time ?? "Standard",
       base_fare: draft.base_fare ?? 0,
       platform_fee: draft.platform_fee ?? 0,
+      consumer_platform_fee: draft.consumer_platform_fee ?? 0,
       gst: draft.gst ?? 0,
       partner_id: draft.partner_id ?? null,
       service_code: draft.service_code ?? null,

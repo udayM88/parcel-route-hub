@@ -27,6 +27,7 @@ export interface BookingDraft {
   delivery_time?: string;
   base_fare?: number;
   platform_fee?: number;
+  consumer_platform_fee?: number;
   gst?: number;
   packaging_amount?: number;
   insurance_amount?: number;
@@ -66,6 +67,7 @@ export function buildBookingRow(draft: BookingDraft, userId: string) {
     delivery_time: draft.delivery_time ?? "Standard",
     base_fare: draft.base_fare ?? 0,
     platform_fee: draft.platform_fee ?? 0,
+    consumer_platform_fee: draft.consumer_platform_fee ?? 0,
     gst: draft.gst ?? 0,
     packaging_amount: draft.packaging_amount ?? 0,
     insurance_amount: draft.insurance_amount ?? 0,
