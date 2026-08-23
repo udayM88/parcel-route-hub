@@ -1,13 +1,13 @@
 // Deterministic platform-fee endpoint.
 //
 // Pricing model (single source of truth, mirrored in src/lib/pricing.ts):
-//   baseFare = round(cardPrice * 3) + 50
-//   platformFee = baseFare - cardPrice
+//   net    = cardPrice * 2.00 + ₹25 flat platform fee
+//   total  = round(net * 1.18)          (all-inclusive, GST added on top)
+//   platformFee (ViaSetu revenue) = total - cardPrice
 //
 // This endpoint is kept for backwards compatibility with `usePlatformFee`. It no
-// longer calls any AI service — the markup + ₹50 flat zone fee is applied
-// uniformly across all 5 courier partners. Callers that have the courier card
-// price should compute the fee directly via computeBaseFare(cardPrice) - cardPrice.
+// longer calls any AI service — the markup + ₹25 flat platform fee is applied
+// uniformly across all 5 courier partners.
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,8 +15,9 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-const MARKUP_PCT = 2.0;
-const ZONE_FEE = 50;
+const MARKUP_PCT = 1.0;          // 100% margin over courier card price
+const ZONE_FEE = 25;             // flat platform fee, pre-GST
+const GST_RATE = 0.18;
 const REPRESENTATIVE_CARD_PRICE = 100; // legacy fallback for callers without a card price
 
 interface PlatformFeeRequest {
@@ -28,8 +29,10 @@ interface PlatformFeeRequest {
 }
 
 function computeBaseFare(card: number): number {
-  return Math.round((Number(card) || 0) * (1 + MARKUP_PCT)) + ZONE_FEE;
+  const net = (Number(card) || 0) * (1 + MARKUP_PCT) + ZONE_FEE;
+  return Math.round(net * (1 + GST_RATE));
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });

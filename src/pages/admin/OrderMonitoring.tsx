@@ -68,6 +68,7 @@ interface Booking {
   height: string | null;
   base_fare?: number;
   platform_fee?: number;
+  consumer_platform_fee?: number;
   prayog_commission?: number;
   gst?: number;
   insurance_amount?: number;
@@ -288,6 +289,7 @@ const OrderMonitoring = () => {
     return {
       partnerPayable,
       platformFee,
+      flatPlatformFee: Number(booking.consumer_platform_fee) || 0,
       prayogCommission,
       gst,
       insurance,
@@ -882,6 +884,10 @@ const OrderMonitoring = () => {
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Platform Revenue</span>
                           <span className="font-medium">₹{breakdown.platformFee.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Platform Fee (flat, incl. above)</span>
+                          <span className="font-medium">₹{breakdown.flatPlatformFee.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Prayog Commission</span>

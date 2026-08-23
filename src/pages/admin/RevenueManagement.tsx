@@ -49,6 +49,7 @@ interface Booking {
   shipment_value?: number | null;
   base_fare?: number | null;
   platform_fee?: number | null;
+  consumer_platform_fee?: number | null;
   prayog_commission?: number | null;
   gst?: number | null;
   packaging_amount?: number | null;
@@ -67,6 +68,7 @@ const num = (v: unknown) => (typeof v === "number" ? v : Number(v) || 0);
 const breakdownOf = (b: Booking) => {
   const total = num(b.courier_price);
   const platformRevenue = num(b.platform_fee);
+  const flatPlatformFee = num(b.consumer_platform_fee);
   const gst = num(b.gst);
   const packaging = num(b.packaging_amount);
   const insurance = num(b.insurance_amount);
@@ -88,7 +90,7 @@ const breakdownOf = (b: Booking) => {
     }
   }
 
-  return { total, platformRevenue, gst, packaging, insurance, partnerPayable };
+  return { total, platformRevenue, flatPlatformFee, gst, packaging, insurance, partnerPayable };
 };
 
 const RevenueManagement = () => {
@@ -112,7 +114,7 @@ const RevenueManagement = () => {
       setLoading(true);
       // Wide column set so the Excel export has everything it needs.
       const cols =
-        "id,tracking_id,prayog_order_id,prayog_awb,payment_id,refund_id,booking_source,courier_name,courier_price,status,created_at,sender_name,sender_city,sender_state,sender_pincode,receiver_name,receiver_city,receiver_state,receiver_pincode,goods_type,package_weight,chargeable_weight_g,length,width,height,shipment_value,base_fare,platform_fee,prayog_commission,gst,packaging_amount,insurance_amount,payment_status";
+        "id,tracking_id,prayog_order_id,prayog_awb,payment_id,refund_id,booking_source,courier_name,courier_price,status,created_at,sender_name,sender_city,sender_state,sender_pincode,receiver_name,receiver_city,receiver_state,receiver_pincode,goods_type,package_weight,chargeable_weight_g,length,width,height,shipment_value,base_fare,platform_fee,consumer_platform_fee,prayog_commission,gst,packaging_amount,insurance_amount,payment_status";
       const { data, error } = await supabase
         .from("bookings")
         .select(cols)
@@ -135,7 +137,7 @@ const RevenueManagement = () => {
   // Pull every booking (paged) for the lifetime accounts export.
   const fetchAllBookings = async (): Promise<Booking[]> => {
     const cols =
-      "id,tracking_id,prayog_order_id,prayog_awb,payment_id,refund_id,booking_source,courier_name,courier_price,status,created_at,sender_name,sender_city,sender_state,sender_pincode,receiver_name,receiver_city,receiver_state,receiver_pincode,goods_type,package_weight,chargeable_weight_g,length,width,height,shipment_value,base_fare,platform_fee,prayog_commission,gst,packaging_amount,insurance_amount,payment_status";
+      "id,tracking_id,prayog_order_id,prayog_awb,payment_id,refund_id,booking_source,courier_name,courier_price,status,created_at,sender_name,sender_city,sender_state,sender_pincode,receiver_name,receiver_city,receiver_state,receiver_pincode,goods_type,package_weight,chargeable_weight_g,length,width,height,shipment_value,base_fare,platform_fee,consumer_platform_fee,prayog_commission,gst,packaging_amount,insurance_amount,payment_status";
     const pageSize = 1000;
     let from = 0;
     const all: Booking[] = [];
@@ -185,6 +187,7 @@ const RevenueManagement = () => {
   const totalCollections = sumBy(collectedBookings, k => k.total);
   const partnerPayableTotal = sumBy(collectedBookings, k => k.partnerPayable);
   const platformRevenueTotal = sumBy(collectedBookings, k => k.platformRevenue);
+  const flatFeeTotal = sumBy(collectedBookings, k => k.flatPlatformFee);
   const gstCollected = sumBy(collectedBookings, k => k.gst);
   const copPendingTotal = sumBy(copBookings, k => k.total);
   const refundedTotal = sumBy(refundedBookings, k => k.total);
@@ -231,6 +234,13 @@ const RevenueManagement = () => {
       title: "Platform Revenue",
       value: `₹${platformRevenueTotal.toLocaleString()}`,
       change: "Net to Viasetu",
+      icon: Percent,
+      color: "text-blue-600",
+    },
+    {
+      title: "Platform Fee (flat ₹25)",
+      value: `₹${flatFeeTotal.toLocaleString()}`,
+      change: "Included in platform revenue",
       icon: Percent,
       color: "text-blue-600",
     },
@@ -283,7 +293,7 @@ const RevenueManagement = () => {
   const handleExportCsv = () => {
     const headers = [
       "Order ID", "Date", "Courier", "Total",
-      "Partner Payable", "Platform Revenue", "GST", "Packaging", "Insurance", "Status",
+      "Partner Payable", "Platform Revenue", "Platform Fee (flat)", "GST", "Packaging", "Insurance", "Status",
     ];
     const rows = filteredBookings.map(b => {
       const k = breakdownOf(b);
@@ -291,7 +301,7 @@ const RevenueManagement = () => {
         b.tracking_id || b.id.slice(0, 8),
         format(new Date(b.created_at), "dd/MM/yyyy"),
         b.courier_name,
-        k.total, k.partnerPayable, k.platformRevenue, k.gst, k.packaging, k.insurance,
+        k.total, k.partnerPayable, k.platformRevenue, k.flatPlatformFee, k.gst, k.packaging, k.insurance,
         b.status || "pending",
       ].join(",");
     });

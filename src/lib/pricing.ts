@@ -1,8 +1,9 @@
 // Single source of truth for ViaSetu pricing math.
 //
 // CONSUMER (regular) shipments:
-//   viasetu price = courier API rate x 1.70, plus 18% GST on top.
-//   The displayed amount is therefore all-inclusive (GST already added).
+//   viasetu price = (courier API rate x 2.00 + ₹25 platform fee), plus 18% GST.
+//   The displayed amount is therefore all-inclusive (GST already added) and the
+//   ₹25 platform fee is NEVER shown separately to the customer.
 
 //   retail (strike-through) price = courier API rate x 3.
 //   savings % = (retail - viasetu) / retail.
@@ -11,7 +12,8 @@
 //   price per box = courier API rate + ₹15 flat (ViaSetu revenue), ALL-INCLUSIVE.
 //   No retail strike-through / savings badge.
 
-export const CONSUMER_MARGIN_PCT = 0.70;   // 70% margin over courier rate
+export const CONSUMER_MARGIN_PCT = 1.00;   // 100% margin over courier rate
+export const CONSUMER_PLATFORM_FEE = 25;   // flat ₹25 platform fee (pre-GST, hidden from customer)
 export const RETAIL_MULTIPLIER = 4;        // struck-through "retail" price
 export const BUSINESS_FLAT_MARGIN = 15;    // ₹15 revenue per business shipment
 export const GST_RATE = 0.18;
@@ -24,11 +26,17 @@ export function extractGst(inclusiveAmount: number): number {
   return Math.round(amt - amt / (1 + GST_RATE));
 }
 
-/** All-inclusive consumer price: rate x 1.70, then 18% GST added on top. */
-export function computeConsumerPrice(courierRate: number): number {
+/** Net (pre-GST) consumer amount: rate x 2.00 + flat platform fee. */
+export function computeConsumerNet(courierRate: number): number {
   const rate = Number(courierRate) || 0;
-  return Math.round(rate * (1 + CONSUMER_MARGIN_PCT) * (1 + GST_RATE));
+  return rate * (1 + CONSUMER_MARGIN_PCT) + CONSUMER_PLATFORM_FEE;
 }
+
+/** All-inclusive consumer price: (rate x 2.00 + ₹25), then 18% GST added on top. */
+export function computeConsumerPrice(courierRate: number): number {
+  return Math.round(computeConsumerNet(courierRate) * (1 + GST_RATE));
+}
+
 
 /** Struck-through retail reference price. */
 export function computeRetailPrice(courierRate: number): number {
@@ -106,6 +114,8 @@ export interface PriceBreakdown {
   retailPrice: number;
   /** Savings vs retail in % (consumer only; 0 for business). */
   savingsPct: number;
+  /** Flat platform fee embedded in the price (consumer only; 0 for business). */
+  flatPlatformFee: number;
   // Legacy field names kept so existing call sites keep compiling.
   cardPrice: number;
   baseFare: number;
@@ -130,11 +140,13 @@ export function computePriceBreakdown(
     margin: total - rate,
     retailPrice,
     savingsPct: accountType === 'business' ? 0 : computeSavingsPct(retailPrice, total),
+    flatPlatformFee: accountType === 'business' ? 0 : CONSUMER_PLATFORM_FEE,
     cardPrice: rate,
     baseFare: netAmount,
     platformFee: total - rate,
   };
 }
+
 
 
 // ─── Chargeable weight (dead vs volumetric) ───────────────────────────
