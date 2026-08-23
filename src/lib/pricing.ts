@@ -114,6 +114,8 @@ export interface PriceBreakdown {
   retailPrice: number;
   /** Savings vs retail in % (consumer only; 0 for business). */
   savingsPct: number;
+  /** Flat platform fee embedded in the price (consumer only; 0 for business). */
+  flatPlatformFee: number;
   // Legacy field names kept so existing call sites keep compiling.
   cardPrice: number;
   baseFare: number;
@@ -138,11 +140,13 @@ export function computePriceBreakdown(
     margin: total - rate,
     retailPrice,
     savingsPct: accountType === 'business' ? 0 : computeSavingsPct(retailPrice, total),
+    flatPlatformFee: accountType === 'business' ? 0 : CONSUMER_PLATFORM_FEE,
     cardPrice: rate,
     baseFare: netAmount,
     platformFee: total - rate,
   };
 }
+
 
 
 // ─── Chargeable weight (dead vs volumetric) ───────────────────────────
