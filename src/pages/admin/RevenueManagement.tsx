@@ -187,6 +187,7 @@ const RevenueManagement = () => {
   const totalCollections = sumBy(collectedBookings, k => k.total);
   const partnerPayableTotal = sumBy(collectedBookings, k => k.partnerPayable);
   const platformRevenueTotal = sumBy(collectedBookings, k => k.platformRevenue);
+  const flatFeeTotal = sumBy(collectedBookings, k => k.flatPlatformFee);
   const gstCollected = sumBy(collectedBookings, k => k.gst);
   const copPendingTotal = sumBy(copBookings, k => k.total);
   const refundedTotal = sumBy(refundedBookings, k => k.total);
@@ -233,6 +234,13 @@ const RevenueManagement = () => {
       title: "Platform Revenue",
       value: `₹${platformRevenueTotal.toLocaleString()}`,
       change: "Net to Viasetu",
+      icon: Percent,
+      color: "text-blue-600",
+    },
+    {
+      title: "Platform Fee (flat ₹25)",
+      value: `₹${flatFeeTotal.toLocaleString()}`,
+      change: "Included in platform revenue",
       icon: Percent,
       color: "text-blue-600",
     },
