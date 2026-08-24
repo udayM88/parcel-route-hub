@@ -36,6 +36,13 @@ export default function Contact() {
           <p className="mt-5 text-[15px] md:text-[17px] max-w-3xl mx-auto" style={{ color: C.gray }}>
             Have a question about your shipment, a partnership inquiry, or just want to say hello? Reach out and our team will get back to you.
           </p>
+
+          <div className="mt-6 inline-flex items-center gap-2.5 px-5 py-3 rounded-xl border" style={{ background: C.bg, borderColor: C.teal, color: C.text }}>
+            <MessageCircle className="h-5 w-5 flex-shrink-0" style={{ color: C.teal }} />
+            <span className="text-[14px] md:text-[15px] font-semibold">
+              Chat support available: <span style={{ color: C.teal }}>9 AM – 9 PM IST</span>
+            </span>
+          </div>
         </div>
       </section>
 
