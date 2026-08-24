@@ -150,11 +150,26 @@ Deno.serve(async (req) => {
         if (!newStatus) { skipped.push({ id: b.id, reason: "empty status" }); return; }
         if (newStatus === b.status) return;
 
-        const bucket = bucketOfStatus(newStatus);
+        let bucket = bucketOfStatus(newStatus);
+
+        // Guard against partner "soft cancel" events that are really failed
+        // pickup attempts. XpressBees emits "Order got cancelled" with
+        // statusCode PND while the tracking category is still ORDER_CONFIRMED,
+        // and the shipment goes Out for Pickup again the next day. Treating
+        // that as a real cancellation wrongly refunds a live shipment.
+        const latestCategory = String(latest.category || "").toUpperCase();
+        const latestCode = String(latest.statusCode || "").toUpperCase();
+        const isSoftCancel =
+          bucket === "cancelled" &&
+          (latestCode === "PND" || latestCategory === "ORDER_CONFIRMED");
+        if (isSoftCancel) {
+          bucket = "other";
+        }
 
         // Partner-side cancellation (customer/courier cancelled outside the app):
         // normalise the status, keep the raw partner wording, refund + notify.
         if (bucket === "cancelled") {
+
           const { error: cancelErr } = await admin.from("bookings")
             .update({
               status: "CANCELLED",
