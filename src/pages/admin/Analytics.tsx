@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 import { format, startOfDay, startOfWeek, startOfMonth, subMonths, subDays } from "date-fns";
-import { isCollected } from "@/lib/revenue";
+import { isBookedOrder, isCollected } from "@/lib/revenue";
 import { bucketOfStatus } from "@/lib/booking-status";
 
 interface Booking {
@@ -51,7 +51,7 @@ const Analytics = () => {
       ]);
 
       if (bookingsRes.error) throw bookingsRes.error;
-      setBookings((bookingsRes.data as Booking[]) || []);
+      setBookings(((bookingsRes.data as Booking[]) || []).filter(b => isBookedOrder(b.status, b.payment_status)));
       setUserCount(profilesRes.count || 0);
     } catch (error: any) {
       toast({ title: "Error loading analytics", description: error.message, variant: "destructive" });

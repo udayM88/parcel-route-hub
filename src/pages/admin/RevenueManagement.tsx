@@ -5,20 +5,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { IndianRupee, TrendingUp, Download, Percent, Truck, RefreshCw, FileSpreadsheet, FileText, CheckCircle } from "lucide-react";
+import { Calendar as CalendarIcon, IndianRupee, TrendingUp, Download, Percent, Truck, RefreshCw, FileSpreadsheet, FileText, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
-import { format, startOfDay, startOfMonth, startOfWeek, subMonths } from "date-fns";
+import { format, startOfDay, endOfDay, startOfMonth, startOfWeek, subMonths } from "date-fns";
 import { downloadAccountsWorkbook, type ExportBooking } from "@/lib/accounts-export";
 import { bucketOfStatus } from "@/lib/booking-status";
-import { isCollected, isCopPending, isRefunded } from "@/lib/revenue";
+import { isBookedOrder, isCollected, isCopPending, isRefunded } from "@/lib/revenue";
 
 interface Booking {
   id: string;
@@ -97,6 +100,8 @@ const RevenueManagement = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("today");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -122,7 +127,8 @@ const RevenueManagement = () => {
         .limit(2000);
 
       if (error) throw error;
-      setBookings((data as unknown as Booking[]) || []);
+      // Only successfully booked orders — abandoned / unpaid checkouts excluded.
+      setBookings(((data as unknown as Booking[]) || []).filter(b => isBookedOrder(b.status, b.payment_status)));
     } catch (error: any) {
       toast({
         title: "Error fetching data",
@@ -150,7 +156,7 @@ const RevenueManagement = () => {
         .range(from, from + pageSize - 1);
       if (error) throw error;
       const batch = (data as unknown as Booking[]) || [];
-      all.push(...batch);
+      all.push(...batch.filter(b => isBookedOrder(b.status, b.payment_status)));
       if (batch.length < pageSize) break;
       from += pageSize;
     }
@@ -158,6 +164,15 @@ const RevenueManagement = () => {
   };
 
   const getFilteredBookings = () => {
+    if (dateRange === "custom") {
+      if (!dateFrom && !dateTo) return bookings;
+      return bookings.filter(b => {
+        const d = new Date(b.created_at);
+        if (dateFrom && d < startOfDay(dateFrom)) return false;
+        if (dateTo && d > endOfDay(dateTo)) return false;
+        return true;
+      });
+    }
     if (dateRange === "all") return bookings;
     const now = new Date();
     let startDate: Date;
@@ -389,8 +404,47 @@ const RevenueManagement = () => {
               <SelectItem value="month">This Month</SelectItem>
               <SelectItem value="year">This Year</SelectItem>
               <SelectItem value="all">All Time (Till Date)</SelectItem>
+              <SelectItem value="custom">Custom Range</SelectItem>
             </SelectContent>
           </Select>
+
+          {dateRange === "custom" && (
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn("w-[150px] justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateFrom ? format(dateFrom, "dd MMM yyyy") : "From date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn("w-[150px] justify-start text-left font-normal", !dateTo && "text-muted-foreground")}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateTo ? format(dateTo, "dd MMM yyyy") : "To date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+              {(dateFrom || dateTo) && (
+                <Button variant="ghost" size="sm" onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}>
+                  Clear
+                </Button>
+              )}
+            </div>
+          )}
           <Button variant="outline" onClick={fetchBookings}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
           </Button>

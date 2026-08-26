@@ -21,6 +21,7 @@ import ManualAwbDialog from "@/components/admin/ManualAwbDialog";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 import { useAdminAuth } from "@/contexts/useAdminAuth";
 import ParcelPhotoGallery from "@/components/admin/ParcelPhotoGallery";
+import { isBookedOrder } from "@/lib/revenue";
 import { bucketOfStatus } from "@/lib/booking-status";
 import { cn } from "@/lib/utils";
 
@@ -165,7 +166,7 @@ const OrderMonitoring = () => {
         .limit(1000);
 
       if (error) throw error;
-      setBookings(data || []);
+      setBookings((data || []).filter((b: any) => isBookedOrder(b.status, b.payment_status)));
     } catch (error: any) {
       toast({
         title: "Error fetching bookings",
