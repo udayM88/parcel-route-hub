@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 import { format, startOfDay, startOfWeek, startOfMonth, subMonths, subDays } from "date-fns";
-import { isCollected } from "@/lib/revenue";
+import { isBookedOrder, isCollected } from "@/lib/revenue";
 import { bucketOfStatus } from "@/lib/booking-status";
 
 interface Booking {

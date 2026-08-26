@@ -12,7 +12,7 @@ import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 import { format, startOfDay, startOfMonth, subDays } from "date-fns";
 import { STATUS_BUCKETS, bucketCounts, type StatusBucket } from "@/lib/booking-status";
 import { CURRENT_ENV } from "@/config/environment";
-import { isCollected } from "@/lib/revenue";
+import { isBookedOrder, isCollected } from "@/lib/revenue";
 
 interface DashboardStats {
   totalOrders: number;
