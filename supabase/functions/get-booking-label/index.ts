@@ -58,12 +58,26 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 1) Stored URL wins
-    if (b.label_url) {
+    // 1) Stored URL wins — unless it is a pre-signed URL that has expired
+    //    (Delhivery/XpressBees S3 links are only valid for ~24h).
+    const isFreshPresigned = (url: string): boolean => {
+      const m = url.match(/X-Amz-Date=(\d{8}T\d{6}Z)/);
+      const e = url.match(/X-Amz-Expires=(\d+)/);
+      if (!m || !e) return true; // not pre-signed → assume durable
+      const d = m[1];
+      const signedAt = Date.parse(
+        `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}T${d.slice(9, 11)}:${d.slice(11, 13)}:${d.slice(13, 15)}Z`,
+      );
+      // treat as stale 15 min before actual expiry
+      return Date.now() < signedAt + (Number(e[1]) - 900) * 1000;
+    };
+
+    if (b.label_url && (b.label_url.startsWith("data:") || isFreshPresigned(b.label_url))) {
       return new Response(JSON.stringify({ success: true, label_url: b.label_url, source: "cached" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     // Resolve the courier from partner_id / courier_name too — assisted and
     // manually-attached bookings carry booking_source "admin_assisted".
