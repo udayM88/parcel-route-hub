@@ -51,7 +51,7 @@ const Analytics = () => {
       ]);
 
       if (bookingsRes.error) throw bookingsRes.error;
-      setBookings((bookingsRes.data as Booking[]) || []);
+      setBookings(((bookingsRes.data as Booking[]) || []).filter(b => isBookedOrder(b.status, b.payment_status)));
       setUserCount(profilesRes.count || 0);
     } catch (error: any) {
       toast({ title: "Error loading analytics", description: error.message, variant: "destructive" });

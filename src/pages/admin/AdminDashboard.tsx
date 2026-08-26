@@ -99,6 +99,10 @@ const AdminDashboard = () => {
       if (error) throw error;
       if (recentErr) throw recentErr;
 
+      // Abandoned / never-paid checkout rows are not real orders.
+      const booked = (bookings || []).filter((b: any) => isBookedOrder(b.status, b.payment_status));
+      const recentBooked = ((recent as any[]) || []).filter((b: any) => isBookedOrder(b.status));
+
       const today = startOfDay(new Date());
       const monthStart = startOfMonth(new Date());
 
@@ -106,18 +110,18 @@ const AdminDashboard = () => {
       // collected cash. Refunded / cop_pending / failed orders are
       // intentionally excluded so dashboard totals agree with the
       // Revenue Management page (see src/lib/revenue.ts).
-      const collectedBookings = (bookings || []).filter(b => isCollected(b.payment_status));
+      const collectedBookings = booked.filter(b => isCollected(b.payment_status));
       const collectedToday = collectedBookings.filter(b => new Date(b.created_at) >= today);
       const collectedMonth = collectedBookings.filter(b => new Date(b.created_at) >= monthStart);
 
       const totalRevenue = collectedBookings.reduce((sum, b) => sum + (b.courier_price || 0), 0);
-      const todayBookings = bookings?.filter(b => new Date(b.created_at) >= today) || [];
-      const monthlyBookings = bookings?.filter(b => new Date(b.created_at) >= monthStart) || [];
+      const todayBookings = booked.filter(b => new Date(b.created_at) >= today) || [];
+      const monthlyBookings = booked.filter(b => new Date(b.created_at) >= monthStart) || [];
 
       const todayRevenue = collectedToday.reduce((sum, b) => sum + (b.courier_price || 0), 0);
       const monthlyRevenue = collectedMonth.reduce((sum, b) => sum + (b.courier_price || 0), 0);
 
-      const buckets = bucketCounts(bookings || []);
+      const buckets = bucketCounts(booked);
       const pendingOrders = buckets.created;
       const inTransitOrders = buckets.in_transit + buckets.picked_up + buckets.out_for_delivery + buckets.confirmed;
       const deliveredOrders = buckets.delivered;
@@ -131,7 +135,7 @@ const AdminDashboard = () => {
         .eq("status", "open");
 
       setStats({
-        totalOrders: bookings?.length || 0,
+        totalOrders: booked.length,
         todayOrders: todayBookings.length,
         monthlyOrders: monthlyBookings.length,
         totalRevenue,
@@ -147,7 +151,7 @@ const AdminDashboard = () => {
       });
 
       // Recent bookings (separate query with display columns)
-      setRecentBookings((recent as RecentBooking[]) || []);
+      setRecentBookings(recentBooked as RecentBooking[]);
 
     } catch (error: any) {
       toast({
