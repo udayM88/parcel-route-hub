@@ -113,6 +113,11 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      if (b.label_url) {
+        return new Response(JSON.stringify({ success: true, label_url: b.label_url, source: "cached_stale" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify({ success: false, error: "Label not yet available from Delhivery. Please try again in a few minutes." }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
