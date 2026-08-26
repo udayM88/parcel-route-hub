@@ -787,10 +787,11 @@ const OrderDetails = () => {
             if (!labelDoc?.url && !canFetchFresh) return null;
 
             const handleLabel = async () => {
-              if (labelDoc?.url) {
+              if (!canFetchFresh && labelDoc?.url) {
                 window.open(labelDoc.url, '_blank');
                 return;
               }
+
               setDownloadingLabel(true);
               try {
                 const auth = getAuthSession();

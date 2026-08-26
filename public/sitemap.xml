@@ -131,6 +131,12 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://www.viasetu.com/blog/send-parcels-online-india</loc>
+    <lastmod>2026-08-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.viasetu.com/blog/compare-courier-charges-before-you-ship</loc>
     <lastmod>2026-08-24</lastmod>
     <changefreq>weekly</changefreq>
@@ -155,25 +161,19 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.viasetu.com/blog/why-more-indians-are-switching-to-online-courier-booking-platforms</loc>
-    <lastmod>2026-08-09</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://www.viasetu.com/blog/compare-courier-charges-before-you-ship-save-more-every-time</loc>
     <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.viasetu.com/blog/send-parcels-anywhere-in-india-without-visiting-courier-offices</loc>
+    <loc>https://www.viasetu.com/blog/compare-courier-prices-and-delivery-time</loc>
     <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.viasetu.com/blog/compare-courier-prices-and-delivery-time</loc>
+    <loc>https://www.viasetu.com/blog/indias-trusted-courier-aggregator-for-hassle-free-shipping</loc>
     <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -191,7 +191,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.viasetu.com/blog/indias-trusted-courier-aggregator-for-hassle-free-shipping</loc>
+    <loc>https://www.viasetu.com/blog/send-parcels-anywhere-in-india-without-visiting-courier-offices</loc>
     <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -210,6 +210,12 @@
   </url>
   <url>
     <loc>https://www.viasetu.com/blog/smart-courier-booking-for-indian-businesses</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.viasetu.com/blog/why-more-indians-are-switching-to-online-courier-booking-platforms</loc>
     <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
