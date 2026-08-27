@@ -2,6 +2,7 @@
 // Maps to the same TrackingData shape used by Shadowfax/Delhivery.
 
 import { getEnvironmentFromRequest } from "../_shared/environment.ts";
+import { parseIstMs } from "../_shared/ist-time.ts";
 import { urbaneboltFetch } from "../_shared/urbanebolt-auth.ts";
 
 const corsHeaders = {
@@ -99,7 +100,7 @@ Deno.serve(async (req) => {
         event: desc,
         category: m.category,
         subcategory: m.subcategory,
-        createdAt: typeof ts === "string" ? ts : new Date(ts).toISOString(),
+        createdAt: new Date(isNaN(tsMs) ? Date.now() : tsMs).toISOString(),
         statusCode: code,
         reasonCode: entry?.reason_code || "",
         podUrl: entry?.pod_url || "",
