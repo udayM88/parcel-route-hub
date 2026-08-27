@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
         },
         travelType: ship.PickUpMode || "surface",
         serviceType: "standard",
-        bookingDate: ship.PickUpDate || ship.OrderDate || new Date().toISOString(),
+        bookingDate: toUtcIso(ship.PickUpDate || ship.OrderDate),
         type: "FORWARD",
       },
       statuses,
