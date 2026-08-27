@@ -2,6 +2,7 @@
 // Maps Delhivery scans to the app's TrackingData shape.
 
 import { getDelhiveryConfig, getEnvironmentFromRequest } from "../_shared/environment.ts";
+import { parseIstMs, toUtcIso } from "../_shared/ist-time.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
