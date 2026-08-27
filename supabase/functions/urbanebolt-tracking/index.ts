@@ -88,9 +88,7 @@ Deno.serve(async (req) => {
       const desc = entry?.status_description || entry?.status || entry?.event || entry?.remarks || "Update";
       const m = mapStatus(code, desc);
       // event_date is "YYYY-MM-DD HH:mm:ss" (no TZ) — treat as IST.
-      const tsMs = typeof ts === "string"
-        ? Date.parse(ts.replace(" ", "T") + (ts.includes("T") ? "" : "+05:30"))
-        : new Date(ts).getTime();
+      const tsMs = parseIstMs(ts);
       return {
         trackingId: trackId,
         status: desc,
