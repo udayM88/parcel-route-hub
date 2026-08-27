@@ -3,6 +3,7 @@
 // Returns a TrackingData shape compatible with our internal Tracking page.
 
 import { getEnvironmentFromRequest } from "../_shared/environment.ts";
+import { parseIstMs } from "../_shared/ist-time.ts";
 import { shreeMarutiFetch } from "../_shared/shree-maruti-auth.ts";
 
 const corsHeaders = {
@@ -84,7 +85,7 @@ Deno.serve(async (req) => {
       const ts = e?.createdAt || e?.timestamp || e?.eventDate || e?.date || e?.scanDateTime || new Date().toISOString();
       const statusRaw = e?.status || e?.eventStatus || e?.scanType || e?.activity || "Update";
       const m = mapStatus(statusRaw);
-      const tsMs = typeof ts === "string" ? Date.parse(ts) : new Date(ts).getTime();
+      const tsMs = parseIstMs(ts);
       return {
         trackingId: String(trackId),
         status: statusRaw,
@@ -94,7 +95,7 @@ Deno.serve(async (req) => {
         event: e?.remarks || e?.statusDescription || statusRaw,
         category: m.category,
         subcategory: m.subcategory,
-        createdAt: typeof ts === "string" ? ts : new Date(ts).toISOString(),
+        createdAt: new Date(isNaN(tsMs) ? Date.now() : tsMs).toISOString(),
       };
     });
 

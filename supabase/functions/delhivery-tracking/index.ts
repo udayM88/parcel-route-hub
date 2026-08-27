@@ -2,6 +2,7 @@
 // Maps Delhivery scans to the app's TrackingData shape.
 
 import { getDelhiveryConfig, getEnvironmentFromRequest } from "../_shared/environment.ts";
+import { parseIstMs, toUtcIso } from "../_shared/ist-time.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -78,18 +79,20 @@ Deno.serve(async (req) => {
     const scans: any[] = ship.Scans || [];
     const statuses = scans.map((entry: any) => {
       const sd = entry?.ScanDetail || entry || {};
-      const ts = sd.ScanDateTime || sd.StatusDateTime || ship.PickedupDate || new Date().toISOString();
+      const rawTs = sd.ScanDateTime || sd.StatusDateTime || ship.PickedupDate;
+      const tsMs = parseIstMs(rawTs);
+      const ms = isNaN(tsMs) ? Date.now() : tsMs;
       const m = mapStatus(sd.Scan || sd.Instructions || sd.ScanType, sd.ScanType);
       return {
         trackingId: trackId,
         status: sd.Scan || sd.Instructions || "Update",
         location: sd.ScannedLocation || sd.City || "",
         deliveryPartnerName: "Delhivery",
-        statusTimestamp: new Date(ts).getTime(),
+        statusTimestamp: ms,
         event: sd.Scan || sd.Instructions || "Update",
         category: m.category,
         subcategory: m.subcategory,
-        createdAt: ts,
+        createdAt: new Date(ms).toISOString(),
       };
     });
 
@@ -143,7 +146,7 @@ Deno.serve(async (req) => {
         },
         travelType: ship.PickUpMode || "surface",
         serviceType: "standard",
-        bookingDate: ship.PickUpDate || ship.OrderDate || new Date().toISOString(),
+        bookingDate: toUtcIso(ship.PickUpDate || ship.OrderDate),
         type: "FORWARD",
       },
       statuses,
