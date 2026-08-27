@@ -79,18 +79,20 @@ Deno.serve(async (req) => {
     const scans: any[] = ship.Scans || [];
     const statuses = scans.map((entry: any) => {
       const sd = entry?.ScanDetail || entry || {};
-      const ts = sd.ScanDateTime || sd.StatusDateTime || ship.PickedupDate || new Date().toISOString();
+      const rawTs = sd.ScanDateTime || sd.StatusDateTime || ship.PickedupDate;
+      const tsMs = parseIstMs(rawTs);
+      const ms = isNaN(tsMs) ? Date.now() : tsMs;
       const m = mapStatus(sd.Scan || sd.Instructions || sd.ScanType, sd.ScanType);
       return {
         trackingId: trackId,
         status: sd.Scan || sd.Instructions || "Update",
         location: sd.ScannedLocation || sd.City || "",
         deliveryPartnerName: "Delhivery",
-        statusTimestamp: new Date(ts).getTime(),
+        statusTimestamp: ms,
         event: sd.Scan || sd.Instructions || "Update",
         category: m.category,
         subcategory: m.subcategory,
-        createdAt: ts,
+        createdAt: new Date(ms).toISOString(),
       };
     });
 
