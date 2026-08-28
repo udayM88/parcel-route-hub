@@ -59,6 +59,30 @@ const ROUTES = [
 
 type DropdownItem = { href: string; label: string; icon: any };
 
+const APP_STORE_URL = "https://apps.apple.com/in/app/viasetu/id6801613415";
+
+function AppStoreBadge({ className = "", height = 44 }: { className?: string; height?: number }) {
+  return (
+    <a
+      href={APP_STORE_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Download ViaSetu on the App Store"
+      className={`inline-flex items-center justify-center rounded-[10px] border bg-white transition-transform hover:scale-[1.03] ${className}`}
+      style={{ borderColor: C.text, height, padding: "4px 10px" }}
+    >
+      <img
+        src="/app-store-badge.svg"
+        alt="Download on the App Store"
+        className="h-full w-auto"
+        loading="lazy"
+        decoding="async"
+      />
+    </a>
+  );
+}
+
+
 function NavDropdown({ label, items, width = "w-52" }: { label: string; items: DropdownItem[]; width?: string }) {
   const [open, setOpen] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
