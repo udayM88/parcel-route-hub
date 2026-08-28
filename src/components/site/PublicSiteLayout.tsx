@@ -62,19 +62,26 @@ type DropdownItem = { href: string; label: string; icon: any };
 const APP_STORE_URL = "https://apps.apple.com/in/app/viasetu/id6801613415";
 
 function AppStoreBadge({ className = "", height = 48 }: { className?: string; height?: number }) {
+  // The App Store SVG contains internal padding around the badge artwork.
+  // Render the SVG larger and crop it so the visible badge fills the requested height.
+  const scale = 1.5;
+  const svgHeight = Math.round(height * scale);
+  const svgWidth = Math.round(svgHeight * (155.56333 / 60.00015));
+  const visibleWidth = Math.round(height * 3.0625); // standard Apple badge 120x40 aspect ratio
   return (
     <a
       href={APP_STORE_URL}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Download ViaSetu on the App Store"
-      className={`inline-flex items-center justify-center transition-transform hover:scale-[1.04] ${className}`}
-      style={{ height }}
+      className={`relative inline-flex items-center justify-center overflow-hidden transition-transform hover:scale-[1.04] ${className}`}
+      style={{ height, width: visibleWidth }}
     >
       <img
         src="/app-store-badge.svg"
         alt="Download on the App Store"
-        className="h-full w-auto"
+        className="absolute max-w-none"
+        style={{ height: svgHeight, width: svgWidth }}
         loading="lazy"
         decoding="async"
       />
