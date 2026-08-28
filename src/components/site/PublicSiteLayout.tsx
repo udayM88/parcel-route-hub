@@ -315,6 +315,11 @@ function SiteFooter() {
             <a href="https://www.facebook.com/people/ViaSetu/61587987614465/" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="hover:text-[#00C8C8] transition-colors" style={{ color: C.gray }}><Facebook className="h-5 w-5" /></a>
             <a href="https://www.instagram.com/viasetu.delivery/" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="hover:text-[#00C8C8] transition-colors" style={{ color: C.gray }}><Instagram className="h-5 w-5" /></a>
           </div>
+          <div className="mt-6">
+            <div className="text-[14px] font-bold" style={{ color: C.text }}>Download the app</div>
+            <AppStoreBadge className="mt-3" height={54} />
+          </div>
+
         </div>
         <div>
           <h3 className="text-[#0B1220] font-bold text-[14px] mb-4">Our Services</h3>
