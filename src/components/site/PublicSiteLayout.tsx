@@ -68,8 +68,8 @@ function AppStoreBadge({ className = "", height = 48 }: { className?: string; he
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Download ViaSetu on the App Store"
-      className={`inline-flex items-center justify-center rounded-full border transition-transform hover:scale-[1.04] overflow-hidden ${className}`}
-      style={{ height, borderColor: C.border, background: C.bg }}
+      className={`inline-flex items-center justify-center transition-transform hover:scale-[1.04] ${className}`}
+      style={{ height }}
     >
       <img
         src="/app-store-badge.svg"
