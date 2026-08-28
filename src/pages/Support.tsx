@@ -98,20 +98,33 @@ const Support = () => {
             <CardTitle className="text-white">Need Immediate Help?</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <Button variant="outline" className="h-16 flex-col gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20">
-                <Phone className="h-5 w-5" />
-                <span className="text-sm">Call Support</span>
-              </Button>
-              <Button variant="outline" className="h-16 flex-col gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20">
-                <MessageCircle className="h-5 w-5" />
-                <span className="text-sm">Live Chat</span>
-              </Button>
-            </div>
-            <Button variant="outline" className="w-full h-12 flex items-center gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20">
-              <Mail className="h-4 w-4" />
-              <span>Email: support@setu.delivery</span>
-            </Button>
+            <a
+              href="mailto:support@viasetu.com"
+              className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-colors"
+            >
+              <div className="h-11 w-11 rounded-full bg-[#00A8A8]/20 flex items-center justify-center flex-shrink-0">
+                <Mail className="h-5 w-5 text-[#00A8A8]" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-[15px]">Email Us</p>
+                <p className="text-sm text-white/80 truncate">support@viasetu.com</p>
+                <p className="text-xs text-white/60 mt-0.5">We reply within 24 hours</p>
+              </div>
+            </a>
+
+            <a
+              href="tel:+919013999909"
+              className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-colors"
+            >
+              <div className="h-11 w-11 rounded-full bg-[#00A8A8]/20 flex items-center justify-center flex-shrink-0">
+                <Phone className="h-5 w-5 text-[#00A8A8]" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-[15px]">Call Us</p>
+                <p className="text-sm text-white/80 truncate">+91 90139 99909</p>
+                <p className="text-xs text-white/60 mt-0.5">Mon–Sat, 9 AM – 7 PM IST</p>
+              </div>
+            </a>
           </CardContent>
         </Card>
 
