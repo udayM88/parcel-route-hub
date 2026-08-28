@@ -185,6 +185,7 @@ function SiteHeader() {
         </nav>
 
         <div className="hidden md:flex items-center gap-2 shrink-0">
+          <AppStoreBadge height={42} />
           <button
             onClick={() => navigate("/tracking")}
             className="px-3 xl:px-4 h-10 rounded-lg font-semibold text-[13px] xl:text-[14px] border-2 whitespace-nowrap transition-colors hover:bg-[#00C8C8]/10"
@@ -201,9 +202,13 @@ function SiteHeader() {
           </button>
         </div>
 
-        <button className="md:hidden shrink-0" style={{ color: C.text }} onClick={() => setOpen(true)} aria-label="Open menu">
-          <Menu className="h-6 w-6" />
-        </button>
+        <div className="flex md:hidden items-center gap-3 shrink-0">
+          <AppStoreBadge height={38} />
+          <button style={{ color: C.text }} onClick={() => setOpen(true)} aria-label="Open menu">
+            <Menu className="h-6 w-6" />
+          </button>
+        </div>
+
       </div>
     </header>
 
