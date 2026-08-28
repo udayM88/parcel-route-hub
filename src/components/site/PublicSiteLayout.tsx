@@ -61,15 +61,15 @@ type DropdownItem = { href: string; label: string; icon: any };
 
 const APP_STORE_URL = "https://apps.apple.com/in/app/viasetu/id6801613415";
 
-function AppStoreBadge({ className = "", height = 44 }: { className?: string; height?: number }) {
+function AppStoreBadge({ className = "", height = 48 }: { className?: string; height?: number }) {
   return (
     <a
       href={APP_STORE_URL}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Download ViaSetu on the App Store"
-      className={`inline-flex items-center justify-center rounded-[10px] border bg-white transition-transform hover:scale-[1.03] ${className}`}
-      style={{ borderColor: C.text, height, padding: "4px 10px" }}
+      className={`inline-flex items-center justify-center transition-transform hover:scale-[1.04] ${className}`}
+      style={{ height }}
     >
       <img
         src="/app-store-badge.svg"
@@ -184,18 +184,11 @@ function SiteHeader() {
           </Link>
         </nav>
 
-        <div className="hidden md:flex items-center gap-2 shrink-0">
-          <AppStoreBadge height={42} />
-          <button
-            onClick={() => navigate("/tracking")}
-            className="px-3 xl:px-4 h-10 rounded-lg font-semibold text-[13px] xl:text-[14px] border-2 whitespace-nowrap transition-colors hover:bg-[#00C8C8]/10"
-            style={{ borderColor: C.teal, color: C.teal }}
-          >
-            Track Parcel
-          </button>
+        <div className="hidden md:flex items-center gap-3 shrink-0">
+          <AppStoreBadge height={46} />
           <button
             onClick={() => navigate("/login")}
-            className="px-3 xl:px-5 h-10 rounded-lg font-bold text-[13px] xl:text-[14px] whitespace-nowrap transition-transform hover:scale-[1.02]"
+            className="px-4 xl:px-5 h-10 rounded-lg font-bold text-[13px] xl:text-[14px] whitespace-nowrap transition-transform hover:scale-[1.02]"
             style={{ background: C.teal, color: C.bg }}
           >
             Send Parcel →
@@ -203,7 +196,7 @@ function SiteHeader() {
         </div>
 
         <div className="flex md:hidden items-center gap-3 shrink-0">
-          <AppStoreBadge height={38} />
+          <AppStoreBadge height={44} />
           <button style={{ color: C.text }} onClick={() => setOpen(true)} aria-label="Open menu">
             <Menu className="h-6 w-6" />
           </button>
@@ -289,8 +282,7 @@ function SiteHeader() {
 
             <Link to="/contact" onClick={() => setOpen(false)} className="text-lg font-bold" style={{ color: C.text }}>Contact Us</Link>
 
-            <button onClick={() => { setOpen(false); navigate("/tracking"); }} className="mt-4 h-12 rounded-lg border-2 font-semibold" style={{ borderColor: C.teal, color: C.teal }}>Track Your Parcel</button>
-            <button onClick={() => { setOpen(false); navigate("/login"); }} className="h-12 rounded-lg font-bold" style={{ background: C.teal, color: C.bg }}>Send a Parcel →</button>
+            <button onClick={() => { setOpen(false); navigate("/login"); }} className="mt-4 h-12 rounded-lg font-bold" style={{ background: C.teal, color: C.bg }}>Send a Parcel →</button>
           </nav>
         </div>,
       document.body
