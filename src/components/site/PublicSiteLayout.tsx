@@ -185,7 +185,7 @@ function SiteHeader() {
         </nav>
 
         <div className="hidden md:flex items-center gap-3 shrink-0">
-          <AppStoreBadge height={46} />
+          <AppStoreBadge height={54} />
           <button
             onClick={() => navigate("/login")}
             className="px-4 xl:px-5 h-10 rounded-lg font-bold text-[13px] xl:text-[14px] whitespace-nowrap transition-transform hover:scale-[1.02]"
@@ -196,7 +196,7 @@ function SiteHeader() {
         </div>
 
         <div className="flex md:hidden items-center gap-3 shrink-0">
-          <AppStoreBadge height={44} />
+          <AppStoreBadge height={50} />
           <button style={{ color: C.text }} onClick={() => setOpen(true)} aria-label="Open menu">
             <Menu className="h-6 w-6" />
           </button>
