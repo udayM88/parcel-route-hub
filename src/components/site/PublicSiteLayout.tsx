@@ -59,6 +59,30 @@ const ROUTES = [
 
 type DropdownItem = { href: string; label: string; icon: any };
 
+const APP_STORE_URL = "https://apps.apple.com/in/app/viasetu/id6801613415";
+
+function AppStoreBadge({ className = "", height = 44 }: { className?: string; height?: number }) {
+  return (
+    <a
+      href={APP_STORE_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Download ViaSetu on the App Store"
+      className={`inline-flex items-center justify-center rounded-[10px] border bg-white transition-transform hover:scale-[1.03] ${className}`}
+      style={{ borderColor: C.text, height, padding: "4px 10px" }}
+    >
+      <img
+        src="/app-store-badge.svg"
+        alt="Download on the App Store"
+        className="h-full w-auto"
+        loading="lazy"
+        decoding="async"
+      />
+    </a>
+  );
+}
+
+
 function NavDropdown({ label, items, width = "w-52" }: { label: string; items: DropdownItem[]; width?: string }) {
   const [open, setOpen] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -161,6 +185,7 @@ function SiteHeader() {
         </nav>
 
         <div className="hidden md:flex items-center gap-2 shrink-0">
+          <AppStoreBadge height={42} />
           <button
             onClick={() => navigate("/tracking")}
             className="px-3 xl:px-4 h-10 rounded-lg font-semibold text-[13px] xl:text-[14px] border-2 whitespace-nowrap transition-colors hover:bg-[#00C8C8]/10"
@@ -177,9 +202,13 @@ function SiteHeader() {
           </button>
         </div>
 
-        <button className="md:hidden shrink-0" style={{ color: C.text }} onClick={() => setOpen(true)} aria-label="Open menu">
-          <Menu className="h-6 w-6" />
-        </button>
+        <div className="flex md:hidden items-center gap-3 shrink-0">
+          <AppStoreBadge height={38} />
+          <button style={{ color: C.text }} onClick={() => setOpen(true)} aria-label="Open menu">
+            <Menu className="h-6 w-6" />
+          </button>
+        </div>
+
       </div>
     </header>
 
@@ -286,6 +315,11 @@ function SiteFooter() {
             <a href="https://www.facebook.com/people/ViaSetu/61587987614465/" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="hover:text-[#00C8C8] transition-colors" style={{ color: C.gray }}><Facebook className="h-5 w-5" /></a>
             <a href="https://www.instagram.com/viasetu.delivery/" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="hover:text-[#00C8C8] transition-colors" style={{ color: C.gray }}><Instagram className="h-5 w-5" /></a>
           </div>
+          <div className="mt-6">
+            <div className="text-[14px] font-bold" style={{ color: C.text }}>Download the app</div>
+            <AppStoreBadge className="mt-3" height={54} />
+          </div>
+
         </div>
         <div>
           <h3 className="text-[#0B1220] font-bold text-[14px] mb-4">Our Services</h3>
