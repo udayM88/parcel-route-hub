@@ -146,13 +146,15 @@ const BusinessManagement = () => {
           documents,
         },
       });
-      if (response.error) {
-        toast.error(await edgeFunctionError(response.error, "Failed to create business user"));
-        return;
-      }
+      if (response.error) throw response.error;
       if (response.data?.error) { toast.error(response.data.error); return; }
 
-      toast.success(`Business user created. A password setup email was sent to ${form.email}`);
+      if (response.data?.email_sent) {
+        toast.success(`Business user created. A password setup email was sent to ${form.email}`);
+      } else {
+        setSetupLink(response.data?.setup_link ?? null);
+        toast.warning("Business user created, but the setup email could not be delivered. Share the setup link manually.");
+      }
       setOpen(false);
       setForm({ ...emptyForm });
       setDocFiles([]);
@@ -164,6 +166,7 @@ const BusinessManagement = () => {
       setSubmitting(false);
     }
   };
+
 
   const updateRow = async (id: string, patch: Partial<BusinessAccountRow>) => {
     const { error } = await supabase.from("business_accounts").update(patch).eq("id", id);
