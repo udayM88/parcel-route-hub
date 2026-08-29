@@ -23,8 +23,24 @@ const BusinessResetPassword = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Supabase reports invalid/expired links in the URL hash fragment rather
+    // than as a failed request, so surface that instead of waiting forever.
+    const raw = window.location.hash.replace(/^#/, "");
+    const params = new URLSearchParams(raw);
+    const description = params.get("error_description");
+    const code = params.get("error_code");
+    if (description || params.get("error")) {
+      setLinkError(
+        code === "otp_expired"
+          ? "This link has expired or has already been used. Please ask your ViaSetu contact to send a new invite."
+          : description || "This link is no longer valid.",
+      );
+      return;
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY" || session) setReady(true);
     });
@@ -61,14 +77,23 @@ const BusinessResetPassword = () => {
               <Building2 className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Set Your Password</CardTitle>
+          <CardTitle className="text-2xl font-bold">
+            {linkError ? "Link Expired" : "Set Your Password"}
+          </CardTitle>
           <CardDescription>
-            {ready
-              ? "Choose a password for your ViaSetu business account"
-              : "Validating your reset link..."}
+            {linkError
+              ? linkError
+              : ready
+                ? "Choose a password for your ViaSetu business account"
+                : "Validating your reset link..."}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {linkError ? (
+            <Button className="w-full" onClick={() => navigate("/viasetuforbusinesses")}>
+              Back to Sign In
+            </Button>
+          ) : (
           <form onSubmit={handleReset} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="newPassword">New Password</Label>
@@ -87,6 +112,7 @@ const BusinessResetPassword = () => {
               {loading ? "Saving..." : "Set Password"}
             </Button>
           </form>
+          )}
         </CardContent>
       </Card>
     </div>

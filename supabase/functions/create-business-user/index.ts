@@ -116,57 +116,16 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to create business account: ${insertError.message}`);
     }
 
-    // Fetch a fresh link for the same invited user, purely as a manual-share
-    // fallback for the admin UI — generateLink never sends mail itself, so
-    // this can't interfere with the invite email Supabase already sent above.
-    let setupLink: string | null = null;
-    try {
-      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: "invite",
-        email: cleanEmail,
-        options: { redirectTo },
-      });
-      if (linkError) throw linkError;
-      setupLink = linkData?.properties?.action_link ?? null;
-    } catch (e) {
-      console.error("Could not generate fallback setup link:", String(e));
-    }
-
-    // Branded ViaSetu template through the custom notification pipeline —
-    // best-effort bonus only. Fired without waiting so a slow/unreachable
-    // SMTP host never delays this response or blocks the working path above.
-    if (setupLink) {
-      const brandedEmail = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-notification-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-        },
-        body: JSON.stringify({
-          event: "business_welcome",
-          override_to: cleanEmail,
-          vars: {
-            company_name: company_name.trim(),
-            contact_person: contact_person.trim(),
-            email: cleanEmail,
-            setup_link: setupLink,
-            portal_link: `${siteUrl}/viasetuforbusinesses`,
-          },
-        }),
-      }).catch((e) => console.error("Branded welcome email dispatch failed:", String(e)));
-      // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
-      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
-        // @ts-ignore
-        EdgeRuntime.waitUntil(brandedEmail);
-      }
-    }
+    // NOTE: do not call auth.admin.generateLink() here. GoTrue stores a single
+    // confirmation token per user, so generating another link would overwrite
+    // the token already sent in the invite email above and the emailed link
+    // would fail with "otp_expired". The invite email is the only link.
 
     return new Response(
       JSON.stringify({
         success: true,
         email_sent: true,
-        setup_link: setupLink,
-        message: "Business user created and invite email sent. Setup link is also included below in case delivery is delayed.",
+        message: "Business user created and invite email sent.",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
     );
