@@ -193,10 +193,7 @@ Deno.serve(async (req) => {
       return "brevo";
     };
 
-    const sendViaSmtp = async () => {
-      if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-        throw new Error("SMTP credentials not configured");
-      }
+    const sendOverSmtpPort = async (port: number) => {
       const message = {
         from: `${fromName} <${fromEmail}>`,
         to,
@@ -208,14 +205,14 @@ Deno.serve(async (req) => {
       };
       const client = new SMTPClient({
         connection: {
-          hostname: SMTP_HOST,
-          port: SMTP_PORT,
-          tls: SMTP_PORT === 465,
-          auth: { username: SMTP_USER, password: SMTP_PASS },
+          hostname: SMTP_HOST!,
+          port,
+          tls: port === 465,
+          auth: { username: SMTP_USER!, password: SMTP_PASS! },
         },
       });
       const timeout = new Promise((_r, rej) =>
-        setTimeout(() => rej(new Error(`SMTP timeout on port ${SMTP_PORT}`)), 15000)
+        setTimeout(() => rej(new Error(`SMTP timeout on port ${port}`)), 12000)
       );
       try {
         // deno-lint-ignore no-explicit-any
@@ -225,8 +222,28 @@ Deno.serve(async (req) => {
         try { await client.close(); } catch { /* ignore */ }
         throw e;
       }
-      return "smtp";
+      return `smtp:${port}`;
     };
+
+    const sendViaSmtp = async () => {
+      if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+        throw new Error("SMTP credentials not configured");
+      }
+      // Try the configured port first, then common alternates — hosting
+      // providers frequently block 465 while allowing 587/2525.
+      const ports = [...new Set([SMTP_PORT, 587, 2525, 465])].filter(Boolean);
+      let lastError: unknown = null;
+      for (const port of ports) {
+        try {
+          return await sendOverSmtpPort(port);
+        } catch (e) {
+          lastError = e;
+          console.error(`[send-notification-email] smtp port ${port} failed:`, String(e));
+        }
+      }
+      throw lastError ?? new Error("SMTP failed");
+    };
+
 
     const transports: { name: string; run: () => Promise<string> }[] = [];
     if (BREVO_API_KEY) transports.push({ name: "brevo", run: sendViaBrevo });
