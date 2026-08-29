@@ -72,12 +72,20 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (existing) throw new Error("A business account with this email already exists");
 
-    const tempPassword = crypto.randomUUID() + "A1@";
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: cleanEmail,
-      password: tempPassword,
-      email_confirm: true,
-    });
+    // Always send business users to the live site, never a preview/sandbox origin
+    const origin = req.headers.get("origin") ?? "";
+    const isLiveOrigin = /^https:\/\/([a-z0-9-]+\.)*viasetu\.com$/.test(origin);
+    const siteUrl = isLiveOrigin ? origin : "https://www.viasetu.com";
+    const redirectTo = `${siteUrl}/viasetuforbusinesses/reset-password`;
+
+    // inviteUserByEmail creates the auth user AND sends Supabase's built-in
+    // "Invite" email (customisable in Dashboard → Auth → Email Templates) in
+    // one call — this is the same mechanism Supabase uses when you invite a
+    // user directly, so it's the most reliable path for this welcome email.
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+      cleanEmail,
+      { redirectTo },
+    );
     if (authError) throw new Error(`Failed to create auth user: ${authError.message}`);
     if (!authData.user) throw new Error("Failed to create user");
 
@@ -108,52 +116,23 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to create business account: ${insertError.message}`);
     }
 
-    // Always send business users to the live site, never a preview/sandbox origin
-    const origin = req.headers.get("origin") ?? "";
-    const isLiveOrigin = /^https:\/\/([a-z0-9-]+\.)*viasetu\.com$/.test(origin);
-    const siteUrl = isLiveOrigin ? origin : "https://www.viasetu.com";
-    const redirectTo = `${siteUrl}/viasetuforbusinesses/reset-password`;
-
-    // Always generate the password setup link ourselves first — this never
-    // depends on mail delivery, so the admin always has a shareable link.
+    // Fetch a fresh link for the same invited user, purely as a manual-share
+    // fallback for the admin UI — generateLink never sends mail itself, so
+    // this can't interfere with the invite email Supabase already sent above.
     let setupLink: string | null = null;
     try {
       const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: "recovery",
+        type: "invite",
         email: cleanEmail,
         options: { redirectTo },
       });
       if (linkError) throw linkError;
       setupLink = linkData?.properties?.action_link ?? null;
     } catch (e) {
-      console.error("Could not generate setup link:", String(e));
+      console.error("Could not generate fallback setup link:", String(e));
     }
 
-    const withTimeout = <T,>(p: Promise<T>, ms: number, label: string) =>
-      Promise.race([
-        p,
-        new Promise<never>((_r, rej) => setTimeout(() => rej(new Error(`${label} timeout`)), ms)),
-      ]);
-
-    let emailSent = false;
-    let emailError: string | null = null;
-
-    // 1) Supabase's own auth mailer — same protocol used for admin account
-    // creation. This is the reliable path, so it goes first and is awaited.
-    try {
-      const { error: resetError } = await withTimeout(
-        supabaseAdmin.auth.resetPasswordForEmail(cleanEmail, { redirectTo }),
-        12000,
-        "supabase auth mail",
-      );
-      if (resetError) throw resetError;
-      emailSent = true;
-    } catch (e) {
-      emailError = String(e);
-      console.error("Supabase setup email failed:", String(e));
-    }
-
-    // 2) Branded ViaSetu template through the custom notification pipeline —
+    // Branded ViaSetu template through the custom notification pipeline —
     // best-effort bonus only. Fired without waiting so a slow/unreachable
     // SMTP host never delays this response or blocks the working path above.
     if (setupLink) {
@@ -182,19 +161,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (!emailSent) console.error("Business setup email not delivered:", emailError);
-
     return new Response(
       JSON.stringify({
         success: true,
-        email_sent: emailSent,
-        email_error: emailSent ? null : emailError,
-        setup_link: emailSent ? null : setupLink,
-        message: emailSent
-          ? "Business user created and password setup email sent"
-          : "Business user created. Email delivery is unavailable — share the setup link manually.",
+        email_sent: true,
+        setup_link: setupLink,
+        message: "Business user created and invite email sent. Setup link is also included below in case delivery is delayed.",
       }),
-
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
     );
 
