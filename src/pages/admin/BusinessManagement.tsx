@@ -441,6 +441,12 @@ const BusinessManagement = () => {
                               onClick={() => updateRow(row.id, { is_active: !row.is_active })}>
                               {row.is_active ? "Disable" : "Enable"}
                             </Button>
+                            <Button size="sm" variant="ghost" disabled={resettingId === row.id}
+                              onClick={() => handleResetPassword(row)}>
+                              <KeyRound className="h-3.5 w-3.5 mr-1" />
+                              {resettingId === row.id ? "Sending..." : "Reset Password"}
+                            </Button>
+
                             <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
                               onClick={() => openDelete(row)}>
                               <Trash2 className="h-3.5 w-3.5 mr-1" />Delete
