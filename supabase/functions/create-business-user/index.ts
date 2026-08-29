@@ -171,9 +171,17 @@ Deno.serve(async (req) => {
 
 
     return new Response(
-      JSON.stringify({ success: true, message: "Business user created successfully" }),
+      JSON.stringify({
+        success: true,
+        email_sent: emailSent,
+        email_error: emailSent ? null : emailError,
+        message: emailSent
+          ? "Business user created and password setup email sent"
+          : "Business user created, but the setup email could not be delivered",
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
     );
+
   } catch (error) {
     console.error("create-business-user error:", error);
     return new Response(
