@@ -99,6 +99,8 @@ const BusinessManagement = () => {
   const [deleteNote, setDeleteNote] = useState("");
   const [confirmName, setConfirmName] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [setupLink, setSetupLink] = useState<string | null>(null);
+
 
 
   const fetchRows = async () => {
@@ -146,13 +148,15 @@ const BusinessManagement = () => {
           documents,
         },
       });
-      if (response.error) {
-        toast.error(await edgeFunctionError(response.error, "Failed to create business user"));
-        return;
-      }
+      if (response.error) throw response.error;
       if (response.data?.error) { toast.error(response.data.error); return; }
 
-      toast.success(`Business user created. A password setup email was sent to ${form.email}`);
+      if (response.data?.email_sent) {
+        toast.success(`Business user created. A password setup email was sent to ${form.email}`);
+      } else {
+        setSetupLink(response.data?.setup_link ?? null);
+        toast.warning("Business user created, but the setup email could not be delivered. Share the setup link manually.");
+      }
       setOpen(false);
       setForm({ ...emptyForm });
       setDocFiles([]);
@@ -164,6 +168,7 @@ const BusinessManagement = () => {
       setSubmitting(false);
     }
   };
+
 
   const updateRow = async (id: string, patch: Partial<BusinessAccountRow>) => {
     const { error } = await supabase.from("business_accounts").update(patch).eq("id", id);
@@ -461,7 +466,32 @@ const BusinessManagement = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!setupLink} onOpenChange={(o) => !o && setSetupLink(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Share the password setup link</DialogTitle>
+            <DialogDescription>
+              The account was created, but the setup email could not be delivered. Send this
+              one-time link to the business contact so they can set their password.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea readOnly value={setupLink ?? ""} rows={4} className="text-xs" />
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                navigator.clipboard.writeText(setupLink ?? "");
+                toast.success("Setup link copied");
+              }}
+            >
+              Copy link
+            </Button>
+            <Button variant="outline" onClick={() => setSetupLink(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 
 };
