@@ -153,27 +153,54 @@ Deno.serve(async (req) => {
       html: buildHtml(booking),
     };
 
-    try {
+    const sendOverSmtpPort = async (port: number) => {
       const client = new SMTPClient({
         connection: {
           hostname: SMTP_HOST,
-          port: SMTP_PORT,
-          tls: SMTP_PORT === 465,
+          port,
+          tls: port === 465,
           auth: { username: SMTP_USER, password: SMTP_PASS },
         },
       });
+      const timeout = new Promise((_r, rej) =>
+        setTimeout(() => rej(new Error(`SMTP timeout on port ${port}`)), 12000)
+      );
       try {
-        await client.send({
-          from: payload.from,
-          to: payload.to,
-          ...(cc.length ? { cc } : {}),
-          subject: payload.subject,
-          html: payload.html,
-          content: "text/html",
-        } as any);
-      } finally {
+        await Promise.race([
+          client.send({
+            from: payload.from,
+            to: payload.to,
+            ...(cc.length ? { cc } : {}),
+            subject: payload.subject,
+            html: payload.html,
+            content: "text/html",
+          } as any),
+          timeout,
+        ]);
+        await client.close();
+      } catch (e) {
         try { await client.close(); } catch { /* ignore */ }
+        throw e;
       }
+    };
+
+    try {
+      // Try the configured port first, then common alternates — some hosts
+      // block 465 while allowing 587/2525.
+      const ports = [...new Set([SMTP_PORT, 587, 2525, 465])].filter(Boolean);
+      let lastError: unknown = null;
+      let sent = false;
+      for (const port of ports) {
+        try {
+          await sendOverSmtpPort(port);
+          sent = true;
+          break;
+        } catch (e) {
+          lastError = e;
+          console.error(`[send-order-admin-email] smtp port ${port} failed:`, String(e));
+        }
+      }
+      if (!sent) throw lastError ?? new Error("SMTP failed");
     } catch (sendErr) {
       console.error("[send-order-admin-email] smtp error:", sendErr);
       return new Response(JSON.stringify({ error: "Email send failed", details: String(sendErr) }), {

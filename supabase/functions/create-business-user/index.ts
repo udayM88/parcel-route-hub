@@ -138,53 +138,47 @@ Deno.serve(async (req) => {
     let emailSent = false;
     let emailError: string | null = null;
 
-    // 1) Branded ViaSetu template through the notification pipeline.
-    if (setupLink) {
-      try {
-        const res = await withTimeout(
-          fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-notification-email`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-            },
-            body: JSON.stringify({
-              event: "business_welcome",
-              override_to: cleanEmail,
-              vars: {
-                company_name: company_name.trim(),
-                contact_person: contact_person.trim(),
-                email: cleanEmail,
-                setup_link: setupLink,
-                portal_link: `${siteUrl}/viasetuforbusinesses`,
-              },
-            }),
-          }),
-          25000,
-          "notification email",
-        );
-        const out = await res.json().catch(() => ({}));
-        if (res.ok && out?.sent) emailSent = true;
-        else emailError = out?.error || out?.skipped || `HTTP ${res.status}`;
-      } catch (e) {
-        emailError = String(e);
-      }
+    // 1) Supabase's own auth mailer — same protocol used for admin account
+    // creation. This is the reliable path, so it goes first and is awaited.
+    try {
+      const { error: resetError } = await withTimeout(
+        supabaseAdmin.auth.resetPasswordForEmail(cleanEmail, { redirectTo }),
+        12000,
+        "supabase auth mail",
+      );
+      if (resetError) throw resetError;
+      emailSent = true;
+    } catch (e) {
+      emailError = String(e);
+      console.error("Supabase setup email failed:", String(e));
     }
 
-    // 2) Supabase's own auth mailer as a secondary path.
-    if (!emailSent) {
-      try {
-        const { error: resetError } = await withTimeout(
-          supabaseAdmin.auth.resetPasswordForEmail(cleanEmail, { redirectTo }),
-          12000,
-          "supabase auth mail",
-        );
-        if (resetError) throw resetError;
-        emailSent = true;
-        emailError = null;
-      } catch (e) {
-        emailError = emailError ?? String(e);
-        console.error("Supabase setup email failed:", String(e));
+    // 2) Branded ViaSetu template through the custom notification pipeline —
+    // best-effort bonus only. Fired without waiting so a slow/unreachable
+    // SMTP host never delays this response or blocks the working path above.
+    if (setupLink) {
+      const brandedEmail = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-notification-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+        },
+        body: JSON.stringify({
+          event: "business_welcome",
+          override_to: cleanEmail,
+          vars: {
+            company_name: company_name.trim(),
+            contact_person: contact_person.trim(),
+            email: cleanEmail,
+            setup_link: setupLink,
+            portal_link: `${siteUrl}/viasetuforbusinesses`,
+          },
+        }),
+      }).catch((e) => console.error("Branded welcome email dispatch failed:", String(e)));
+      // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+        // @ts-ignore
+        EdgeRuntime.waitUntil(brandedEmail);
       }
     }
 

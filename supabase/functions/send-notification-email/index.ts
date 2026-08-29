@@ -164,34 +164,10 @@ Deno.serve(async (req) => {
     };
 
     // --- Transport ---------------------------------------------------------
-    // Supabase Edge Functions block outbound raw SMTP ports (465/587), so an
-    // HTTPS email API is the primary transport. SMTP is kept as a last resort
-    // in case the runtime ever permits it.
-    const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY");
-
+    // Plain SMTP using the project's configured mailbox. Some hosts block
+    // port 465, so we retry over the common alternates before giving up.
     const fromEmail = SMTP_FROM_EMAIL || "notification@viasetu.com";
     const fromName = SMTP_FROM_NAME;
-
-    const sendViaBrevo = async () => {
-      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-        method: "POST",
-        headers: {
-          "api-key": BREVO_API_KEY!,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          sender: { name: fromName, email: fromEmail },
-          to: to.map((email) => ({ email })),
-          ...(cc.length ? { cc: cc.map((email) => ({ email })) } : {}),
-          ...(tpl.reply_to ? { replyTo: { email: tpl.reply_to } } : {}),
-          subject,
-          htmlContent: html,
-        }),
-      });
-      if (!res.ok) throw new Error(`Brevo ${res.status}: ${await res.text()}`);
-      return "brevo";
-    };
 
     const sendOverSmtpPort = async (port: number) => {
       const message = {
@@ -245,25 +221,8 @@ Deno.serve(async (req) => {
     };
 
 
-    const transports: { name: string; run: () => Promise<string> }[] = [];
-    if (BREVO_API_KEY) transports.push({ name: "brevo", run: sendViaBrevo });
-    transports.push({ name: "smtp", run: sendViaSmtp });
-
-    let usedTransport: string | null = null;
-    let lastErr: unknown = null;
-    for (const t of transports) {
-      try {
-        usedTransport = await t.run();
-        break;
-      } catch (e) {
-        lastErr = e;
-        console.error(`[send-notification-email] transport ${t.name} failed:`, String(e));
-      }
-    }
-    if (!usedTransport) throw lastErr ?? new Error("All email transports failed");
+    const usedTransport = await sendViaSmtp();
     logRow.provider_response = { transport: usedTransport };
-
-
 
     await supabase.from("email_logs").insert(logRow);
     return json({ sent: true, to, cc });
