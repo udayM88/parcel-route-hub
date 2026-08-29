@@ -65,12 +65,26 @@ Deno.serve(async (req) => {
 
     const cleanEmail = email.trim().toLowerCase();
 
+    // Deleted accounts are soft-deleted and keep their email, so an email can
+    // match both a live and a deleted row. Prefer the live one for the message.
     const { data: existing } = await supabaseAdmin
       .from("business_accounts")
-      .select("id")
+      .select("id,deleted_at")
       .eq("email", cleanEmail)
+      .order("deleted_at", { ascending: true, nullsFirst: true })
+      .limit(1)
       .maybeSingle();
-    if (existing) throw new Error("A business account with this email already exists");
+
+    if (existing && !existing.deleted_at) {
+      throw new Error("A business account with this email already exists");
+    }
+    if (existing?.deleted_at) {
+      throw new Error(
+        "This email belongs to a deleted business account. Its login is still registered, " +
+        "so delete that user under Authentication → Users in Supabase before re-creating it, " +
+        "or use a different email.",
+      );
+    }
 
     // Always send business users to the live site, never a preview/sandbox origin
     const origin = req.headers.get("origin") ?? "";
@@ -86,7 +100,18 @@ Deno.serve(async (req) => {
       cleanEmail,
       { redirectTo },
     );
-    if (authError) throw new Error(`Failed to create auth user: ${authError.message}`);
+    if (authError) {
+      // A login can outlive its business account (deletion bans the user rather
+      // than removing it), so spell out the fix instead of GoTrue's wording.
+      if (/already|registered|exists/i.test(authError.message)) {
+        throw new Error(
+          `A login already exists for ${cleanEmail}. Delete that user under ` +
+          "Authentication → Users in Supabase before re-creating this business, " +
+          "or use a different email.",
+        );
+      }
+      throw new Error(`Failed to create auth user: ${authError.message}`);
+    }
     if (!authData.user) throw new Error("Failed to create user");
 
     const { error: insertError } = await supabaseAdmin.from("business_accounts").insert({

@@ -14,6 +14,25 @@ import { Building2, UserPlus, FileText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 
+// supabase.functions.invoke surfaces any non-2xx as a generic
+// "Edge Function returned a non-2xx status code" and leaves `data` null, so the
+// function's own error message is only reachable through the attached Response.
+const edgeFunctionError = async (error: unknown, fallback: string) => {
+  const context = (error as { context?: Response })?.context;
+  if (context && typeof context.json === "function") {
+    try {
+      const body = await context.clone().json();
+      if (body?.error) return String(body.error);
+    } catch {
+      try {
+        const text = await context.clone().text();
+        if (text) return text;
+      } catch { /* fall through to the generic message */ }
+    }
+  }
+  return (error as Error)?.message || fallback;
+};
+
 type BusinessAccountRow = {
   id: string;
   company_name: string;
@@ -127,7 +146,10 @@ const BusinessManagement = () => {
           documents,
         },
       });
-      if (response.error) throw response.error;
+      if (response.error) {
+        toast.error(await edgeFunctionError(response.error, "Failed to create business user"));
+        return;
+      }
       if (response.data?.error) { toast.error(response.data.error); return; }
 
       toast.success(`Business user created. A password setup email was sent to ${form.email}`);
@@ -170,7 +192,10 @@ const BusinessManagement = () => {
       const response = await supabase.functions.invoke("delete-business-user", {
         body: { business_id: deleteTarget.id, reason: deleteReason, note: deleteNote.trim() || null },
       });
-      if (response.error) throw response.error;
+      if (response.error) {
+        toast.error(await edgeFunctionError(response.error, "Failed to delete business account"));
+        return;
+      }
       if (response.data?.error) { toast.error(response.data.error); return; }
       toast.success(`${deleteTarget.company_name} deleted. Login has been revoked.`);
       setDeleteTarget(null);
