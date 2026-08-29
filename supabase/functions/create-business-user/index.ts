@@ -114,59 +114,64 @@ Deno.serve(async (req) => {
     const siteUrl = isLiveOrigin ? origin : "https://www.viasetu.com";
     const redirectTo = `${siteUrl}/viasetuforbusinesses/reset-password`;
 
-    // Generate the password-setup link ourselves and deliver it through the
-    // ViaSetu notification pipeline (customisable template in Admin → Emails),
-    // instead of relying on Supabase's default auth mailer.
+    // Primary: Supabase's built-in auth mailer (password setup / recovery link).
     let emailSent = false;
     let emailError: string | null = null;
     try {
-      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: "recovery",
-        email: cleanEmail,
-        options: { redirectTo },
-      });
-      if (linkError) throw linkError;
-      const setupLink = linkData?.properties?.action_link;
-      if (!setupLink) throw new Error("Could not generate password setup link");
-
-      const res = await fetch(
-        `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-notification-email`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-          },
-          body: JSON.stringify({
-            event: "business_welcome",
-            override_to: cleanEmail,
-            vars: {
-              company_name: company_name.trim(),
-              contact_person: contact_person.trim(),
-              email: cleanEmail,
-              setup_link: setupLink,
-              portal_link: `${siteUrl}/viasetuforbusinesses`,
-            },
-          }),
-        },
-      );
-      const out = await res.json().catch(() => ({}));
-      if (res.ok && out?.sent) {
-        emailSent = true;
-      } else {
-        emailError = out?.error || out?.skipped || `HTTP ${res.status}`;
-      }
-    } catch (e) {
-      emailError = String(e);
-    }
-
-    if (!emailSent) {
-      console.error("Business setup email not delivered:", emailError);
-      // Last-resort fallback: Supabase's built-in recovery mail
       const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(cleanEmail, {
         redirectTo,
       });
-      if (resetError) console.error("Fallback reset email failed:", resetError);
+      if (resetError) throw resetError;
+      emailSent = true;
+    } catch (e) {
+      emailError = String(e);
+      console.error("Supabase setup email failed:", emailError);
+    }
+
+    // Fallback: custom ViaSetu notification pipeline (template in Admin → Emails).
+    if (!emailSent) {
+      try {
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: "recovery",
+          email: cleanEmail,
+          options: { redirectTo },
+        });
+        if (linkError) throw linkError;
+        const setupLink = linkData?.properties?.action_link;
+        if (!setupLink) throw new Error("Could not generate password setup link");
+
+        const res = await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-notification-email`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+            },
+            body: JSON.stringify({
+              event: "business_welcome",
+              override_to: cleanEmail,
+              vars: {
+                company_name: company_name.trim(),
+                contact_person: contact_person.trim(),
+                email: cleanEmail,
+                setup_link: setupLink,
+                portal_link: `${siteUrl}/viasetuforbusinesses`,
+              },
+            }),
+          },
+        );
+        const out = await res.json().catch(() => ({}));
+        if (res.ok && out?.sent) {
+          emailSent = true;
+          emailError = null;
+        } else {
+          emailError = out?.error || out?.skipped || `HTTP ${res.status}`;
+        }
+      } catch (e) {
+        emailError = String(e);
+      }
+      if (!emailSent) console.error("Business setup email not delivered:", emailError);
     }
 
 
