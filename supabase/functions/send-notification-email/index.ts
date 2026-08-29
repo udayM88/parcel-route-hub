@@ -168,7 +168,6 @@ Deno.serve(async (req) => {
     // HTTPS email API is the primary transport. SMTP is kept as a last resort
     // in case the runtime ever permits it.
     const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY");
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
     const fromEmail = SMTP_FROM_EMAIL || "notification@viasetu.com";
     const fromName = SMTP_FROM_NAME;
@@ -192,26 +191,6 @@ Deno.serve(async (req) => {
       });
       if (!res.ok) throw new Error(`Brevo ${res.status}: ${await res.text()}`);
       return "brevo";
-    };
-
-    const sendViaResend = async () => {
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: `${fromName} <${fromEmail}>`,
-          to,
-          ...(cc.length ? { cc } : {}),
-          ...(tpl.reply_to ? { reply_to: tpl.reply_to } : {}),
-          subject,
-          html,
-        }),
-      });
-      if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
-      return "resend";
     };
 
     const sendViaSmtp = async () => {
@@ -251,7 +230,6 @@ Deno.serve(async (req) => {
 
     const transports: { name: string; run: () => Promise<string> }[] = [];
     if (BREVO_API_KEY) transports.push({ name: "brevo", run: sendViaBrevo });
-    if (RESEND_API_KEY) transports.push({ name: "resend", run: sendViaResend });
     transports.push({ name: "smtp", run: sendViaSmtp });
 
     let usedTransport: string | null = null;

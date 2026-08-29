@@ -1,7 +1,8 @@
 // Sends an admin notification email when a new booking is successfully placed.
-// Uses Resend directly via RESEND_API_KEY. Idempotent: only sends if
+// Sends over the project's SMTP configuration. Idempotent: only sends if
 // bookings.admin_email_sent_at IS NULL, then stamps it.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,7 +10,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-prayog-auth, x-environment",
 };
 
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const SMTP_HOST = Deno.env.get("SMTP_HOST");
+const SMTP_PORT = Number(Deno.env.get("SMTP_PORT") || "465");
+const SMTP_USER = Deno.env.get("SMTP_USERNAME") || Deno.env.get("SMTP_USER");
+const SMTP_PASS = Deno.env.get("SMTP_PASSWORD") || Deno.env.get("SMTP_PASS");
 
 function inr(n: any) {
   const v = Number(n || 0);
@@ -87,8 +91,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    if (!RESEND_API_KEY) {
-      return new Response(JSON.stringify({ error: "RESEND_API_KEY not configured" }), {
+    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+      return new Response(JSON.stringify({ error: "SMTP is not configured" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -118,7 +122,9 @@ Deno.serve(async (req) => {
     }
     const recipient = overrideRecipient || cfg.admin_recipient || "uday@viasetu.com";
     const senderName = cfg.sender_name || "ViaSetu Orders";
-    const senderEmail = cfg.sender_email || "onboarding@resend.dev";
+    const senderEmail = cfg.sender_email
+      || Deno.env.get("SMTP_FROM_EMAIL")
+      || SMTP_USER;
     const skipCc = body?.skip_cc === true;
     const cc = skipCc ? [] : (cfg.cc_recipients || "")
       .split(",").map((s: string) => s.trim()).filter(Boolean);
@@ -147,19 +153,30 @@ Deno.serve(async (req) => {
       html: buildHtml(booking),
     };
 
-    const resp = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-    const data = await resp.json();
-
-    if (!resp.ok) {
-      console.error("[send-order-admin-email] resend error:", data);
-      return new Response(JSON.stringify({ error: "Resend failed", details: data }), {
+    try {
+      const client = new SMTPClient({
+        connection: {
+          hostname: SMTP_HOST,
+          port: SMTP_PORT,
+          tls: SMTP_PORT === 465,
+          auth: { username: SMTP_USER, password: SMTP_PASS },
+        },
+      });
+      try {
+        await client.send({
+          from: payload.from,
+          to: payload.to,
+          ...(cc.length ? { cc } : {}),
+          subject: payload.subject,
+          html: payload.html,
+          content: "text/html",
+        } as any);
+      } finally {
+        try { await client.close(); } catch { /* ignore */ }
+      }
+    } catch (sendErr) {
+      console.error("[send-order-admin-email] smtp error:", sendErr);
+      return new Response(JSON.stringify({ error: "Email send failed", details: String(sendErr) }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -168,7 +185,7 @@ Deno.serve(async (req) => {
       .update({ admin_email_sent_at: new Date().toISOString() })
       .eq("id", booking_id);
 
-    return new Response(JSON.stringify({ sent: true, id: data?.id }), {
+    return new Response(JSON.stringify({ sent: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
