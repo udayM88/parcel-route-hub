@@ -223,7 +223,7 @@ const SystemSettings = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" />Legacy Order Notification (Resend)</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" />Legacy Order Notification (SMTP)</CardTitle>
               <CardDescription>Existing admin order email. Left unchanged for backward compatibility.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
