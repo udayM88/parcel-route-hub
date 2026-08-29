@@ -44,7 +44,7 @@ const SystemSettings = () => {
   const [saving, setSaving] = useState(false);
   const [emailCfg, setEmailCfg] = useState<EmailConfig>({
     enabled: true, admin_recipient: "uday@viasetu.com", cc_recipients: "",
-    sender_name: "ViaSetu Orders", sender_email: "onboarding@resend.dev",
+    sender_name: "ViaSetu Orders", sender_email: "notification@viasetu.com",
   });
   const [platform, setPlatform] = useState<PlatformSettings>({
     name: "ViaSetu", support_email: "support@viasetu.com", contact_phone: "",
@@ -223,7 +223,7 @@ const SystemSettings = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" />Legacy Order Notification (Resend)</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" />Legacy Order Notification (SMTP)</CardTitle>
               <CardDescription>Existing admin order email. Left unchanged for backward compatibility.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
