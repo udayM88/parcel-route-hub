@@ -100,6 +100,8 @@ const BusinessManagement = () => {
   const [confirmName, setConfirmName] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [setupLink, setSetupLink] = useState<string | null>(null);
+  const [resettingId, setResettingId] = useState<string | null>(null);
+
 
 
 
