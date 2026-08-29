@@ -44,7 +44,7 @@ const SystemSettings = () => {
   const [saving, setSaving] = useState(false);
   const [emailCfg, setEmailCfg] = useState<EmailConfig>({
     enabled: true, admin_recipient: "uday@viasetu.com", cc_recipients: "",
-    sender_name: "ViaSetu Orders", sender_email: "onboarding@resend.dev",
+    sender_name: "ViaSetu Orders", sender_email: "notification@viasetu.com",
   });
   const [platform, setPlatform] = useState<PlatformSettings>({
     name: "ViaSetu", support_email: "support@viasetu.com", contact_phone: "",
