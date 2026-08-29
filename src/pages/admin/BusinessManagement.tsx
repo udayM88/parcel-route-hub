@@ -466,7 +466,32 @@ const BusinessManagement = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!setupLink} onOpenChange={(o) => !o && setSetupLink(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Share the password setup link</DialogTitle>
+            <DialogDescription>
+              The account was created, but the setup email could not be delivered. Send this
+              one-time link to the business contact so they can set their password.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea readOnly value={setupLink ?? ""} rows={4} className="text-xs" />
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                navigator.clipboard.writeText(setupLink ?? "");
+                toast.success("Setup link copied");
+              }}
+            >
+              Copy link
+            </Button>
+            <Button variant="outline" onClick={() => setSetupLink(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 
 };
