@@ -114,35 +114,35 @@ Deno.serve(async (req) => {
     const siteUrl = isLiveOrigin ? origin : "https://www.viasetu.com";
     const redirectTo = `${siteUrl}/viasetuforbusinesses/reset-password`;
 
-    // Primary: Supabase's built-in auth mailer (password setup / recovery link).
-    let emailSent = false;
-    let emailError: string | null = null;
+    // Always generate the password setup link ourselves first — this never
+    // depends on mail delivery, so the admin always has a shareable link.
+    let setupLink: string | null = null;
     try {
-      const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(cleanEmail, {
-        redirectTo,
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: "recovery",
+        email: cleanEmail,
+        options: { redirectTo },
       });
-      if (resetError) throw resetError;
-      emailSent = true;
+      if (linkError) throw linkError;
+      setupLink = linkData?.properties?.action_link ?? null;
     } catch (e) {
-      emailError = String(e);
-      console.error("Supabase setup email failed:", emailError);
+      console.error("Could not generate setup link:", String(e));
     }
 
-    // Fallback: custom ViaSetu notification pipeline (template in Admin → Emails).
-    if (!emailSent) {
-      try {
-        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-          type: "recovery",
-          email: cleanEmail,
-          options: { redirectTo },
-        });
-        if (linkError) throw linkError;
-        const setupLink = linkData?.properties?.action_link;
-        if (!setupLink) throw new Error("Could not generate password setup link");
+    const withTimeout = <T,>(p: Promise<T>, ms: number, label: string) =>
+      Promise.race([
+        p,
+        new Promise<never>((_r, rej) => setTimeout(() => rej(new Error(`${label} timeout`)), ms)),
+      ]);
 
-        const res = await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-notification-email`,
-          {
+    let emailSent = false;
+    let emailError: string | null = null;
+
+    // 1) Branded ViaSetu template through the notification pipeline.
+    if (setupLink) {
+      try {
+        const res = await withTimeout(
+          fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-notification-email`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -159,31 +159,48 @@ Deno.serve(async (req) => {
                 portal_link: `${siteUrl}/viasetuforbusinesses`,
               },
             }),
-          },
+          }),
+          25000,
+          "notification email",
         );
         const out = await res.json().catch(() => ({}));
-        if (res.ok && out?.sent) {
-          emailSent = true;
-          emailError = null;
-        } else {
-          emailError = out?.error || out?.skipped || `HTTP ${res.status}`;
-        }
+        if (res.ok && out?.sent) emailSent = true;
+        else emailError = out?.error || out?.skipped || `HTTP ${res.status}`;
       } catch (e) {
         emailError = String(e);
       }
-      if (!emailSent) console.error("Business setup email not delivered:", emailError);
     }
 
+    // 2) Supabase's own auth mailer as a secondary path.
+    if (!emailSent) {
+      try {
+        const { error: resetError } = await withTimeout(
+          supabaseAdmin.auth.resetPasswordForEmail(cleanEmail, { redirectTo }),
+          12000,
+          "supabase auth mail",
+        );
+        if (resetError) throw resetError;
+        emailSent = true;
+        emailError = null;
+      } catch (e) {
+        emailError = emailError ?? String(e);
+        console.error("Supabase setup email failed:", String(e));
+      }
+    }
+
+    if (!emailSent) console.error("Business setup email not delivered:", emailError);
 
     return new Response(
       JSON.stringify({
         success: true,
         email_sent: emailSent,
         email_error: emailSent ? null : emailError,
+        setup_link: emailSent ? null : setupLink,
         message: emailSent
           ? "Business user created and password setup email sent"
-          : "Business user created, but the setup email could not be delivered",
+          : "Business user created. Email delivery is unavailable — share the setup link manually.",
       }),
+
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
     );
 
