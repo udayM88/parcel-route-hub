@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Building2, UserPlus, FileText, Trash2 } from "lucide-react";
+import { Building2, UserPlus, FileText, Trash2, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 
@@ -100,6 +100,8 @@ const BusinessManagement = () => {
   const [confirmName, setConfirmName] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [setupLink, setSetupLink] = useState<string | null>(null);
+  const [resettingId, setResettingId] = useState<string | null>(null);
+
 
 
 
@@ -213,7 +215,36 @@ const BusinessManagement = () => {
     }
   };
 
+  const handleResetPassword = async (row: BusinessAccountRow) => {
+    setResettingId(row.id);
+    try {
+      const response = await supabase.functions.invoke("reset-business-password", {
+        body: { business_id: row.id },
+      });
+      if (response.error) {
+        toast.error(await edgeFunctionError(response.error, "Failed to send password reset"));
+        return;
+      }
+      if (response.data?.error) { toast.error(response.data.error); return; }
+
+      if (response.data?.email_sent) {
+        toast.success(`Password reset email sent to ${row.email}`);
+      } else if (response.data?.setup_link) {
+        setSetupLink(response.data.setup_link);
+        toast.warning("Email could not be delivered. Share the reset link manually.");
+      } else {
+        toast.error(response.data?.email_error || "Could not generate a reset link");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error((err as Error).message || "Failed to send password reset");
+    } finally {
+      setResettingId(null);
+    }
+  };
+
   const visibleRows = showDeleted ? rows : rows.filter((r) => !r.deleted_at);
+
 
 
 
@@ -410,6 +441,12 @@ const BusinessManagement = () => {
                               onClick={() => updateRow(row.id, { is_active: !row.is_active })}>
                               {row.is_active ? "Disable" : "Enable"}
                             </Button>
+                            <Button size="sm" variant="ghost" disabled={resettingId === row.id}
+                              onClick={() => handleResetPassword(row)}>
+                              <KeyRound className="h-3.5 w-3.5 mr-1" />
+                              {resettingId === row.id ? "Sending..." : "Reset Password"}
+                            </Button>
+
                             <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
                               onClick={() => openDelete(row)}>
                               <Trash2 className="h-3.5 w-3.5 mr-1" />Delete
