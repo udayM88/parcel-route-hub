@@ -99,6 +99,8 @@ const BusinessManagement = () => {
   const [deleteNote, setDeleteNote] = useState("");
   const [confirmName, setConfirmName] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [setupLink, setSetupLink] = useState<string | null>(null);
+
 
 
   const fetchRows = async () => {
