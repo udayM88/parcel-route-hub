@@ -44,6 +44,7 @@ const VARIABLES = [
   "sender_name", "sender_phone", "sender_pincode", "receiver_name", "receiver_phone",
   "receiver_pincode", "goods_type", "weight", "failure_reason", "refund_reason",
   "payment_id", "created_at",
+  "company_name", "contact_person", "email", "setup_link", "portal_link",
 ];
 
 const RecipientChips = ({
