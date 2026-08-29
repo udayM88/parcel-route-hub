@@ -213,7 +213,36 @@ const BusinessManagement = () => {
     }
   };
 
+  const handleResetPassword = async (row: BusinessAccountRow) => {
+    setResettingId(row.id);
+    try {
+      const response = await supabase.functions.invoke("reset-business-password", {
+        body: { business_id: row.id },
+      });
+      if (response.error) {
+        toast.error(await edgeFunctionError(response.error, "Failed to send password reset"));
+        return;
+      }
+      if (response.data?.error) { toast.error(response.data.error); return; }
+
+      if (response.data?.email_sent) {
+        toast.success(`Password reset email sent to ${row.email}`);
+      } else if (response.data?.setup_link) {
+        setSetupLink(response.data.setup_link);
+        toast.warning("Email could not be delivered. Share the reset link manually.");
+      } else {
+        toast.error(response.data?.email_error || "Could not generate a reset link");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error((err as Error).message || "Failed to send password reset");
+    } finally {
+      setResettingId(null);
+    }
+  };
+
   const visibleRows = showDeleted ? rows : rows.filter((r) => !r.deleted_at);
+
 
 
 
