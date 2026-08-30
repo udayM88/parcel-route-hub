@@ -26,6 +26,8 @@ import { bucketOfStatus } from "@/lib/booking-status";
 import { cn } from "@/lib/utils";
 
 import { resolvePartnerKey, trackingFunctionFor, labelFunctionFor, trackingBody } from "@/lib/partner-functions";
+import { isFreshLabelUrl } from "@/lib/label-url";
+
 
 // Resolve the courier partner from partner_id / booking_source / courier_name.
 // Assisted + manually-attached orders have booking_source like "admin_assisted",
