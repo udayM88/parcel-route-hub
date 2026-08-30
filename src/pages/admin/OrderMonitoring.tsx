@@ -330,10 +330,11 @@ const OrderMonitoring = () => {
 
   const handleDownloadLabel = async () => {
     if (!selectedBooking) return;
-    if (selectedBooking.label_url) {
-      window.open(selectedBooking.label_url, "_blank");
+    if (isFreshLabelUrl(selectedBooking.label_url)) {
+      window.open(selectedBooking.label_url as string, "_blank");
       return;
     }
+
     const key = partnerKeyOf(selectedBooking);
     const awb = selectedBooking.prayog_awb || selectedBooking.tracking_id;
     if (!key || !awb) {
