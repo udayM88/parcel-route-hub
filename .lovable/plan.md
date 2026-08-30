@@ -29,9 +29,18 @@ Let a consumer ship up to 10 parcels to the same destination in one order with o
 - Partial failure → call `razorpay-refund` with the summed price of the failed boxes (it already supports partial amounts), record the refund id/reason, and send the existing rejection/refund notification with the failed parcel list. All-fail keeps today's full-refund path via `confirm-booking-or-refund`.
 - Booking rows are created before payment (existing `PENDING_PAYMENT` flow); the box rows are written at the same time so the retry sweeper and admin retries work unchanged.
 
-**Payload/response handling per partner** — each partner booking function already takes a single-parcel payload and returns `{ success, awbNumber, label_url }`; calling it N times is the only reliable way to get N AWBs across Delhivery, XpressBees, UrbaneBolt, Shadowfax and Shree Maruti, since none of them are wired for multi-piece manifests today. XpressBees' label comes back only in the create response, so it is stored per box at booking time.
+**Per-partner label check (verified in the current code)** — no partner gives one label covering several parcels, and none of our integrations are wired for multi-piece manifests (`pieces`/`quantity` is hard-coded to 1 everywhere). So the design is deliberately **one AWB and one label per parcel**, produced by calling the partner booking function once per parcel:
 
-**Labels** — extend `get-booking-label` to accept an optional `box_id`/`awb`: it validates ownership, checks the stored pre-signed link with the existing freshness logic, and re-fetches from the partner label function for that AWB when stale, persisting the refreshed URL on the box row. Admin screens reuse `isFreshLabelUrl` plus the partner label function per box.
+| Partner | Booking call | Label source | Multi-parcel handling |
+|---|---|---|---|
+| Delhivery | one shipment per call (`quantity: "1"`) | `/api/p/packing_slip?wbns=<AWB>` — AWB-scoped, re-fetchable any time | one packing slip per AWB; the endpoint also accepts comma-separated AWBs, so an optional combined print for the whole order is possible |
+| XpressBees | one shipment per call | label URL returned **only** in the create response | must be captured and stored per parcel at booking time; `xpressbees-label` reads it back from the row, so it needs to read `booking_boxes.label_url` instead of only `bookings.label_url` |
+| UrbaneBolt | one shipment per call (`pieces: 1`) | `/services/label/?awbs=<AWB>` — AWB-scoped, re-fetchable; accepts multiple AWBs | per-AWB label; combined print possible |
+| Shree Maruti | one shipment per call (`quantity: 1`) | label-invoice PDF per AWB, stored as a base64 data URL | per-AWB label; the function currently writes the data URL onto `bookings.label_url` and must write to the matching box row instead |
+| Shadowfax | one RVP per call | **no partner label API** — we generate the HTML label ourselves from the booking row | the generator must take a box (weight, dims, AWB) rather than the whole booking, otherwise every parcel prints the same label |
+
+**Labels** — extend `get-booking-label` to accept an optional `box_id`/`awb`: it validates ownership, resolves the box row, checks the stored pre-signed link with the existing freshness logic, and re-fetches from the partner label function for that AWB when stale, persisting the refreshed URL on the box row. `shree-maruti-label` and `shadowfax-label` get an optional `box_id` so they act on the parcel, not the order. Admin screens reuse `isFreshLabelUrl` plus the partner label function per box. "Download all labels" opens each parcel's label (and uses the combined multi-AWB endpoint for Delhivery/UrbaneBolt where available).
+
 
 **Tracking** — `get-booking-detail` returns the box rows; the consumer and admin tracking views iterate AWBs and render one timeline per parcel.
 
