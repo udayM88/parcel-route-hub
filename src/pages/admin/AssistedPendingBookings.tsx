@@ -15,6 +15,8 @@ import {
   Truck, Download, PackageCheck, PackagePlus,
 } from "lucide-react";
 import { resolvePartnerKey, trackingFunctionFor, trackingBody, labelFunctionFor } from "@/lib/partner-functions";
+import { isFreshLabelUrl } from "@/lib/label-url";
+
 
 interface TrackEvent {
   status: string;
@@ -209,10 +211,11 @@ const AssistedPendingBookings = () => {
 
 
   const handleDownloadLabel = async (row: PendingRow) => {
-    if (row.label_url) {
-      window.open(row.label_url, "_blank");
+    if (isFreshLabelUrl(row.label_url)) {
+      window.open(row.label_url as string, "_blank");
       return;
     }
+
     // No cached label — fetch fresh via partner-specific label function using the AWB.
     const awb = row.prayog_awb || row.tracking_id;
     if (!awb) {

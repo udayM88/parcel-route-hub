@@ -26,6 +26,8 @@ import { bucketOfStatus } from "@/lib/booking-status";
 import { cn } from "@/lib/utils";
 
 import { resolvePartnerKey, trackingFunctionFor, labelFunctionFor, trackingBody } from "@/lib/partner-functions";
+import { isFreshLabelUrl } from "@/lib/label-url";
+
 
 // Resolve the courier partner from partner_id / booking_source / courier_name.
 // Assisted + manually-attached orders have booking_source like "admin_assisted",
@@ -330,10 +332,11 @@ const OrderMonitoring = () => {
 
   const handleDownloadLabel = async () => {
     if (!selectedBooking) return;
-    if (selectedBooking.label_url) {
-      window.open(selectedBooking.label_url, "_blank");
+    if (isFreshLabelUrl(selectedBooking.label_url)) {
+      window.open(selectedBooking.label_url as string, "_blank");
       return;
     }
+
     const key = partnerKeyOf(selectedBooking);
     const awb = selectedBooking.prayog_awb || selectedBooking.tracking_id;
     if (!key || !awb) {

@@ -24,6 +24,8 @@ import CancelOrderDialog from "@/components/booking/CancelOrderDialog";
 import {
   resolvePartnerKey, trackingFunctionFor, labelFunctionFor, trackingBody, labelBody,
 } from "@/lib/partner-functions";
+import { isFreshLabelUrl } from "@/lib/label-url";
+
 
 
 
@@ -287,10 +289,11 @@ const BusinessDashboard = () => {
   };
 
   const handleLabel = async (bx: BookingBox) => {
-    if (bx.label_url) {
-      window.open(bx.label_url, "_blank", "noopener");
+    if (isFreshLabelUrl(bx.label_url)) {
+      window.open(bx.label_url as string, "_blank", "noopener");
       return;
     }
+
     const awb = bx.tracking_id;
     const key = partnerKey(selected);
     if (!awb || !key) {
