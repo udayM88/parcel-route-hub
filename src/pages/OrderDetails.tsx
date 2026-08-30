@@ -457,6 +457,31 @@ const OrderDetails = () => {
   const pickupAddress = order.addresses?.find(a => a.type === 'PICKUP');
   const deliveryAddress = order.addresses?.find(a => a.type === 'DELIVERY');
   const shipment = order.shipments?.[0];
+  const parcels = order.parcels || [];
+
+  // Each parcel is booked separately, so its label is fetched by box id.
+  const handleParcelLabel = async (p: OrderParcel) => {
+    if (!p.awb) return;
+    setDownloadingBoxId(p.id);
+    try {
+      const auth = getAuthSession();
+      const { data, error } = await supabase.functions.invoke('get-booking-label', {
+        body: { booking_id: bookingMeta?.id, box_id: p.id },
+        headers: { 'x-prayog-auth': JSON.stringify(auth), 'x-environment': CURRENT_ENV },
+      });
+      if (error) throw error;
+      if (data?.success && data?.label_url) {
+        window.open(data.label_url, '_blank');
+        fetchOrderDetails();
+      } else {
+        toast({ title: 'Label Unavailable', description: data?.error || 'Could not retrieve label.', variant: 'destructive' });
+      }
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message || 'Failed', variant: 'destructive' });
+    } finally {
+      setDownloadingBoxId(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
