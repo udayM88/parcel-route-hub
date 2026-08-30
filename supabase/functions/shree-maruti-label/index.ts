@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
 
   try {
     const env = getEnvironmentFromRequest(req);
-    const { waybill, awb, cAwb, c_awb, booking_id } = await req.json().catch(() => ({}));
+    const { waybill, awb, cAwb, c_awb, booking_id, box_id } = await req.json().catch(() => ({}));
     const awbNumber = waybill || awb || null;
     const cAwbNumber = cAwb || c_awb || null;
 
@@ -122,14 +122,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Persist on the booking row when we have one
-    if (booking_id) {
+    // Persist on the parcel row (multi-parcel) or the booking row.
+    if (box_id || booking_id) {
       try {
         const supabase = createClient(
           Deno.env.get("SUPABASE_URL")!,
           Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
         );
-        await supabase.from("bookings").update({ label_url: labelUrl }).eq("id", booking_id);
+        if (box_id) {
+          await supabase.from("booking_boxes").update({ label_url: labelUrl }).eq("id", box_id);
+        } else {
+          await supabase.from("bookings").update({ label_url: labelUrl }).eq("id", booking_id);
+        }
       } catch (e) {
         console.warn("[shree-maruti-label] failed to persist label_url:", String(e));
       }

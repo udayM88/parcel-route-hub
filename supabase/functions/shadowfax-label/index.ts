@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { booking_id, awb, waybill } = await req.json().catch(() => ({}));
+    const { booking_id, awb, waybill, box_id } = await req.json().catch(() => ({}));
     if (!booking_id && !awb && !waybill) {
       return new Response(
         JSON.stringify({ success: false, error: "booking_id or awb is required" }),
@@ -158,7 +158,28 @@ Deno.serve(async (req) => {
       );
     }
 
-    const html = buildLabelHtml(b);
+    // Multi-parcel orders: print THIS parcel's weight/dimensions/AWB, not
+    // the order rollup — otherwise every parcel prints the same label.
+    let labelRow: any = b;
+    if (box_id) {
+      const { data: box } = await supabase
+        .from("booking_boxes").select("*").eq("id", box_id).maybeSingle();
+      if (box) {
+        labelRow = {
+          ...b,
+          package_weight: box.weight_kg != null ? String(box.weight_kg) : b.package_weight,
+          length: box.length_cm != null ? String(box.length_cm) : b.length,
+          width: box.width_cm != null ? String(box.width_cm) : b.width,
+          height: box.height_cm != null ? String(box.height_cm) : b.height,
+          prayog_awb: box.tracking_id || b.prayog_awb,
+          tracking_id: box.tracking_id || b.tracking_id,
+          box_index: box.box_index,
+          box_count: b.box_count,
+        };
+      }
+    }
+
+    const html = buildLabelHtml(labelRow);
     // Encode as a data: URL so the frontend can window.open() it directly.
     const dataUrl = "data:text/html;charset=utf-8;base64," + btoa(unescape(encodeURIComponent(html)));
 

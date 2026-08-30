@@ -22,6 +22,7 @@ import BookingReviewStep from "@/components/booking/BookingReviewStep";
 import BookingConfirmationDialog from "@/components/booking/BookingConfirmationDialog";
 import BottomNav from "@/components/BottomNav";
 import { extractInvokeError } from "@/lib/invoke-error";
+import { toBoxPayload, type Parcel } from "@/lib/parcels";
 import { trackStep, markCompleted } from "@/lib/booking-progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -48,6 +49,8 @@ const Booking = () => {
     height: ""
   });
   const [shipmentValue, setShipmentValue] = useState("");
+  // Parcels 2..10 of a multi-parcel order (parcel 1 = the fields above).
+  const [extraParcels, setExtraParcels] = useState<Parcel[]>([]);
   const [weightUnit, setWeightUnit] = useState<'kg' | 'g'>('kg');
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedPartnerData, setSelectedPartnerData] = useState<{
@@ -515,6 +518,23 @@ const Booking = () => {
     setShowPaymentModal(true);
   };
 
+  // Per-parcel payload for multi-parcel orders. Parcel 1 mirrors the main
+  // package fields; each parcel is booked separately and gets its own AWB.
+  const buildBoxesPayload = () => {
+    const isDocument = goodsType === 'documents';
+    const parcels: Parcel[] = [
+      { weightG: packageWeight, length: dimensions.length, width: dimensions.width, height: dimensions.height },
+      ...extraParcels,
+    ];
+    if (parcels.length < 2) return undefined;
+    const perParcelRate = courierRateValue != null ? Math.round(courierRateValue / parcels.length) : null;
+    const perParcelPrice = Math.round(totalAmount / parcels.length);
+    return parcels.map((p) => toBoxPayload(p, isDocument, {
+      courier_rate: perParcelRate,
+      price: perParcelPrice,
+    }));
+  };
+
   // Shared booking payload used by both assisted paths (payment link / no payment).
   const buildAssistedDraft = (selectedCourierData: any) => ({
     sender_name: senderData.name,
@@ -548,6 +568,7 @@ const Booking = () => {
     account_type: 'consumer',
     partner_id: selectedPartnerData?.partnerId || null,
     service_code: selectedPartnerData?.serviceCode || null,
+    boxes: buildBoxesPayload(),
   });
 
   // Admin-assisted flow: create a Razorpay Payment Link and SMS it to the
@@ -1413,7 +1434,7 @@ const Booking = () => {
       case 1:
         return <BookingStep1 onNext={handleNextStep} />;
       case 2:
-        return <BookingStep2 pickupPincode={pickupPincode} deliveryPincode={deliveryPincode} pickupCity={senderData.city} deliveryCity={receiverData.city} goodsType={goodsType} packageWeight={packageWeight} dimensions={dimensions} shipmentValue={shipmentValue} urgency={urgency} onInputChange={handleInputChange} onDimensionChange={handleDimensionChange} onPricingCalculated={setCalculatedPricing} onServiceabilityData={setServiceabilityData} onLocationData={handleLocationData} onWeightUnitChange={setWeightUnit} onNext={handleNextStep} onBack={handlePrevStep} />;
+        return <BookingStep2 pickupPincode={pickupPincode} deliveryPincode={deliveryPincode} pickupCity={senderData.city} deliveryCity={receiverData.city} goodsType={goodsType} packageWeight={packageWeight} dimensions={dimensions} shipmentValue={shipmentValue} urgency={urgency} onInputChange={handleInputChange} onDimensionChange={handleDimensionChange} onPricingCalculated={setCalculatedPricing} onServiceabilityData={setServiceabilityData} onLocationData={handleLocationData} onWeightUnitChange={setWeightUnit} extraParcels={extraParcels} onExtraParcelsChange={setExtraParcels} onNext={handleNextStep} onBack={handlePrevStep} />;
       case 3:
         return <BookingStep5 partners={getPartners()} selectedServiceId={selectedServiceId} onServiceSelect={handleServiceSelect} onNext={handleNextStep} onBack={handlePrevStep} platformFee={platformFee} platformFeeData={platformFeeData} isAssisted={!!assistedContext} shipmentSummary={{
           pickupPincode,
@@ -1580,6 +1601,7 @@ const Booking = () => {
         gst: gstAmount, courier_rate: courierRateValue, retail_price: retailPriceValue, margin_amount: effectivePlatformFee, account_type: 'consumer',
         partner_id: selectedPartnerData?.partnerId || null,
         service_code: selectedPartnerData?.serviceCode || null,
+        boxes: buildBoxesPayload(),
         booking_source: 'pending',
       }} />}
 

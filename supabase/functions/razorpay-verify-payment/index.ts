@@ -7,7 +7,7 @@
 import { createHmac } from "node:crypto";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
-import { buildBookingRow, type BookingDraft } from "../_shared/booking-draft.ts";
+import { buildBookingRow, syncBookingBoxes, type BookingDraft } from "../_shared/booking-draft.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -147,6 +147,9 @@ Deno.serve(async (req) => {
             bookingRowId = inserted.id;
             console.log("[verify-payment] inserted PAYMENT_RECEIVED row:", bookingRowId);
           }
+        }
+        if (bookingRowId) {
+          await syncBookingBoxes(supabase, bookingRowId, (booking_draft as any)?.boxes ?? []);
         }
       } catch (e: any) {
         persistError = String(e?.message || e);

@@ -420,6 +420,22 @@ const History = () => {
                       bm?.booking_source === 'shree_maruti_direct' ||
                       !!labelUrl;
                     if (!canFetchLabel) return null;
+                    // Multi-parcel orders have one label per parcel — send the
+                    // customer to details where each parcel can be downloaded.
+                    const boxCount = Number((bm as any)?.box_count || 1);
+                    if (boxCount > 1) {
+                      return (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 bg-white/10 border-white/30 text-white hover:bg-white/20"
+                          onClick={() => navigate(`/order/${bookingId || order.orderId}`)}
+                        >
+                          <FileDown className="h-4 w-4 mr-2" />
+                          {boxCount} Parcel Labels
+                        </Button>
+                      );
+                    }
                     return (
                       <Button
                         variant="outline"

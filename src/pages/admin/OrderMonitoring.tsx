@@ -106,6 +106,9 @@ const OrderMonitoring = () => {
   const [tracking, setTracking] = useState<{ loading: boolean; data: any | null; error: string | null }>({ loading: false, data: null, error: null });
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [labelLoading, setLabelLoading] = useState(false);
+  // Multi-parcel orders: one AWB + one label per parcel.
+  const [parcels, setParcels] = useState<any[]>([]);
+  const [parcelLabelId, setParcelLabelId] = useState<string | null>(null);
   const [refreshingStatuses, setRefreshingStatuses] = useState(false);
   const { toast } = useToast();
   const { cancelOrder, cancelling } = useCancelOrder({
@@ -305,7 +308,48 @@ const OrderMonitoring = () => {
     setSelectedBooking(booking);
     setDetailsOpen(true);
     setTracking({ loading: false, data: null, error: null });
+    setParcels([]);
+    fetchParcels(booking);
     fetchTrackingForBooking(booking);
+  };
+
+  const fetchParcels = async (booking: Booking) => {
+    const { data } = await supabase
+      .from("booking_boxes")
+      .select("*")
+      .eq("booking_id", booking.id)
+      .order("box_index", { ascending: true });
+    setParcels(data || []);
+  };
+
+  const handleParcelLabel = async (box: any) => {
+    if (!selectedBooking) return;
+    if (isFreshLabelUrl(box.label_url)) {
+      window.open(box.label_url, "_blank");
+      return;
+    }
+    const key = partnerKeyOf(selectedBooking);
+    const awb = box.tracking_id;
+    if (!key || !awb) {
+      toast({ title: "Label unavailable", description: "AWB missing for this parcel.", variant: "destructive" });
+      return;
+    }
+    setParcelLabelId(box.id);
+    try {
+      const { data, error } = await supabase.functions.invoke(labelFunctionFor(key), {
+        body: { waybill: awb, awb, booking_id: selectedBooking.id, box_id: box.id, order_id: box.partner_order_id || awb },
+        headers: { "x-environment": CURRENT_ENV },
+      });
+      if (error) throw error;
+      const url = data?.label_url || data?.url;
+      if (!url) throw new Error(data?.error || "No label URL returned");
+      window.open(url, "_blank");
+      fetchParcels(selectedBooking);
+    } catch (e: any) {
+      toast({ title: "Label error", description: e.message || "Failed to fetch label", variant: "destructive" });
+    } finally {
+      setParcelLabelId(null);
+    }
   };
 
   const fetchTrackingForBooking = async (booking: Booking) => {
@@ -1147,6 +1191,30 @@ const OrderMonitoring = () => {
                 </CardContent>
               </Card>
 
+              {/* Parcels — one AWB and one label per parcel */}
+              {parcels.length > 1 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">{parcels.length} Parcels</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {parcels.map((box) => (
+                      <div key={box.id} className="flex items-center justify-between gap-3 rounded border p-2">
+                        <div className="min-w-0 text-sm">
+                          <span className="font-semibold">Parcel {box.box_index}</span>
+                          <span className="text-muted-foreground"> · {Math.round(Number(box.weight_kg) * 1000)} g</span>
+                          <div className="font-mono text-xs break-all">{box.tracking_id || box.error_message || "Not booked"}</div>
+                        </div>
+                        <Button size="sm" variant="outline" disabled={!box.tracking_id || parcelLabelId === box.id} onClick={() => handleParcelLabel(box)}>
+                          {parcelLabelId === box.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                          Label
+                        </Button>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Actions */}
               <div className="flex flex-wrap gap-2">
                 {(selectedBooking.tracking_id || selectedBooking.prayog_awb) && (
@@ -1158,7 +1226,7 @@ const OrderMonitoring = () => {
                     Open in Tracking Console
                   </Button>
                 )}
-                {(selectedBooking.label_url || partnerKeyOf(selectedBooking)) && (selectedBooking.prayog_awb || selectedBooking.tracking_id) && (
+                {parcels.length <= 1 && (selectedBooking.label_url || partnerKeyOf(selectedBooking)) && (selectedBooking.prayog_awb || selectedBooking.tracking_id) && (
                   <Button variant="outline" onClick={handleDownloadLabel} disabled={labelLoading}>
                     {labelLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
                     Download Label

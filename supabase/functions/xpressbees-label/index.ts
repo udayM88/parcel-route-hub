@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { waybill, awb, booking_id } = await req.json().catch(() => ({}));
+    const { waybill, awb, booking_id, box_id } = await req.json().catch(() => ({}));
     const trackId = waybill || awb;
     if (!trackId && !booking_id) {
       return new Response(JSON.stringify({ success: false, error: "waybill or booking_id is required" }), {
@@ -30,12 +30,31 @@ Deno.serve(async (req) => {
 
     let labelUrl: string | null = null;
 
-    if (booking_id) {
+    // Multi-parcel orders store one label per parcel on booking_boxes.
+    if (box_id) {
+      const { data } = await supabase
+        .from("booking_boxes")
+        .select("label_url")
+        .eq("id", box_id)
+        .maybeSingle();
+      labelUrl = data?.label_url || null;
+    }
+
+    if (!labelUrl && trackId) {
+      const { data } = await supabase
+        .from("booking_boxes")
+        .select("label_url")
+        .eq("tracking_id", String(trackId))
+        .maybeSingle();
+      labelUrl = data?.label_url || null;
+    }
+
+    if (!labelUrl && booking_id) {
       const { data } = await supabase
         .from("bookings")
         .select("label_url")
         .eq("id", booking_id)
-        .single();
+        .maybeSingle();
       labelUrl = data?.label_url || null;
     }
 
@@ -43,7 +62,7 @@ Deno.serve(async (req) => {
       const { data } = await supabase
         .from("bookings")
         .select("label_url")
-        .eq("waybill", String(trackId))
+        .or(`prayog_awb.eq.${trackId},tracking_id.eq.${trackId}`)
         .maybeSingle();
       labelUrl = data?.label_url || null;
     }
