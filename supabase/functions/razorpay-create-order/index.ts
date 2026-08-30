@@ -1,6 +1,6 @@
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildBookingRow, type BookingDraft } from "../_shared/booking-draft.ts";
+import { buildBookingRow, syncBookingBoxes, type BookingDraft } from "../_shared/booking-draft.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -104,6 +104,9 @@ Deno.serve(async (req) => {
           else {
             bookingRowId = inserted.id;
             console.log('[create-order] pre-payment booking row:', bookingRowId);
+            // Multi-parcel orders: persist one booking_boxes row per parcel so
+            // the shipment creator (and the retry sweeper) can book each one.
+            await syncBookingBoxes(supabase, bookingRowId, booking_draft.boxes ?? []);
           }
         }
       } catch (e) {

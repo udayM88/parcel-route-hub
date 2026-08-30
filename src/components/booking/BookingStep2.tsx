@@ -13,6 +13,8 @@ import { CURRENT_ENV } from "@/config/environment";
 import { cn } from "@/lib/utils";
 import { computeBaseFare, computeChargeableKg } from "@/lib/pricing";
 import PincodeSwapButton from "@/components/booking/PincodeSwapButton";
+import { MAX_PARCELS, emptyParcel, isParcelComplete, parcelChargeableKg, type Parcel } from "@/lib/parcels";
+import { Plus, Trash2 } from "lucide-react";
 
 const goodsTypes = [
   { id: 'documents', label: 'Documents / Envelope', icon: FileText, weightHint: 'Up to 250g' },
@@ -44,6 +46,9 @@ interface BookingStep2Props {
   onServiceabilityData?: (data: any) => void;
   onLocationData?: (pickupCity: string, pickupState: string, deliveryCity: string, deliveryState: string) => void;
   onWeightUnitChange?: (unit: 'kg' | 'g') => void;
+  /** Parcels 2..10 of a multi-parcel order (parcel 1 is the fields above). */
+  extraParcels?: Parcel[];
+  onExtraParcelsChange?: (parcels: Parcel[]) => void;
   onNext: () => void;
   onBack: () => void;
 }
@@ -76,6 +81,8 @@ const BookingStep2 = ({
   onServiceabilityData,
   onLocationData,
   onWeightUnitChange,
+  extraParcels = [],
+  onExtraParcelsChange,
   onNext, 
   onBack 
 }: BookingStep2Props) => {
@@ -159,7 +166,20 @@ const BookingStep2 = ({
   const isValid = pickupPincode && deliveryPincode && goodsType
     && (!weightRequired || packageWeight)
     && (!dimensionsRequired || (dimensions.length && dimensions.width && dimensions.height))
-    && (goodsType !== 'box' || customGoodsType.trim());
+    && (goodsType !== 'box' || customGoodsType.trim())
+    && extraParcels.every((p) => isParcelComplete(p, isDocuments));
+
+  const updateExtraParcel = (idx: number, field: keyof Parcel, value: string) => {
+    const next = extraParcels.map((p, i) => (i === idx ? { ...p, [field]: value } : p));
+    onExtraParcelsChange?.(next);
+  };
+  const addParcel = () => {
+    if (extraParcels.length + 1 >= MAX_PARCELS) return;
+    onExtraParcelsChange?.([...extraParcels, isDocuments ? { ...emptyParcel(), weightG: '250' } : emptyParcel()]);
+  };
+  const removeParcel = (idx: number) => {
+    onExtraParcelsChange?.(extraParcels.filter((_, i) => i !== idx));
+  };
 
   const handleContinue = async () => {
     if (!isValid) return;
@@ -206,27 +226,46 @@ const BookingStep2 = ({
         { isDocument: isDocuments },
       );
 
-      const partnerPayload = {
-        pickup_pincode: pickupPincode,
-        delivery_pincode: deliveryPincode,
-        weight_kg: chargeableKg > 0 ? chargeableKg : weightKg,
-        length_cm: parseFloat(dimensions.length) || 10,
-        width_cm: parseFloat(dimensions.width) || 10,
-        height_cm: parseFloat(dimensions.height) || 10,
-      };
+      // Every parcel in the order is quoted separately (each has its own
+      // chargeable weight) and the per-parcel rates are summed. A courier is
+      // only offered when it can serve *all* parcels on this route.
+      const allParcels = [
+        {
+          weight_kg: chargeableKg > 0 ? chargeableKg : weightKg,
+          length_cm: parseFloat(dimensions.length) || 10,
+          width_cm: parseFloat(dimensions.width) || 10,
+          height_cm: parseFloat(dimensions.height) || 10,
+        },
+        ...extraParcels.map((p) => ({
+          weight_kg: parcelChargeableKg(p, isDocuments),
+          length_cm: parseFloat(p.length) || 10,
+          width_cm: parseFloat(p.width) || 10,
+          height_cm: parseFloat(p.height) || 10,
+        })),
+      ];
 
       // Only quote partners operations have left enabled.
       const activePartners = await filterEnabledPartners(DIRECT_PARTNERS);
 
-      // Run serviceability checks for all direct partners in parallel.
-      const results = await Promise.allSettled(
-        activePartners.map((p) =>
-          supabase.functions.invoke(p.fn, {
-            body: partnerPayload,
-            headers: { 'x-environment': CURRENT_ENV },
-          }).then((res) => ({ ...res, _partnerCode: p.code }))
+      // Run serviceability checks for all partners × all parcels in parallel.
+      const perParcelResults = await Promise.all(
+        allParcels.map((parcel) =>
+          Promise.allSettled(
+            activePartners.map((p) =>
+              supabase.functions.invoke(p.fn, {
+                body: {
+                  pickup_pincode: pickupPincode,
+                  delivery_pincode: deliveryPincode,
+                  ...parcel,
+                },
+                headers: { 'x-environment': CURRENT_ENV },
+              }).then((res) => ({ ...res, _partnerCode: p.code }))
+            )
+          )
         )
       );
+
+      const results = perParcelResults[0];
 
       const partners: any[] = [];
       results.forEach((result, idx) => {
@@ -251,8 +290,35 @@ const BookingStep2 = ({
         if (result.status === 'fulfilled') {
           const { data, error } = result.value as any;
           if (!error && data?.is_serviceable && data?.partner) {
-            partners.push(data.partner);
-            console.log(`${partnerCode} is serviceable:`, data.partner);
+            // Sum this partner's per-parcel rates across the whole order.
+            const partner = JSON.parse(JSON.stringify(data.partner));
+            let coversAllParcels = true;
+            for (let pi = 1; pi < perParcelResults.length; pi++) {
+              const r: any = perParcelResults[pi][idx];
+              const pd = r?.status === 'fulfilled' ? (r.value as any) : null;
+              if (!pd || pd.error || !pd.data?.is_serviceable || !pd.data?.partner) {
+                coversAllParcels = false;
+                break;
+              }
+              const otherServices = pd.data.partner.services || [];
+              partner.services = (partner.services || []).filter((svc: any) => {
+                const match = otherServices.find((o: any) => o.service_code === svc.service_code);
+                if (!match) return false;
+                const add = Number(match.rate?.price?.amount || 0);
+                if (svc.rate?.price) svc.rate.price.amount = Number(svc.rate.price.amount || 0) + add;
+                return true;
+              });
+            }
+            if (!coversAllParcels || !(partner.services || []).length) {
+              pushUnavailable(
+                allParcels.length > 1
+                  ? 'Cannot carry every parcel in this order'
+                  : 'Not serviceable for this route',
+              );
+            } else {
+              partner.box_count = allParcels.length;
+              partners.push(partner);
+            }
           } else {
             // Capture the API's stated reason so the UI can show it.
             const reason =
@@ -537,6 +603,73 @@ const BookingStep2 = ({
               📄 Dimensions not required for documents/envelopes.
             </p>
           )}
+
+          {/* Additional parcels — one AWB and one shipping label per parcel. */}
+          <div className="space-y-3">
+            {extraParcels.map((p, idx) => (
+              <div key={idx} className="rounded-lg border border-border p-3 space-y-3 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <Label className="font-semibold text-foreground">Parcel {idx + 2}</Label>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => removeParcel(idx)}>
+                    <Trash2 className="h-4 w-4 mr-1" /> Remove
+                  </Button>
+                </div>
+                {weightRequired && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-foreground font-medium">Weight (g)</Label>
+                    <Input
+                      type="number"
+                      value={p.weightG}
+                      onChange={(e) => updateExtraParcel(idx, 'weightG', e.target.value)}
+                      placeholder="e.g., 500"
+                      min="1"
+                      inputMode="numeric"
+                    />
+                  </div>
+                )}
+                {dimensionsRequired && (
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-foreground font-medium">Length</Label>
+                      <Input type="number" value={p.length} onChange={(e) => updateExtraParcel(idx, 'length', e.target.value)} placeholder="L" min="1" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-foreground font-medium">Breadth</Label>
+                      <Input type="number" value={p.width} onChange={(e) => updateExtraParcel(idx, 'width', e.target.value)} placeholder="B" min="1" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-foreground font-medium">Height</Label>
+                      <Input type="number" value={p.height} onChange={(e) => updateExtraParcel(idx, 'height', e.target.value)} placeholder="H" min="1" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {onExtraParcelsChange && (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] text-muted-foreground">
+                  Shipping more than one box to the same address? Add each parcel — every parcel
+                  gets its own AWB and shipping label.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addParcel}
+                  disabled={extraParcels.length + 1 >= MAX_PARCELS}
+                  className="shrink-0"
+                >
+                  <Plus className="h-4 w-4 mr-1" /> Add parcel
+                </Button>
+              </div>
+            )}
+            {extraParcels.length > 0 && (
+              <p className="text-xs font-semibold text-primary">
+                {extraParcels.length + 1} parcels in this order
+              </p>
+            )}
+          </div>
 
           {/* Chargeable weight — the single number couriers bill on.
               Dead vs volumetric internals are hidden from the user. */}

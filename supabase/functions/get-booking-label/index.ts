@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { booking_id, order_id } = await req.json().catch(() => ({}));
+    const { booking_id, order_id, box_id } = await req.json().catch(() => ({}));
     if (!booking_id && !order_id) {
       return new Response(JSON.stringify({ success: false, error: "booking_id or order_id required" }), {
         status: 400,
@@ -72,8 +72,28 @@ Deno.serve(async (req) => {
       return Date.now() < signedAt + (Number(e[1]) - 900) * 1000;
     };
 
-    if (b.label_url && (b.label_url.startsWith("data:") || isFreshPresigned(b.label_url))) {
-      return new Response(JSON.stringify({ success: true, label_url: b.label_url, source: "cached" }), {
+    // Multi-parcel orders: each parcel has its own AWB and label, stored on
+    // its booking_boxes row. `box_id` scopes this request to that parcel.
+    let box: any = null;
+    if (box_id) {
+      const { data: boxRow } = await supabase
+        .from("booking_boxes").select("*").eq("id", box_id).eq("booking_id", b.id).maybeSingle();
+      if (!boxRow) {
+        return new Response(JSON.stringify({ success: false, error: "Parcel not found" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      box = boxRow;
+    }
+
+    const cachedLabel: string | null = box ? box.label_url : b.label_url;
+    const persistLabel = async (url: string) => {
+      if (box) await supabase.from("booking_boxes").update({ label_url: url }).eq("id", box.id);
+      else await supabase.from("bookings").update({ label_url: url }).eq("id", b.id);
+    };
+
+    if (cachedLabel && (cachedLabel.startsWith("data:") || isFreshPresigned(cachedLabel))) {
+      return new Response(JSON.stringify({ success: true, label_url: cachedLabel, source: "cached" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -83,7 +103,7 @@ Deno.serve(async (req) => {
     // manually-attached bookings carry booking_source "admin_assisted".
     const key = resolvePartnerKey(b.partner_id, b.courier_name, b.booking_source);
     const source = key ? `${key}_direct` : (b.booking_source || "");
-    const awb = b.prayog_awb || b.tracking_id;
+    const awb = box ? box.tracking_id : (b.prayog_awb || b.tracking_id);
 
 
     // 2) Delhivery: fetch on demand and persist
@@ -102,19 +122,19 @@ Deno.serve(async (req) => {
           "Authorization": `Bearer ${serviceKey}`,
           "x-environment": env,
         },
-        body: JSON.stringify({ waybill: awb }),
+        body: JSON.stringify({ waybill: awb, box_id: box?.id }),
       });
       const payload = await res.json().catch(() => ({}));
       const labelUrl = payload?.label_url || null;
 
       if (labelUrl) {
-        await supabase.from("bookings").update({ label_url: labelUrl }).eq("id", b.id);
+        await persistLabel(labelUrl);
         return new Response(JSON.stringify({ success: true, label_url: labelUrl, source: "delhivery_fresh" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (b.label_url) {
-        return new Response(JSON.stringify({ success: true, label_url: b.label_url, source: "cached_stale" }), {
+      if (cachedLabel) {
+        return new Response(JSON.stringify({ success: true, label_url: cachedLabel, source: "cached_stale" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -140,13 +160,13 @@ Deno.serve(async (req) => {
           "Authorization": `Bearer ${serviceKey}`,
           "x-environment": env,
         },
-        body: JSON.stringify({ waybill: awb }),
+        body: JSON.stringify({ waybill: awb, box_id: box?.id }),
       });
       const payload = await res.json().catch(() => ({}));
       const labelUrl = payload?.label_url || null;
 
       if (labelUrl) {
-        await supabase.from("bookings").update({ label_url: labelUrl }).eq("id", b.id);
+        await persistLabel(labelUrl);
         return new Response(JSON.stringify({ success: true, label_url: labelUrl, source: "urbanebolt_fresh" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -173,13 +193,13 @@ Deno.serve(async (req) => {
           "Authorization": `Bearer ${serviceKey}`,
           "x-environment": env,
         },
-        body: JSON.stringify({ waybill: awb }),
+        body: JSON.stringify({ waybill: awb, box_id: box?.id }),
       });
       const payload = await res.json().catch(() => ({}));
       const labelUrl = payload?.label_url || null;
 
       if (labelUrl) {
-        await supabase.from("bookings").update({ label_url: labelUrl }).eq("id", b.id);
+        await persistLabel(labelUrl);
         return new Response(JSON.stringify({ success: true, label_url: labelUrl, source: "xpressbees_fresh" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -206,14 +226,14 @@ Deno.serve(async (req) => {
           "Authorization": `Bearer ${serviceKey}`,
           "x-environment": env,
         },
-        body: JSON.stringify({ waybill: awb, cAwb: awb, booking_id: b.id }),
+        body: JSON.stringify({ waybill: awb, cAwb: awb, booking_id: b.id, box_id: box?.id }),
       });
       const payload = await res.json().catch(() => ({}));
       const labelUrl = payload?.label_url || null;
       if (labelUrl) {
         // shree-maruti-label already persists, but ensure idempotently
         if (!labelUrl.startsWith("data:")) {
-          await supabase.from("bookings").update({ label_url: labelUrl }).eq("id", b.id);
+          await persistLabel(labelUrl);
         }
         return new Response(JSON.stringify({ success: true, label_url: labelUrl, source: "shree_maruti_fresh" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -235,7 +255,7 @@ Deno.serve(async (req) => {
           "Authorization": `Bearer ${serviceKey}`,
           "x-environment": env,
         },
-        body: JSON.stringify({ booking_id: b.id, awb }),
+        body: JSON.stringify({ booking_id: b.id, awb, box_id: box?.id }),
       });
       const payload = await res.json().catch(() => ({}));
       const labelUrl = payload?.label_url || null;

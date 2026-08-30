@@ -68,6 +68,26 @@ Deno.serve(async (req) => {
 
     const docs = b.label_url ? [{ id: 1, type: "label", url: b.label_url, is_active: true }] : [];
 
+    // Multi-parcel orders: one AWB + one label per parcel.
+    const { data: boxRows } = await supabase
+      .from("booking_boxes")
+      .select("*")
+      .eq("booking_id", b.id)
+      .order("box_index", { ascending: true });
+    const parcels = (boxRows || []).map((bx: any) => ({
+      id: bx.id,
+      box_index: bx.box_index,
+      weight_kg: Number(bx.weight_kg) || 0,
+      length_cm: bx.length_cm != null ? Number(bx.length_cm) : null,
+      width_cm: bx.width_cm != null ? Number(bx.width_cm) : null,
+      height_cm: bx.height_cm != null ? Number(bx.height_cm) : null,
+      price: bx.price != null ? Number(bx.price) : null,
+      awb: bx.tracking_id || null,
+      label_url: bx.label_url || null,
+      status: bx.status,
+      error_message: bx.error_message || null,
+    }));
+
     const order = {
       orderId: b.prayog_order_id || b.id,
       orderDate: b.created_at,
@@ -75,7 +95,23 @@ Deno.serve(async (req) => {
       deliveryPromise: b.delivery_time || "Standard",
       carrierName: b.courier_name,
       carrierId: b.booking_source || "local",
-      shipments: [{
+      parcels,
+      boxCount: Number(b.box_count || 1),
+      shipments: parcels.length > 1
+        ? parcels.map((p: any) => ({
+          awbNumber: p.awb || "",
+          partnerName: b.courier_name,
+          shipmentStatus: p.status === "booked" ? (b.status || "CREATED") : "FAILED",
+          physicalWeight: p.weight_kg,
+          boxIndex: p.box_index,
+          boxId: p.id,
+          dimensions: (p.length_cm || p.width_cm || p.height_cm)
+            ? { length: p.length_cm || 0, width: p.width_cm || 0, height: p.height_cm || 0 }
+            : undefined,
+          items: [{ name: b.goods_type, description: b.goods_type }],
+          documents: p.label_url ? [{ id: p.box_index, type: "label", url: p.label_url, is_active: true }] : [],
+        }))
+        : [{
         awbNumber: b.prayog_awb || b.tracking_id || "",
         partnerName: b.courier_name,
         shipmentStatus: b.status || "CREATED",

@@ -143,6 +143,184 @@ Deno.serve(async (req) => {
       service_code: row.service_code || undefined,
     };
 
+    // ── Multi-parcel orders ─────────────────────────────────────────
+    // One courier, one partner booking call per parcel, so every parcel gets
+    // its own AWB and its own shipping label. Parcels that the courier
+    // rejects are refunded individually; accepted parcels stay live.
+    const { data: boxRows } = await admin
+      .from("booking_boxes")
+      .select("*")
+      .eq("booking_id", bookingId)
+      .order("box_index", { ascending: true });
+
+    if (boxRows && boxRows.length > 1) {
+      const results: any[] = [];
+      for (const box of boxRows) {
+        if (box.tracking_id) {
+          results.push({ box_index: box.box_index, success: true, tracking_id: box.tracking_id, label_url: box.label_url });
+          continue;
+        }
+        const boxOrderId = box.partner_order_id || `${orderId}${String(box.box_index).padStart(2, "0")}`;
+        let ok = false;
+        let awb: string | null = null;
+        let labelUrl: string | null = null;
+        let errorMessage: string | null = null;
+        try {
+          const res = await fetch(`${supabaseUrl}/functions/v1/${partnerFn}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${anonKey}`,
+              "x-environment": env,
+            },
+            body: JSON.stringify({
+              ...partnerPayload,
+              order_id: boxOrderId,
+              package_weight: Number(box.weight_kg) || partnerPayload.package_weight,
+              length: Number(box.length_cm) || partnerPayload.length,
+              width: Number(box.width_cm) || partnerPayload.width,
+              height: Number(box.height_cm) || partnerPayload.height,
+            }),
+          });
+          const text = await res.text();
+          let payload: any;
+          try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
+          if (res.ok && payload?.success) {
+            ok = true;
+            awb = payload.awbNumber || payload.awb || payload.awb_number || payload.orderId || boxOrderId;
+            labelUrl = payload.label_url || payload.labelUrl || null;
+          } else {
+            errorMessage = String(payload?.error || payload?.message || text).slice(0, 400);
+          }
+        } catch (e) {
+          errorMessage = String((e as Error)?.message || e).slice(0, 400);
+        }
+
+        await admin.from("booking_boxes").update({
+          status: ok ? "booked" : "failed",
+          tracking_id: awb,
+          partner_order_id: boxOrderId,
+          label_url: labelUrl,
+          error_message: errorMessage,
+        }).eq("id", box.id);
+
+        results.push({ box_index: box.box_index, success: ok, tracking_id: awb, label_url: labelUrl, error: errorMessage });
+      }
+
+      const booked = results.filter((r) => r.success);
+      const failed = results.filter((r) => !r.success);
+
+      // All parcels rejected → full refund through the standard path.
+      if (booked.length === 0) {
+        let refunded = false;
+        let refundId: string | null = null;
+        if (row.payment_id) {
+          try {
+            const refRes = await fetch(`${supabaseUrl}/functions/v1/confirm-booking-or-refund`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${anonKey}`,
+                "x-environment": env,
+                "x-prayog-auth": JSON.stringify({ user_id: row.user_id }),
+              },
+              body: JSON.stringify({
+                payment_id: row.payment_id,
+                reason: `${partnerFn.replace("-booking", "")}_booking_failed`,
+                error_detail: String(failed[0]?.error || "All parcels rejected").slice(0, 1500),
+              }),
+            });
+            const refJson = await refRes.json().catch(() => ({}));
+            refunded = !!refJson?.refunded;
+            refundId = refJson?.refund_id || null;
+          } catch (e) {
+            console.error("[create-consumer-shipment] multi refund threw:", e);
+          }
+        }
+        if (!refunded) {
+          await admin.from("bookings").update({
+            status: "PAYMENT_RECEIVED",
+            failure_step: "manifest",
+            failure_reason: "Courier could not accept any parcel. Our team is on it.",
+            partner_error_raw: String(failed[0]?.error || "").slice(0, 2000),
+          }).eq("id", bookingId);
+        }
+        dispatchEmail("order_rejected", bookingId, { failure_reason: String(failed[0]?.error || "").slice(0, 500) });
+        if (refunded) dispatchEmail("order_refunded", bookingId, { refund_reason: "Partner booking failed" });
+        return json({ booked: false, boxes: results, refunded, refund_id: refundId });
+      }
+
+      // Partial failure → refund only the rejected parcels' amounts.
+      let partialRefundId: string | null = null;
+      if (failed.length > 0 && row.payment_id) {
+        const failedAmount = failed.reduce((sum, r) => {
+          const bx = boxRows.find((b: any) => b.box_index === r.box_index);
+          return sum + (Number(bx?.price) || 0);
+        }, 0);
+        if (failedAmount > 0) {
+          try {
+            const refRes = await fetch(`${supabaseUrl}/functions/v1/razorpay-refund`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${anonKey}`,
+                "x-environment": env,
+              },
+              body: JSON.stringify({
+                payment_id: row.payment_id,
+                amount: Math.round(failedAmount),
+                reason: `parcels_rejected:${failed.map((f) => f.box_index).join(",")}`,
+              }),
+            });
+            const refJson = await refRes.json().catch(() => ({}));
+            partialRefundId = refJson?.refund?.refund_id || refJson?.refund_id || null;
+          } catch (e) {
+            console.error("[create-consumer-shipment] partial refund threw:", e);
+          }
+        }
+      }
+
+      const firstBooked = booked[0];
+      const { data: updatedMulti } = await admin.from("bookings").update({
+        status: "CREATED",
+        prayog_awb: firstBooked.tracking_id,
+        tracking_id: firstBooked.tracking_id,
+        label_url: firstBooked.label_url,
+        prayog_order_id: orderId,
+        partner_id: row.partner_id || partnerIdFromFn(partnerFn),
+        booking_source: partnerIdFromFn(partnerFn),
+        box_count: boxRows.length,
+        failure_reason: failed.length
+          ? `${failed.length} of ${boxRows.length} parcels were rejected by the courier and refunded.`
+          : null,
+        failure_step: failed.length ? "manifest_partial" : null,
+        refund_id: partialRefundId || row.refund_id || null,
+        refund_reason: failed.length ? "partial_parcel_rejection" : row.refund_reason,
+        partner_error_raw: failed.length ? String(failed[0]?.error || "").slice(0, 2000) : null,
+      }).eq("id", bookingId).select().single();
+
+      try {
+        fetch(`${supabaseUrl}/functions/v1/send-order-admin-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` },
+          body: JSON.stringify({ booking_id: bookingId }),
+        }).catch(() => {});
+      } catch { /* ignore */ }
+      dispatchEmail("order_confirmed", bookingId);
+
+      return json({
+        booked: true,
+        multi: true,
+        awb_number: firstBooked.tracking_id,
+        tracking_id: firstBooked.tracking_id,
+        label_url: firstBooked.label_url,
+        boxes: results,
+        failed_count: failed.length,
+        partial_refund_id: partialRefundId,
+        booking: updatedMulti || null,
+      });
+    }
+
     console.log(`[create-consumer-shipment] ${bookingId} → ${partnerFn}`, JSON.stringify(partnerPayload));
 
     let partnerJson: any = null;
