@@ -46,6 +46,20 @@ interface Shipment {
   documents?: ShipmentDocument[];
 }
 
+interface OrderParcel {
+  id: string;
+  box_index: number;
+  weight_kg: number;
+  length_cm: number | null;
+  width_cm: number | null;
+  height_cm: number | null;
+  price: number | null;
+  awb: string | null;
+  label_url: string | null;
+  status: string;
+  error_message: string | null;
+}
+
 interface PaymentBreakdown {
   otherCharges?: Array<{
     name: string;
@@ -68,6 +82,8 @@ interface OrderDetails {
   carrierId?: string;
   addresses?: OrderAddress[];
   shipments?: Shipment[];
+  parcels?: OrderParcel[];
+  boxCount?: number;
   payment?: Payment;
   metadata?: {
     razorpay_payment_id?: string;
@@ -88,6 +104,7 @@ const OrderDetails = () => {
   const [loading, setLoading] = useState(true);
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
   const [downloadingLabel, setDownloadingLabel] = useState(false);
+  const [downloadingBoxId, setDownloadingBoxId] = useState<string | null>(null);
   const [refundInfo, setRefundInfo] = useState<{
     status: string | null;
     payment_status: string | null;
@@ -774,10 +791,48 @@ const OrderDetails = () => {
           )}
         </Card>
 
+        {/* Parcels — every parcel has its own AWB and shipping label */}
+        {parcels.length > 1 && (
+          <Card className="p-4 space-y-3">
+            <h4 className="font-semibold flex items-center gap-2">
+              <Package className="h-4 w-4 text-primary" />
+              {parcels.length} Parcels in this order
+            </h4>
+            <div className="space-y-2">
+              {parcels.map((p) => (
+                <div key={p.id} className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">Parcel {p.box_index}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {Math.round(p.weight_kg * 1000)} g
+                        {p.length_cm ? ` · ${p.length_cm}×${p.width_cm}×${p.height_cm} cm` : ''}
+                      </p>
+                      <p className="text-xs font-mono break-all">{p.awb || (p.error_message ? 'Not booked' : 'AWB pending')}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!p.awb || downloadingBoxId === p.id}
+                      onClick={() => handleParcelLabel(p)}
+                    >
+                      <FileText className="h-4 w-4 mr-1" />
+                      {downloadingBoxId === p.id ? 'Fetching...' : 'Label'}
+                    </Button>
+                  </div>
+                  {p.error_message && (
+                    <p className="text-xs text-destructive">{p.error_message}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
         {/* Download Actions */}
         <div className="flex flex-col gap-3">
           {/* Download Label */}
-          {(() => {
+          {parcels.length <= 1 && (() => {
             const labelDoc = shipment?.documents?.find(doc => doc.type === 'label');
             const canFetchFresh = bookingMeta?.booking_source === 'delhivery_direct'
               || bookingMeta?.booking_source === 'urbanebolt_direct'
