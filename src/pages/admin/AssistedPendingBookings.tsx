@@ -15,6 +15,8 @@ import {
   Truck, Download, PackageCheck, PackagePlus,
 } from "lucide-react";
 import { resolvePartnerKey, trackingFunctionFor, trackingBody, labelFunctionFor } from "@/lib/partner-functions";
+import { isFreshLabelUrl } from "@/lib/label-url";
+
 
 interface TrackEvent {
   status: string;
