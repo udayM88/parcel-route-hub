@@ -23,8 +23,9 @@ import { useCancelOrder, isCancellable } from "@/hooks/useCancelOrder";
 import CancelOrderDialog from "@/components/booking/CancelOrderDialog";
 import {
   resolvePartnerKey, trackingFunctionFor, labelFunctionFor, trackingBody, labelBody,
-
 } from "@/lib/partner-functions";
+import { isFreshLabelUrl } from "@/lib/label-url";
+
 
 
 
