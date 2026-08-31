@@ -357,7 +357,7 @@ function SiteFooter() {
               { label: "Contact Us", href: "/contact" },
               { label: "Privacy Policy", href: "/privacy-policy" },
               { label: "Terms & Conditions", href: "/terms-and-conditions" },
-              { label: "Refund Policy", href: "/privacy-policy" },
+              { label: "Refund Policy", href: "/refund-policy" },
             ].map((x) => (
               <li key={x.label}><Link to={x.href} className="hover:text-[#00C8C8] transition-colors" style={{ color: C.gray }}>{x.label}</Link></li>
             ))}

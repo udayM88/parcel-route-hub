@@ -26,6 +26,7 @@ const CmsArticle = lazy(() => import("./pages/cms/CmsArticle"));
 const FaqPage = lazy(() => import("./pages/cms/FaqPage"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
+const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
 const About = lazy(() => import("./pages/About"));
 const Contact = lazy(() => import("./pages/Contact"));
 const HowItWorks = lazy(() => import("./pages/HowItWorks"));
@@ -128,6 +129,9 @@ const App = () => (
           <Route path="/privacy-policy" element={<Privacy />} />
           <Route path="/Privacypolicy" element={<Navigate to="/privacy-policy" replace />} />
           <Route path="/privacy" element={<Navigate to="/privacy-policy" replace />} />
+          <Route path="/refund-policy" element={<RefundPolicy />} />
+          <Route path="/Refundpolicy" element={<Navigate to="/refund-policy" replace />} />
+          <Route path="/refund" element={<Navigate to="/refund-policy" replace />} />
           
           {/* Admin Routes */}
           <Route path="/viasetuforbusinesses" element={<BusinessPortalLayout />}>
