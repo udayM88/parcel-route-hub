@@ -17,8 +17,8 @@ const STATIC_URLS = [
   { loc: "/how-it-works", changefreq: "monthly", priority: "0.7" },
   { loc: "/careers", changefreq: "monthly", priority: "0.5" },
   { loc: "/courier-partners", changefreq: "monthly", priority: "0.7" },
-  { loc: "/Termsandconditions", changefreq: "yearly", priority: "0.3" },
-  { loc: "/Privacypolicy", changefreq: "yearly", priority: "0.3" },
+  { loc: "/terms-and-conditions", changefreq: "yearly", priority: "0.3" },
+  { loc: "/privacy-policy", changefreq: "yearly", priority: "0.3" },
   // Service pages
   { loc: "/services/parcel-tracking", changefreq: "monthly", priority: "0.8" },
   { loc: "/services/bulk-shipment", changefreq: "monthly", priority: "0.8" },

@@ -371,14 +371,14 @@ const Settings = () => {
           </CardHeader>
           <CardContent className="space-y-1">
             <Button variant="ghost" className="w-full justify-between h-12 text-white hover:bg-white/10" asChild>
-              <a href="/Privacypolicy" target="_blank">
+              <a href="/privacy-policy" target="_blank">
 
                 {t('settings.privacyPolicy')}
                 <ExternalLink className="h-4 w-4 text-white/50" />
               </a>
             </Button>
             <Button variant="ghost" className="w-full justify-between h-12 text-white hover:bg-white/10" asChild>
-              <a href="/Termsandconditions" target="_blank">
+              <a href="/terms-and-conditions" target="_blank">
                 {t('settings.termsOfService')}
                 <ExternalLink className="h-4 w-4 text-white/50" />
               </a>

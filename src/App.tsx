@@ -122,12 +122,12 @@ const App = () => (
           {CITIES.map((c) => (
             <Route key={c.slug} path={`/courier-service-in-${c.slug}`} element={<CityPage city={c} />} />
           ))}
-          <Route path="/Termsandconditions" element={<Terms />} />
-          <Route path="/terms" element={<Navigate to="/Termsandconditions" replace />} />
-          <Route path="/terms-and-conditions" element={<Navigate to="/Termsandconditions" replace />} />
-          <Route path="/Privacypolicy" element={<Privacy />} />
-          <Route path="/privacy" element={<Navigate to="/Privacypolicy" replace />} />
-          <Route path="/privacy-policy" element={<Navigate to="/Privacypolicy" replace />} />
+          <Route path="/terms-and-conditions" element={<Terms />} />
+          <Route path="/Termsandconditions" element={<Navigate to="/terms-and-conditions" replace />} />
+          <Route path="/terms" element={<Navigate to="/terms-and-conditions" replace />} />
+          <Route path="/privacy-policy" element={<Privacy />} />
+          <Route path="/Privacypolicy" element={<Navigate to="/privacy-policy" replace />} />
+          <Route path="/privacy" element={<Navigate to="/privacy-policy" replace />} />
           
           {/* Admin Routes */}
           <Route path="/viasetuforbusinesses" element={<BusinessPortalLayout />}>
