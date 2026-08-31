@@ -19,6 +19,7 @@ const STATIC_URLS = [
   { loc: "/courier-partners", changefreq: "monthly", priority: "0.7" },
   { loc: "/terms-and-conditions", changefreq: "yearly", priority: "0.3" },
   { loc: "/privacy-policy", changefreq: "yearly", priority: "0.3" },
+  { loc: "/refund-policy", changefreq: "yearly", priority: "0.3" },
   // Service pages
   { loc: "/services/parcel-tracking", changefreq: "monthly", priority: "0.8" },
   { loc: "/services/bulk-shipment", changefreq: "monthly", priority: "0.8" },

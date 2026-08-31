@@ -63,6 +63,7 @@ const STATIC: Entry[] = [
   { path: "/careers", changefreq: "monthly", priority: "0.5" },
   { path: "/terms-and-conditions", changefreq: "yearly", priority: "0.3" },
   { path: "/privacy-policy", changefreq: "yearly", priority: "0.3" },
+  { path: "/refund-policy", changefreq: "yearly", priority: "0.3" },
 ];
 
 function slugsFrom(file: string, exportName: string): string[] {
