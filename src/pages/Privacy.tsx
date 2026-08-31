@@ -130,7 +130,7 @@ export default function Privacy() {
         </Section>
 
         <Section n="9" title="Refund and Cancellation Policy">
-          <p>This policy governs cancellations and refunds relating to shipment bookings.</p>
+          <p>This policy governs cancellations and refunds relating to shipment bookings. The full policy is also available on our dedicated <a href="/refund-policy" className="text-[#00A8A8] font-medium">Refund &amp; Cancellation Policy</a> page.</p>
 
           <p className="font-medium text-[#0B1220] mt-3">Shipment Cancellation</p>
           <p>Shipment bookings may be cancelled before pickup confirmation by the courier partner. Once pickup is completed, cancellation may not be possible.</p>
