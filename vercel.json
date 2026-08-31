@@ -1,6 +1,8 @@
 {
   "redirects": [
-    { "source": "/home", "destination": "/", "statusCode": 301 }
+    { "source": "/home", "destination": "/", "statusCode": 301 },
+    { "source": "/Privacypolicy", "destination": "/privacy-policy", "statusCode": 301 },
+    { "source": "/Termsandconditions", "destination": "/terms-and-conditions", "statusCode": 301 }
   ],
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "https://tksfdvnogzsweteetjjw.supabase.co/functions/v1/generate-sitemap" },
