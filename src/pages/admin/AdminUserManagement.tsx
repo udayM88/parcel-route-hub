@@ -146,6 +146,34 @@ const AdminUserManagement = () => {
     }
   };
 
+  const handleResetPassword = async (user: AdminUser) => {
+    setResettingId(user.id);
+    try {
+      const response = await supabase.functions.invoke("reset-admin-password", {
+        body: { admin_user_id: user.id },
+      });
+      if (response.error) {
+        toast.error(await edgeFunctionError(response.error, "Failed to send password reset"));
+        return;
+      }
+      if (response.data?.error) { toast.error(response.data.error); return; }
+
+      if (response.data?.email_sent) {
+        toast.success(`Password reset email sent to ${user.email}`);
+      } else if (response.data?.setup_link) {
+        setSetupLink(response.data.setup_link);
+        toast.warning("Email could not be delivered. Share the reset link manually.");
+      } else {
+        toast.error(response.data?.email_error || "Could not generate a reset link");
+      }
+    } catch (error: any) {
+      console.error("Error resetting admin password:", error);
+      toast.error(error.message || "Failed to reset password");
+    } finally {
+      setResettingId(null);
+    }
+  };
+
   const isSuperAdmin = currentUserRole === "super_admin";
 
   return (
