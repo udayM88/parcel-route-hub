@@ -8,10 +8,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Shield } from "lucide-react";
+import { UserPlus, Shield, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
+
+const edgeFunctionError = async (error: unknown, fallback: string) => {
+  const context = (error as { context?: Response })?.context;
+  if (context && typeof context.json === "function") {
+    try {
+      const body = await context.clone().json();
+      if (body?.error) return String(body.error);
+    } catch {
+      try {
+        const text = await context.clone().text();
+        if (text) return text;
+      } catch { /* fall through */ }
+    }
+  }
+  return (error as Error)?.message || fallback;
+};
 
 const emailSchema = z.string().email("Invalid email address");
 
