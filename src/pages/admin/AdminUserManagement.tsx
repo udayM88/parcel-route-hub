@@ -301,6 +301,31 @@ const AdminUserManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!setupLink} onOpenChange={(v) => { if (!v) setSetupLink(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manual Password Reset Link</DialogTitle>
+            <DialogDescription>
+              The reset email could not be delivered. Copy and share this secure link with the user.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input value={setupLink ?? ""} readOnly onFocus={(e) => e.target.select()} />
+            <Button
+              className="w-full"
+              onClick={() => {
+                if (setupLink) {
+                  navigator.clipboard.writeText(setupLink);
+                  toast.success("Reset link copied to clipboard");
+                }
+              }}
+            >
+              Copy Link
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
