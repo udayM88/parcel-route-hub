@@ -8,10 +8,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Shield } from "lucide-react";
+import { UserPlus, Shield, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
+
+const edgeFunctionError = async (error: unknown, fallback: string) => {
+  const context = (error as { context?: Response })?.context;
+  if (context && typeof context.json === "function") {
+    try {
+      const body = await context.clone().json();
+      if (body?.error) return String(body.error);
+    } catch {
+      try {
+        const text = await context.clone().text();
+        if (text) return text;
+      } catch { /* fall through */ }
+    }
+  }
+  return (error as Error)?.message || fallback;
+};
 
 const emailSchema = z.string().email("Invalid email address");
 
@@ -46,6 +62,8 @@ const AdminUserManagement = () => {
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserRole, setNewUserRole] = useState<AdminRole>("operations");
   const [currentUserRole, setCurrentUserRole] = useState<string>("");
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [setupLink, setSetupLink] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAdminUsers();
@@ -125,6 +143,34 @@ const AdminUserManagement = () => {
     } catch (error) {
       console.error("Error updating user:", error);
       toast.error("Failed to update user status");
+    }
+  };
+
+  const handleResetPassword = async (user: AdminUser) => {
+    setResettingId(user.id);
+    try {
+      const response = await supabase.functions.invoke("reset-admin-password", {
+        body: { admin_user_id: user.id },
+      });
+      if (response.error) {
+        toast.error(await edgeFunctionError(response.error, "Failed to send password reset"));
+        return;
+      }
+      if (response.data?.error) { toast.error(response.data.error); return; }
+
+      if (response.data?.email_sent) {
+        toast.success(`Password reset email sent to ${user.email}`);
+      } else if (response.data?.setup_link) {
+        setSetupLink(response.data.setup_link);
+        toast.warning("Email could not be delivered. Share the reset link manually.");
+      } else {
+        toast.error(response.data?.email_error || "Could not generate a reset link");
+      }
+    } catch (error: any) {
+      console.error("Error resetting admin password:", error);
+      toast.error(error.message || "Failed to reset password");
+    } finally {
+      setResettingId(null);
     }
   };
 
@@ -228,13 +274,24 @@ const AdminUserManagement = () => {
                     <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                     {isSuperAdmin && (
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleToggleActive(user.id, user.is_active)}
-                        >
-                          {user.is_active ? "Deactivate" : "Activate"}
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleActive(user.id, user.is_active)}
+                          >
+                            {user.is_active ? "Deactivate" : "Activate"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={resettingId === user.id || !user.is_active}
+                            onClick={() => handleResetPassword(user)}
+                          >
+                            <KeyRound className="h-4 w-4 mr-1" />
+                            {resettingId === user.id ? "Sending..." : "Reset Password"}
+                          </Button>
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
@@ -244,6 +301,31 @@ const AdminUserManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!setupLink} onOpenChange={(v) => { if (!v) setSetupLink(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manual Password Reset Link</DialogTitle>
+            <DialogDescription>
+              The reset email could not be delivered. Copy and share this secure link with the user.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input value={setupLink ?? ""} readOnly onFocus={(e) => e.target.select()} />
+            <Button
+              className="w-full"
+              onClick={() => {
+                if (setupLink) {
+                  navigator.clipboard.writeText(setupLink);
+                  toast.success("Reset link copied to clipboard");
+                }
+              }}
+            >
+              Copy Link
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
