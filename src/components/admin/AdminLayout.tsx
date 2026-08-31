@@ -39,6 +39,7 @@ import {
   useSidebar
 } from "@/components/ui/sidebar";
 import { NavLink } from "react-router-dom";
+import ChangePasswordDialog from "@/components/admin/ChangePasswordDialog";
 
 type Role = "super_admin" | "cms_editor" | "operations" | "support";
 
@@ -123,7 +124,8 @@ function AdminSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <div className="mt-auto p-4 border-t">
+        <div className="mt-auto p-4 border-t space-y-1">
+          <ChangePasswordDialog collapsed={collapsed} />
           <Button 
             variant="ghost" 
             className="w-full justify-start text-base" 
