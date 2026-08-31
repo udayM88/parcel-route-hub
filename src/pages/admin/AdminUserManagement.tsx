@@ -62,6 +62,8 @@ const AdminUserManagement = () => {
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserRole, setNewUserRole] = useState<AdminRole>("operations");
   const [currentUserRole, setCurrentUserRole] = useState<string>("");
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [setupLink, setSetupLink] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAdminUsers();
