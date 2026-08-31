@@ -70,9 +70,9 @@ const ChangePasswordDialog = ({ collapsed }: { collapsed: boolean }) => {
         return;
       }
 
+      // Current password already verified above via sign-in
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
-        current_password: currentPassword,
       });
       if (error) {
         toast.error(error.message);
