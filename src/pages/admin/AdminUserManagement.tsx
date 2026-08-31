@@ -274,13 +274,24 @@ const AdminUserManagement = () => {
                     <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                     {isSuperAdmin && (
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleToggleActive(user.id, user.is_active)}
-                        >
-                          {user.is_active ? "Deactivate" : "Activate"}
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleActive(user.id, user.is_active)}
+                          >
+                            {user.is_active ? "Deactivate" : "Activate"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={resettingId === user.id || !user.is_active}
+                            onClick={() => handleResetPassword(user)}
+                          >
+                            <KeyRound className="h-4 w-4 mr-1" />
+                            {resettingId === user.id ? "Sending..." : "Reset Password"}
+                          </Button>
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
