@@ -355,9 +355,9 @@ function SiteFooter() {
               { label: "Courier Partners", href: "/courier-partners" },
               { label: "Track Parcel", href: "/tracking" },
               { label: "Contact Us", href: "/contact" },
-              { label: "Privacy Policy", href: "/Privacypolicy" },
-              { label: "Terms & Conditions", href: "/Termsandconditions" },
-              { label: "Refund Policy", href: "/Privacypolicy" },
+              { label: "Privacy Policy", href: "/privacy-policy" },
+              { label: "Terms & Conditions", href: "/terms-and-conditions" },
+              { label: "Refund Policy", href: "/privacy-policy" },
             ].map((x) => (
               <li key={x.label}><Link to={x.href} className="hover:text-[#00C8C8] transition-colors" style={{ color: C.gray }}>{x.label}</Link></li>
             ))}

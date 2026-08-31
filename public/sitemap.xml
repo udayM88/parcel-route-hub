@@ -56,12 +56,12 @@
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://www.viasetu.com/Termsandconditions</loc>
+    <loc>https://www.viasetu.com/terms-and-conditions</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://www.viasetu.com/Privacypolicy</loc>
+    <loc>https://www.viasetu.com/privacy-policy</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
