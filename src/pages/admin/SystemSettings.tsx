@@ -265,6 +265,10 @@ const SystemSettings = () => {
         </TabsContent>
 
 
+        <TabsContent value="sms">
+          <SmsNotificationsPanel />
+        </TabsContent>
+
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
