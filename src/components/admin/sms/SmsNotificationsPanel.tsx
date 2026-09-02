@@ -6,9 +6,23 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, MessageSquare, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
+interface SmsLog {
+  id: string;
+  event_key: string;
+  booking_id: string | null;
+  awb: string | null;
+  to_phone: string | null;
+  template_id: string | null;
+  status: string;
+  reason: string | null;
+  message_preview: string | null;
+  created_at: string;
+}
 
 interface SmsTemplate {
   id: string;
@@ -19,6 +33,8 @@ interface SmsTemplate {
   template_id: string;
   template_name: string;
   variables: string[];
+  recipients: string[];
+  send_to_customer: boolean;
 }
 
 const SmsNotificationsPanel = () => {
@@ -26,17 +42,19 @@ const SmsNotificationsPanel = () => {
   const [templates, setTemplates] = useState<SmsTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [logs, setLogs] = useState<SmsLog[]>([]);
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("sms_templates")
-      .select("*")
-      .order("event_key");
+    const [{ data, error }, { data: logRows }] = await Promise.all([
+      supabase.from("sms_templates").select("*").order("event_key"),
+      supabase.from("sms_logs").select("*").order("created_at", { ascending: false }).limit(100),
+    ]);
     if (error) {
       toast({ title: "Error loading SMS settings", description: error.message, variant: "destructive" });
     }
     setTemplates(((data as SmsTemplate[]) || []));
+    setLogs((logRows as SmsLog[]) || []);
     setLoading(false);
   };
 
@@ -55,6 +73,8 @@ const SmsNotificationsPanel = () => {
           enabled: t.enabled,
           template_id: t.template_id.trim(),
           template_name: t.template_name.trim(),
+          recipients: t.recipients,
+          send_to_customer: t.send_to_customer,
           updated_by: session?.user?.id ?? null,
         })
         .eq("event_key", t.event_key);
@@ -135,6 +155,30 @@ const SmsNotificationsPanel = () => {
                   </div>
 
                   <div className="space-y-2">
+                    <Label>Internal recipients (10-digit numbers, comma separated)</Label>
+                    <Input
+                      value={(t.recipients || []).join(", ")}
+                      placeholder="9013999909, 8830306901"
+                      onChange={(e) =>
+                        patch(t.event_key, {
+                          recipients: e.target.value.split(",").map((v) => v.trim()).filter(Boolean),
+                        })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      ViaSetu internal team numbers that receive this alert.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      checked={t.send_to_customer}
+                      onCheckedChange={(v) => patch(t.event_key, { send_to_customer: v })}
+                    />
+                    <Label>Also send to the customer (sender phone)</Label>
+                  </div>
+
+                  <div className="space-y-2">
                     <Label>Variables required by this template</Label>
                     <div className="flex flex-wrap gap-2">
                       {t.variables.length === 0 ? (
@@ -160,6 +204,53 @@ const SmsNotificationsPanel = () => {
               </AccordionItem>
             ))}
           </Accordion>
+        )}
+      </CardContent>
+
+      <CardHeader className="pt-0">
+        <CardTitle className="text-base">Recent SMS activity</CardTitle>
+        <CardDescription>
+          Every send, skip and failure with the reason — use this to see why a notification did or did not go out.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {logs.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">No SMS activity yet.</p>
+        ) : (
+          <div className="max-h-96 overflow-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Event</TableHead>
+                  <TableHead>AWB</TableHead>
+                  <TableHead>To</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Reason</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {logs.map((l) => (
+                  <TableRow key={l.id}>
+                    <TableCell className="whitespace-nowrap text-xs">
+                      {new Date(l.created_at).toLocaleString("en-IN")}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{l.event_key}</TableCell>
+                    <TableCell className="font-mono text-xs">{l.awb || "—"}</TableCell>
+                    <TableCell className="text-xs">{l.to_phone || "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant={l.status === "sent" ? "default" : l.status === "failed" ? "destructive" : "secondary"}>
+                        {l.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[280px] truncate">
+                      {l.reason || l.message_preview || "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </CardContent>
     </Card>
