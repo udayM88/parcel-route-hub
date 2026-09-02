@@ -10,6 +10,7 @@ import { Settings, Percent, Bell, RefreshCw, Loader2, Mail } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import EmailNotificationsPanel from "@/components/admin/email/EmailNotificationsPanel";
+import SmsNotificationsPanel from "@/components/admin/sms/SmsNotificationsPanel";
 
 interface PlatformSettings {
   name: string;
@@ -123,6 +124,7 @@ const SystemSettings = () => {
           <TabsTrigger value="general">General Settings</TabsTrigger>
           <TabsTrigger value="pricing">Pricing & Commission</TabsTrigger>
           <TabsTrigger value="email">Email Configuration</TabsTrigger>
+          <TabsTrigger value="sms">SMS Notifications</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
 
@@ -262,6 +264,10 @@ const SystemSettings = () => {
           </Card>
         </TabsContent>
 
+
+        <TabsContent value="sms">
+          <SmsNotificationsPanel />
+        </TabsContent>
 
         <TabsContent value="notifications">
           <Card>

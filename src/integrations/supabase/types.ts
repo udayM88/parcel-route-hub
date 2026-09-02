@@ -1262,6 +1262,48 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          enabled: boolean
+          event_key: string
+          id: string
+          label: string
+          template_id: string
+          template_name: string
+          updated_at: string
+          updated_by: string | null
+          variables: string[]
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          event_key: string
+          id?: string
+          label: string
+          template_id?: string
+          template_name?: string
+          updated_at?: string
+          updated_by?: string | null
+          variables?: string[]
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          event_key?: string
+          id?: string
+          label?: string
+          template_id?: string
+          template_name?: string
+          updated_at?: string
+          updated_by?: string | null
+          variables?: string[]
+        }
+        Relationships: []
+      }
       support_tickets: {
         Row: {
           assigned_to: string | null
