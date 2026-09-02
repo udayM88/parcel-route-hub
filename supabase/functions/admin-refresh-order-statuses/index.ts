@@ -140,31 +140,31 @@ Deno.serve(async (req) => {
           }),
         });
         const json = await res.json().catch(() => ({}));
+        // Courier API unavailable / errored: never infer a status, never notify.
+        // The booking is left untouched and retried on the next scheduled run.
         if (!res.ok || json?.error) {
-          errors.push({ id: b.id, reason: json?.error || `HTTP ${res.status}` });
+          const reason = json?.error || `HTTP ${res.status}`;
+          console.warn(`[admin-refresh] booking ${b.id}: courier API failure — ${reason}; no status change, will retry`);
+          errors.push({ id: b.id, reason });
           return;
         }
         const latest = (json?.statuses || [])[0];
         if (!latest) { skipped.push({ id: b.id, reason: "no statuses returned" }); return; }
         const newStatus: string = latest.subcategory || latest.status || latest.category || "";
         if (!newStatus) { skipped.push({ id: b.id, reason: "empty status" }); return; }
+
+        // Centralised normalisation + audit trail + de-duplicated SMS trigger.
+        const evt = await recordCourierStatus(admin, b, latest, { source: "cron", partnerKey: key });
         if (newStatus === b.status) return;
 
-        let bucket = bucketOfStatus(newStatus);
-
-        // Guard against partner "soft cancel" events that are really failed
-        // pickup attempts. XpressBees emits "Order got cancelled" with
-        // statusCode PND while the tracking category is still ORDER_CONFIRMED,
-        // and the shipment goes Out for Pickup again the next day. Treating
-        // that as a real cancellation wrongly refunds a live shipment.
-        const latestCategory = String(latest.category || "").toUpperCase();
-        const latestCode = String(latest.statusCode || "").toUpperCase();
-        const isSoftCancel =
-          bucket === "cancelled" &&
-          (latestCode === "PND" || latestCategory === "ORDER_CONFIRMED");
-        if (isSoftCancel) {
-          bucket = "other";
-        }
+        // Map the canonical status back onto the legacy buckets used for
+        // booking-status persistence and refunds.
+        const NORM_TO_BUCKET: Record<string, Bucket> = {
+          ORDER_PLACED: "created", CONFIRMED: "confirmed", IN_TRANSIT: "in_transit",
+          OUT_FOR_DELIVERY: "out_for_delivery", DELIVERED: "delivered",
+          CANCELLED: "cancelled", RETURNED: "rto", DELAYED: "other", FAILED: "other",
+        };
+        const bucket: Bucket = NORM_TO_BUCKET[evt.normalized] ?? bucketOfStatus(newStatus);
 
         // Partner-side cancellation (customer/courier cancelled outside the app):
         // normalise the status, keep the raw partner wording, refund + notify.
