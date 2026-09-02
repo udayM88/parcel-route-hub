@@ -124,6 +124,7 @@ const SystemSettings = () => {
           <TabsTrigger value="general">General Settings</TabsTrigger>
           <TabsTrigger value="pricing">Pricing & Commission</TabsTrigger>
           <TabsTrigger value="email">Email Configuration</TabsTrigger>
+          <TabsTrigger value="sms">SMS Notifications</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
 
