@@ -9,6 +9,19 @@ import {
 import { toUtcIso } from "./ist-time.ts";
 import { dispatchSms } from "./notify-sms.ts";
 
+/** Canonical status -> configured SMS template event key. */
+export const STATUS_EVENT_KEY: Record<string, string> = {
+  ORDER_PLACED: "ORDER_PLACED",
+  CONFIRMED: "ORDER_CONFIRMED",
+  CANCELLED: "ORDER_CANCELLED",
+  FAILED: "ORDER_FAILED",
+  IN_TRANSIT: "IN_TRANSIT",
+  OUT_FOR_DELIVERY: "OUT_FOR_DELIVERY",
+  DELIVERED: "DELIVERED",
+  DELAYED: "DELAYED",
+  RETURNED: "RETURNED",
+};
+
 export interface RecordResult {
   normalized: ViaSetuStatus;
   rawStatus: string;
@@ -86,7 +99,7 @@ export async function recordCourierStatus(
   else if (stale) reason = `stale/out-of-order scan (${previous} -> ${n.normalized})`;
   else if (!notifiable) reason = `${n.normalized} is not a notifiable event`;
   else {
-    dispatchSms(n.normalized, booking.id, {
+    dispatchSms(STATUS_EVENT_KEY[n.normalized] ?? n.normalized, booking.id, {
       statusEventId: eventId,
       vars: { status: n.rawStatus, courier_status: n.rawStatus, courier_code: n.rawCode },
     });
