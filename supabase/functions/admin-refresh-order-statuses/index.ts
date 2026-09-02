@@ -3,6 +3,7 @@ import { dispatchEmail } from "../_shared/notify-email.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolvePartnerKey } from "../_shared/partner-key.ts";
 import { refundBookingIfPaid } from "../_shared/refund.ts";
+import { recordCourierStatus } from "../_shared/status-sync.ts";
 
 
 const corsHeaders = {
