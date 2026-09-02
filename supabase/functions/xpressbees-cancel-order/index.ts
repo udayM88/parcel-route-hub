@@ -1,3 +1,4 @@
+import { dispatchSms } from "../_shared/notify-sms.ts";
 import { dispatchEmail } from "../_shared/notify-email.ts";
 // XpressBees cancellation — POST /api/shipments2/cancel  with { awb }.
 // Updates booking row + auto-refund via Razorpay if payment was collected.
@@ -65,6 +66,7 @@ Deno.serve(async (req) => {
         .eq("id", booking_id);
 
       dispatchEmail("order_cancelled", booking_id);
+      dispatchSms("ORDER_CANCELLED", booking_id);
 
       if (bookingData?.payment_id && bookingData?.payment_status === "paid") {
         try {

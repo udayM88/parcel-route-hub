@@ -1,3 +1,4 @@
+import { dispatchSms } from "../_shared/notify-sms.ts";
 import { dispatchEmail } from "../_shared/notify-email.ts";
 // Business (ViaSetu for Businesses) multi-box shipment creation.
 //
@@ -304,6 +305,7 @@ Deno.serve(async (req) => {
       }).catch(() => { /* ignore */ });
     } catch { /* ignore */ }
     dispatchEmail(booked.length === 0 ? "order_rejected" : "order_confirmed", booking.id);
+    dispatchSms(booked.length === 0 ? "ORDER_FAILED" : "ORDER_CONFIRMED", booking.id);
 
     return json({
       success: booked.length > 0,

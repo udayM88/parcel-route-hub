@@ -1,3 +1,4 @@
+import { dispatchSms } from "../_shared/notify-sms.ts";
 import { dispatchEmail } from "../_shared/notify-email.ts";
 // Server-side consumer shipment creation.
 //
@@ -246,6 +247,7 @@ Deno.serve(async (req) => {
           }).eq("id", bookingId);
         }
         dispatchEmail("order_rejected", bookingId, { failure_reason: String(failed[0]?.error || "").slice(0, 500) });
+        dispatchSms("ORDER_FAILED", bookingId, { vars: { failure_reason: String(failed[0]?.error || "").slice(0, 120) } });
         if (refunded) dispatchEmail("order_refunded", bookingId, { refund_reason: "Partner booking failed" });
         return json({ booked: false, boxes: results, refunded, refund_id: refundId });
       }
@@ -307,6 +309,7 @@ Deno.serve(async (req) => {
         }).catch(() => {});
       } catch { /* ignore */ }
       dispatchEmail("order_confirmed", bookingId);
+      dispatchSms("ORDER_CONFIRMED", bookingId);
 
       return json({
         booked: true,
@@ -387,6 +390,7 @@ Deno.serve(async (req) => {
       }
 
       dispatchEmail("order_rejected", bookingId, { failure_reason: String(errDetail).slice(0, 500) });
+      dispatchSms("ORDER_FAILED", bookingId, { vars: { failure_reason: String(errDetail).slice(0, 120) } });
       if (refunded) dispatchEmail("order_refunded", bookingId, { refund_reason: "Partner booking failed" });
 
       return json({ booked: false, error: String(errDetail).slice(0, 500), refunded, refund_id: refundId });
@@ -420,6 +424,7 @@ Deno.serve(async (req) => {
       }).catch(() => {});
     } catch { /* ignore */ }
     dispatchEmail("order_confirmed", bookingId);
+      dispatchSms("ORDER_CONFIRMED", bookingId);
 
     console.log(`[create-consumer-shipment] ${bookingId} booked, awb=${awb}`);
 

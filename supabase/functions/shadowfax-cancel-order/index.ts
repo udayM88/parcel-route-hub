@@ -1,3 +1,4 @@
+import { dispatchSms } from "../_shared/notify-sms.ts";
 import { dispatchEmail } from "../_shared/notify-email.ts";
 // Shadowfax Reverse Pickup — Cancel
 // Doc: POST /api/v2/clients/requests/mark_cancel
@@ -103,6 +104,7 @@ Deno.serve(async (req) => {
         .eq("id", booking_id);
 
       dispatchEmail("order_cancelled", booking_id);
+      dispatchSms("ORDER_CANCELLED", booking_id);
 
       if (bookingData?.payment_id && bookingData?.payment_status === "paid") {
         try {
