@@ -136,6 +136,12 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://www.viasetu.com/blog/multiple-courier-partners-india</loc>
+    <lastmod>2026-09-02</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.viasetu.com/blog/online-courier-booking-platform-small-businesses</loc>
     <lastmod>2026-08-27</lastmod>
     <changefreq>weekly</changefreq>
@@ -174,12 +180,6 @@
   <url>
     <loc>https://www.viasetu.com/blog/book-courier-online-from-home-doorstep-pickup-guide</loc>
     <lastmod>2026-08-19</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://www.viasetu.com/blog/compare-courier-prices-and-delivery-time</loc>
-    <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -233,6 +233,12 @@
   </url>
   <url>
     <loc>https://www.viasetu.com/blog/send-parcels-anywhere-in-india-without-visiting-courier-offices</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.viasetu.com/blog/compare-courier-prices-and-delivery-time</loc>
     <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
