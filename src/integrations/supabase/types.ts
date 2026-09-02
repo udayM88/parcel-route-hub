@@ -1262,6 +1262,124 @@ export type Database = {
         }
         Relationships: []
       }
+      shipment_status_events: {
+        Row: {
+          awb: string | null
+          booking_id: string | null
+          courier_name: string | null
+          created_at: string
+          dedupe_key: string
+          event_time: string
+          id: string
+          normalized_status: string
+          partner_key: string | null
+          previous_status: string | null
+          raw_code: string | null
+          raw_payload: Json
+          raw_status: string | null
+          source: string
+        }
+        Insert: {
+          awb?: string | null
+          booking_id?: string | null
+          courier_name?: string | null
+          created_at?: string
+          dedupe_key: string
+          event_time?: string
+          id?: string
+          normalized_status: string
+          partner_key?: string | null
+          previous_status?: string | null
+          raw_code?: string | null
+          raw_payload?: Json
+          raw_status?: string | null
+          source?: string
+        }
+        Update: {
+          awb?: string | null
+          booking_id?: string | null
+          courier_name?: string | null
+          created_at?: string
+          dedupe_key?: string
+          event_time?: string
+          id?: string
+          normalized_status?: string
+          partner_key?: string | null
+          previous_status?: string | null
+          raw_code?: string | null
+          raw_payload?: Json
+          raw_status?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipment_status_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_logs: {
+        Row: {
+          awb: string | null
+          booking_id: string | null
+          created_at: string
+          event_key: string
+          id: string
+          is_test: boolean
+          message_preview: string | null
+          provider_response: Json | null
+          reason: string | null
+          status: string
+          status_event_id: string | null
+          template_id: string | null
+          to_phone: string | null
+          variables: string[]
+        }
+        Insert: {
+          awb?: string | null
+          booking_id?: string | null
+          created_at?: string
+          event_key: string
+          id?: string
+          is_test?: boolean
+          message_preview?: string | null
+          provider_response?: Json | null
+          reason?: string | null
+          status: string
+          status_event_id?: string | null
+          template_id?: string | null
+          to_phone?: string | null
+          variables?: string[]
+        }
+        Update: {
+          awb?: string | null
+          booking_id?: string | null
+          created_at?: string
+          event_key?: string
+          id?: string
+          is_test?: boolean
+          message_preview?: string | null
+          provider_response?: Json | null
+          reason?: string | null
+          status?: string
+          status_event_id?: string | null
+          template_id?: string | null
+          to_phone?: string | null
+          variables?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_logs_status_event_id_fkey"
+            columns: ["status_event_id"]
+            isOneToOne: false
+            referencedRelation: "shipment_status_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sms_templates: {
         Row: {
           created_at: string
@@ -1270,8 +1388,11 @@ export type Database = {
           event_key: string
           id: string
           label: string
+          recipients: string[]
+          send_to_customer: boolean
           template_id: string
           template_name: string
+          trigger_statuses: string[]
           updated_at: string
           updated_by: string | null
           variables: string[]
@@ -1283,8 +1404,11 @@ export type Database = {
           event_key: string
           id?: string
           label: string
+          recipients?: string[]
+          send_to_customer?: boolean
           template_id?: string
           template_name?: string
+          trigger_statuses?: string[]
           updated_at?: string
           updated_by?: string | null
           variables?: string[]
@@ -1296,8 +1420,11 @@ export type Database = {
           event_key?: string
           id?: string
           label?: string
+          recipients?: string[]
+          send_to_customer?: boolean
           template_id?: string
           template_name?: string
+          trigger_statuses?: string[]
           updated_at?: string
           updated_by?: string | null
           variables?: string[]
