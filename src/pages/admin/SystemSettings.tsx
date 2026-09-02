@@ -10,6 +10,7 @@ import { Settings, Percent, Bell, RefreshCw, Loader2, Mail } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import EmailNotificationsPanel from "@/components/admin/email/EmailNotificationsPanel";
+import SmsNotificationsPanel from "@/components/admin/sms/SmsNotificationsPanel";
 
 interface PlatformSettings {
   name: string;
