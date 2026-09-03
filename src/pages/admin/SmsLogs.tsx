@@ -339,16 +339,30 @@ const SmsLogs = () => {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={testingId === l.id}
-                          onClick={(e) => { e.stopPropagation(); sendTest(l); }}
-                        >
-                          {testingId === l.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                          <span className="ml-1">Test</span>
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          {st.label === "FAILED" && !l.is_test && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={retryingId === l.id}
+                              onClick={(e) => { e.stopPropagation(); retryNow(l); }}
+                            >
+                              {retryingId === l.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCw className="h-3 w-3" />}
+                              <span className="ml-1">Retry</span>
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={testingId === l.id}
+                            onClick={(e) => { e.stopPropagation(); sendTest(l); }}
+                          >
+                            {testingId === l.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                            <span className="ml-1">Test</span>
+                          </Button>
+                        </div>
                       </TableCell>
+
                     </TableRow>
                   );
                 })}
