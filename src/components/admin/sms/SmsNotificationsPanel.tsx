@@ -72,7 +72,34 @@ const SmsNotificationsPanel = () => {
   const patch = (key: string, changes: Partial<SmsTemplate>) =>
     setTemplates((prev) => prev.map((t) => (t.event_key === key ? { ...t, ...changes } : t)));
 
+  const sendTest = async (t: SmsTemplate) => {
+    const phone = (testPhones[t.event_key] || "").replace(/\D/g, "").slice(-10);
+    if (!/^\d{10}$/.test(phone)) {
+      toast({ title: "Enter a valid 10-digit test number", variant: "destructive" });
+      return;
+    }
+    setTestingKey(t.event_key);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-order-sms", {
+        body: { event: t.event_key, to: phone, test: true },
+      });
+      if (error) throw error;
+      const decision = (data as any)?.decision || "unknown";
+      toast({
+        title: `Test SMS ${decision}`,
+        description: (data as any)?.reason || `Sent to ${phone}`,
+        variant: decision === "sent" ? undefined : "destructive",
+      });
+      load();
+    } catch (e: any) {
+      toast({ title: "Test SMS failed", description: e.message, variant: "destructive" });
+    } finally {
+      setTestingKey(null);
+    }
+  };
+
   const save = async (t: SmsTemplate) => {
+
     setSavingKey(t.event_key);
     try {
       const { data: { session } } = await supabase.auth.getSession();
