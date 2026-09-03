@@ -1,8 +1,11 @@
-// Sends order-event SMS through the existing Fast2SMS DLT account.
-// Reuses the same FAST2SMS_* secrets as the OTP flow but is a completely
-// separate code path — the OTP functions are untouched.
-// Fire-and-forget safe: always returns 200 with a decision payload and never
-// throws back into a business flow. Every decision is written to sms_logs.
+// Order-event SMS engine (Fast2SMS DLT). Completely separate from the OTP
+// functions — it reuses the same Fast2SMS account/secrets but never touches
+// fast2sms-send-otp / fast2sms-verify-otp.
+//
+// Flow: normalized courier status -> template rule -> variables -> DB-level
+// duplicate claim -> Fast2SMS -> notification log (SENT / FAILED / SKIPPED).
+// Failed sends are retried by `{ mode: "retry" }` (called from the existing
+// status-sync cron) reusing the SAME log row, so retries never duplicate SMS.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -10,6 +13,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-environment",
 };
+
+const MAX_ATTEMPTS = 4;
+const BACKOFF_MIN = [5, 15, 60, 180]; // minutes between retries
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -62,6 +68,89 @@ function buildVars(b: Record<string, any> | null, extra: Record<string, any> = {
   };
 }
 
+/** Actual Fast2SMS DLT call. Returns provider outcome, never throws. */
+async function sendViaFast2Sms(
+  templateId: string, values: string[], numbers: string[],
+): Promise<{ ok: boolean; payload: any; reason: string | null; retryable: boolean }> {
+  const apiKey = Deno.env.get("FAST2SMS_API_KEY");
+  const senderId = Deno.env.get("FAST2SMS_SENDER_ID");
+  const entityId = Deno.env.get("FAST2SMS_ENTITY_ID");
+  if (!apiKey || !senderId || !entityId) {
+    return { ok: false, payload: null, reason: "Fast2SMS not configured", retryable: false };
+  }
+  const params = new URLSearchParams({
+    authorization: apiKey,
+    route: "dlt",
+    sender_id: senderId,
+    message: templateId,
+    variables_values: values.join("|"),
+    flash: "0",
+    numbers: numbers.join(","),
+    entity_id: entityId,
+  });
+  try {
+    const resp = await fetch(`https://www.fast2sms.com/dev/bulkV2?${params.toString()}`, { method: "GET" });
+    const payload = await resp.json().catch(() => ({}));
+    const ok = resp.ok && payload?.return === true;
+    // 402 = insufficient balance, 4xx = bad request/template -> not retryable.
+    const retryable = !ok && (resp.status >= 500 || resp.status === 429);
+    return {
+      ok, payload,
+      reason: ok ? null : (payload?.message ? JSON.stringify(payload.message) : `HTTP ${resp.status}`),
+      retryable,
+    };
+  } catch (e) {
+    return { ok: false, payload: null, reason: `network error: ${String(e)}`, retryable: true };
+  }
+}
+
+const nextRetryAt = (attempt: number) =>
+  new Date(Date.now() + (BACKOFF_MIN[Math.min(attempt, BACKOFF_MIN.length) - 1] ?? 180) * 60_000).toISOString();
+
+/** Retry sweep — re-sends previously failed notifications on the same log row. */
+async function retrySweep(admin: any, limit: number) {
+  const nowIso = new Date().toISOString();
+  const { data: rows } = await admin
+    .from("sms_logs")
+    .select("*")
+    .eq("status", "failed")
+    .lt("attempt_count", MAX_ATTEMPTS)
+    .not("next_retry_at", "is", null)
+    .lte("next_retry_at", nowIso)
+    .order("next_retry_at", { ascending: true })
+    .limit(limit);
+
+  let sent = 0, failed = 0, abandoned = 0;
+  for (const row of rows || []) {
+    const numbers = String(row.to_phone || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+    const values: string[] = Array.isArray(row.variables) ? row.variables : [];
+    if (!row.template_id || numbers.length === 0) {
+      await admin.from("sms_logs").update({
+        status: "skipped", reason: "retry abandoned — missing template or recipients", next_retry_at: null,
+      }).eq("id", row.id);
+      abandoned++;
+      continue;
+    }
+    const attempt = Number(row.attempt_count || 0) + 1;
+    const res = await sendViaFast2Sms(String(row.template_id), values, numbers);
+    const willRetry = !res.ok && res.retryable && attempt < MAX_ATTEMPTS;
+    await admin.from("sms_logs").update({
+      status: res.ok ? "sent" : "failed",
+      reason: res.ok ? null : `${res.reason} (attempt ${attempt}/${MAX_ATTEMPTS})`,
+      provider_response: res.payload ?? null,
+      attempt_count: attempt,
+      sent_at: res.ok ? new Date().toISOString() : null,
+      next_retry_at: willRetry ? nextRetryAt(attempt) : null,
+    }).eq("id", row.id);
+    console.log(
+      `[send-order-sms][retry] log=${row.id} event=${row.event_key} booking=${row.booking_id} ` +
+      `attempt=${attempt} result=${res.ok ? "sent" : "failed"}${res.reason ? ` reason=${res.reason}` : ""}`,
+    );
+    res.ok ? sent++ : (willRetry ? failed++ : abandoned++);
+  }
+  return { processed: (rows || []).length, sent, failed, abandoned };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -74,6 +163,13 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
+
+    if (String(body?.mode || "") === "retry") {
+      const out = await retrySweep(admin, Math.min(Number(body?.limit) || 25, 100));
+      console.log(`[send-order-sms][retry] sweep`, JSON.stringify(out));
+      return json({ ok: true, decision: "retry_sweep", ...out });
+    }
+
     event = String(body?.event || "").toUpperCase();
     bookingId = body?.booking_id ? String(body.booking_id) : null;
     const statusEventId: string | null = body?.status_event_id || null;
@@ -86,20 +182,32 @@ Deno.serve(async (req) => {
     const { data: tpl } = await admin
       .from("sms_templates").select("*").eq("event_key", event).maybeSingle();
 
+    let booking: Record<string, any> | null = null;
+    if (bookingId) {
+      const { data } = await admin.from("bookings").select("*").eq("id", bookingId).maybeSingle();
+      booking = data || null;
+    }
+
+    const awbForLog = booking?.prayog_awb || booking?.tracking_id || null;
+    const rawStatus = extraVars.courier_status ?? extraVars.status ?? null;
+
     const log = async (row: Record<string, unknown>) => {
       await admin.from("sms_logs").insert({
         event_key: event, booking_id: bookingId, status_event_id: statusEventId,
-        is_test: isTest, ...row,
+        is_test: isTest, awb: awbForLog, courier_name: booking?.courier_name ?? null,
+        raw_status: rawStatus ? String(rawStatus) : null,
+        normalized_status: body?.normalized_status ? String(body.normalized_status) : null,
+        ...row,
       });
     };
 
     if (!tpl) {
-      console.log(`[send-order-sms] ${event}: no template configured`);
+      console.log(`[send-order-sms] ${event}: no notification rule configured`);
       await log({ status: "skipped", reason: "no template configured" });
       return json({ ok: false, decision: "skipped", reason: "no template configured" });
     }
     if (!tpl.enabled) {
-      console.log(`[send-order-sms] ${event}: template disabled`);
+      console.log(`[send-order-sms] ${event}: rule disabled`);
       await log({ status: "skipped", reason: "template disabled", template_id: tpl.template_id });
       return json({ ok: false, decision: "skipped", reason: "template disabled" });
     }
@@ -107,28 +215,6 @@ Deno.serve(async (req) => {
       console.log(`[send-order-sms] ${event}: no Fast2SMS template id`);
       await log({ status: "skipped", reason: "no Fast2SMS template id set" });
       return json({ ok: false, decision: "skipped", reason: "no Fast2SMS template id set" });
-    }
-
-    // Duplicate guard: the same status event must never send twice, even when
-    // polling / webhook retries deliver it repeatedly.
-    if (!isTest && (statusEventId || bookingId)) {
-      let dup = admin.from("sms_logs").select("id")
-        .eq("event_key", event).eq("status", "sent").limit(1);
-      dup = statusEventId
-        ? dup.eq("status_event_id", statusEventId)
-        : dup.eq("booking_id", bookingId!);
-      const { data: existing } = await dup;
-      if (existing && existing.length) {
-        console.log(`[send-order-sms] ${event} booking=${bookingId}: duplicate suppressed`);
-        await log({ status: "skipped", reason: "duplicate — already sent for this status event" });
-        return json({ ok: true, decision: "duplicate" });
-      }
-    }
-
-    let booking: Record<string, any> | null = null;
-    if (bookingId) {
-      const { data } = await admin.from("bookings").select("*").eq("id", bookingId).maybeSingle();
-      booking = data || null;
     }
 
     const vars = buildVars(booking, extraVars);
@@ -152,58 +238,74 @@ Deno.serve(async (req) => {
       return json({ ok: false, decision: "skipped", reason: "no recipients configured" });
     }
 
-    const apiKey = Deno.env.get("FAST2SMS_API_KEY");
-    const senderId = Deno.env.get("FAST2SMS_SENDER_ID");
-    const entityId = Deno.env.get("FAST2SMS_ENTITY_ID");
-    if (!apiKey || !senderId || !entityId) {
-      await log({ status: "failed", reason: "Fast2SMS not configured", template_id: tpl.template_id });
-      return json({ ok: false, decision: "failed", reason: "Fast2SMS not configured" });
-    }
-
     const numbers = Array.from(recipients);
-    const params = new URLSearchParams({
-      authorization: apiKey,
-      route: "dlt",
-      sender_id: senderId,
-      message: String(tpl.template_id).trim(),
-      variables_values: values.join("|"),
-      flash: "0",
-      numbers: numbers.join(","),
-      entity_id: entityId,
-    });
 
-    let resp: Response;
-    let payload: any = {};
-    try {
-      resp = await fetch(`https://www.fast2sms.com/dev/bulkV2?${params.toString()}`, { method: "GET" });
-      payload = await resp.json().catch(() => ({}));
-    } catch (e) {
-      console.error(`[send-order-sms] ${event} network error`, String(e));
-      await log({
-        status: "failed", reason: `network error: ${String(e)}`,
-        template_id: tpl.template_id, to_phone: numbers.join(","), variables: values,
-      });
-      return json({ ok: false, decision: "failed", reason: "network error" });
+    // ---- Duplicate protection (database-enforced) -------------------------
+    // One SMS per order/AWB/event/status-event. A unique index on dedupe_key
+    // makes concurrent webhook + polling deliveries collide instead of double
+    // sending. The claim row is inserted BEFORE the provider call.
+    const dedupeKey = isTest
+      ? null
+      : [event, bookingId ?? "-", awbForLog ?? "-", statusEventId ?? String(rawStatus ?? "-")].join("|");
+
+    const { data: claim, error: claimErr } = await admin
+      .from("sms_logs")
+      .insert({
+        event_key: event,
+        booking_id: bookingId,
+        status_event_id: statusEventId,
+        is_test: isTest,
+        dedupe_key: dedupeKey,
+        awb: awbForLog,
+        courier_name: booking?.courier_name ?? null,
+        raw_status: rawStatus ? String(rawStatus) : null,
+        normalized_status: body?.normalized_status ? String(body.normalized_status) : null,
+        template_id: String(tpl.template_id).trim(),
+        to_phone: numbers.join(","),
+        variables: values,
+        message_preview: `${tpl.template_name || tpl.label}: ${values.join(" | ")}`,
+        status: "sending",
+        attempt_count: 0,
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (claimErr) {
+      const duplicate = String(claimErr.code) === "23505";
+      console.log(
+        `[send-order-sms] ${event} booking=${bookingId} awb=${awbForLog}: ` +
+        (duplicate ? "duplicate suppressed" : `claim failed: ${claimErr.message}`),
+      );
+      if (duplicate) return json({ ok: true, decision: "duplicate" });
+      await log({ status: "failed", reason: `log claim failed: ${claimErr.message}` });
+      return json({ ok: false, decision: "failed", reason: "log claim failed" });
     }
 
-    const ok = resp.ok && payload?.return === true;
+    const logId = claim?.id;
+    const res = await sendViaFast2Sms(String(tpl.template_id).trim(), values, numbers);
+    const willRetry = !res.ok && res.retryable;
+
+    await admin.from("sms_logs").update({
+      status: res.ok ? "sent" : "failed",
+      reason: res.ok ? null : `${res.reason} (attempt 1/${MAX_ATTEMPTS})`,
+      provider_response: res.payload ?? null,
+      attempt_count: 1,
+      sent_at: res.ok ? new Date().toISOString() : null,
+      next_retry_at: willRetry ? nextRetryAt(1) : null,
+    }).eq("id", logId);
+
     console.log(
-      `[send-order-sms] ${event} booking=${bookingId} awb=${vars.awb} -> ${numbers.join(",")} ` +
-      `template=${tpl.template_id} result=${ok ? "sent" : "failed"}`,
+      `[send-order-sms] ${event} booking=${bookingId} awb=${vars.awb} courier=${vars.courier} ` +
+      `raw="${rawStatus ?? "-"}" -> ${numbers.join(",")} template=${tpl.template_id} ` +
+      `result=${res.ok ? "sent" : "failed"}${res.reason ? ` reason=${res.reason}` : ""}` +
+      `${willRetry ? " (queued for retry)" : ""}`,
     );
 
-    await log({
-      status: ok ? "sent" : "failed",
-      reason: ok ? null : (payload?.message ? JSON.stringify(payload.message) : `HTTP ${resp.status}`),
-      template_id: String(tpl.template_id),
-      to_phone: numbers.join(","),
-      awb: vars.awb,
-      variables: values,
-      message_preview: `${tpl.template_name || tpl.label}: ${values.join(" | ")}`,
-      provider_response: payload ?? null,
+    return json({
+      ok: res.ok,
+      decision: res.ok ? "sent" : (willRetry ? "failed_retry_queued" : "failed"),
+      recipients: numbers, variables: values, log_id: logId,
     });
-
-    return json({ ok, decision: ok ? "sent" : "failed", recipients: numbers, variables: values });
   } catch (e) {
     console.error("[send-order-sms] error", event, String(e));
     return json({ ok: false, decision: "failed", reason: String(e) });

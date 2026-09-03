@@ -12,6 +12,7 @@
 // }]
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { recordCourierStatus } from "../_shared/status-sync.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -84,23 +85,46 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
 
     let updated = 0;
+    let notified = 0;
     for (const item of items) {
       if (!item) continue;
       const awb: string | null =
         item.awb || item.awb_no || item.waybill || item.tracking_id || null;
-      if (!awb) continue;
+      const rawDesc = item.status_description || item.status || item.event;
+      const rawCode = item.status_code || null;
+      if (!awb || (!String(rawDesc || "").trim() && !String(rawCode || "").trim())) {
+        console.warn("[urbanebolt-webhook] incomplete event ignored:", JSON.stringify(item).slice(0, 400));
+        continue;
+      }
 
-      const status = normalizeStatus(item.status_code, item.status_description || item.status || item.event);
+      const { data: booking } = await supabase
+        .from("bookings").select("*")
+        .or(`prayog_awb.eq.${awb},tracking_id.eq.${awb}`)
+        .maybeSingle();
+      if (!booking) {
+        console.warn("[urbanebolt-webhook] no booking for awb", awb);
+        continue;
+      }
+
+      const result = await recordCourierStatus(
+        supabase,
+        booking,
+        {
+          status: rawDesc,
+          statusCode: rawCode,
+          remarks: item.remarks || item.reason_code || null,
+          timestamp: item.event_date || item.event_time || null,
+          ...item,
+        },
+        { source: "webhook", partnerKey: "urbanebolt" },
+      );
+      if (result.notified) notified++;
+
+      const status = normalizeStatus(rawCode, rawDesc);
       const update: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
-
-      // Persist label / POD when available.
       if (item.pod_url) update.label_url = item.pod_url;
 
-      const { error } = await supabase
-        .from("bookings")
-        .update(update)
-        .or(`prayog_awb.eq.${awb},tracking_id.eq.${awb}`)
-        .eq("booking_source", "urbanebolt_direct");
+      const { error } = await supabase.from("bookings").update(update).eq("id", booking.id);
       if (error) {
         console.warn("[urbanebolt-webhook] update failed for awb", awb, error.message);
       } else {
@@ -108,7 +132,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, updated }), {
+    return new Response(JSON.stringify({ success: true, updated, notified }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {

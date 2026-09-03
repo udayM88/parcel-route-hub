@@ -210,7 +210,22 @@ Deno.serve(async (req) => {
       }
     });
 
+    // Retry previously failed SMS notifications on the same log rows
+    // (bounded sweep, no new messages created — duplicates impossible).
+    let smsRetry: unknown = null;
+    try {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/send-order-sms`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE}` },
+        body: JSON.stringify({ mode: "retry", limit: 25 }),
+      });
+      smsRetry = await r.json().catch(() => null);
+    } catch (e) {
+      console.error("[admin-refresh] sms retry sweep failed", String(e));
+    }
+
     return new Response(JSON.stringify({
+      sms_retry: smsRetry,
       checked: candidates.length,
       total: bookings?.length || 0,
       updated,

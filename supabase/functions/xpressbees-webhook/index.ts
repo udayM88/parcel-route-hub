@@ -2,6 +2,7 @@
 // Accepts shipment status updates and updates the matching booking row by AWB.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { recordCourierStatus } from "../_shared/status-sync.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,21 +41,47 @@ Deno.serve(async (req) => {
     );
 
     let updated = 0;
+    let notified = 0;
     for (const item of items) {
       if (!item) continue;
       const awb: string | null =
         item.awb || item.awb_number || item.awbNumber || item.waybill || item.tracking_id || null;
-      if (!awb) continue;
+      const rawStatus = item.status || item.current_status || item.status_description || item.event;
+      // Incomplete / invalid payload — never notify on a guess.
+      if (!awb || !String(rawStatus || "").trim()) {
+        console.warn("[xpressbees-webhook] incomplete event ignored:", JSON.stringify(item).slice(0, 400));
+        continue;
+      }
 
-      const status = normalizeStatus(item.status || item.current_status || item.status_description || item.event);
+      const { data: booking } = await supabase
+        .from("bookings").select("*")
+        .or(`prayog_awb.eq.${awb},tracking_id.eq.${awb}`)
+        .maybeSingle();
+      if (!booking) {
+        console.warn("[xpressbees-webhook] no booking for awb", awb);
+        continue;
+      }
+
+      // Normalize + audit + notify through the single shared status engine.
+      const result = await recordCourierStatus(
+        supabase,
+        booking,
+        {
+          status: rawStatus,
+          statusCode: item.status_code || item.code || null,
+          remarks: item.remarks || item.reason || null,
+          timestamp: item.event_time || item.timestamp || item.event_date || null,
+          ...item,
+        },
+        { source: "webhook", partnerKey: "xpressbees" },
+      );
+      if (result.notified) notified++;
+
+      const status = normalizeStatus(String(rawStatus));
       const update: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
       if (item.label || item.label_url) update.label_url = item.label || item.label_url;
 
-      const { error } = await supabase
-        .from("bookings")
-        .update(update)
-        .or(`prayog_awb.eq.${awb},tracking_id.eq.${awb}`)
-        .eq("booking_source", "xpressbees_direct");
+      const { error } = await supabase.from("bookings").update(update).eq("id", booking.id);
       if (error) {
         console.warn("[xpressbees-webhook] update failed for awb", awb, error.message);
       } else {
@@ -62,7 +89,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, updated }), {
+    return new Response(JSON.stringify({ success: true, updated, notified }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
