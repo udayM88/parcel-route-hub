@@ -74,6 +74,7 @@ const SmsLogs = () => {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<SmsLogRow | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
   const [testPhone, setTestPhone] = useState("");
 
   // filters
