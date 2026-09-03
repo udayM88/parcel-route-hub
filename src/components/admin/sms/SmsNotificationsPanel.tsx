@@ -229,7 +229,9 @@ const SmsNotificationsPanel = () => {
                 <TableRow>
                   <TableHead>Time</TableHead>
                   <TableHead>Event</TableHead>
+                  <TableHead>Courier</TableHead>
                   <TableHead>AWB</TableHead>
+                  <TableHead>Courier status</TableHead>
                   <TableHead>To</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Reason</TableHead>
@@ -242,12 +244,22 @@ const SmsNotificationsPanel = () => {
                       {new Date(l.created_at).toLocaleString("en-IN")}
                     </TableCell>
                     <TableCell className="font-mono text-xs">{l.event_key}</TableCell>
+                    <TableCell className="text-xs">{l.courier_name || "—"}</TableCell>
                     <TableCell className="font-mono text-xs">{l.awb || "—"}</TableCell>
+                    <TableCell className="text-xs">
+                      {l.raw_status || "—"}
+                      {l.normalized_status ? (
+                        <span className="text-muted-foreground"> → {l.normalized_status}</span>
+                      ) : null}
+                    </TableCell>
                     <TableCell className="text-xs">{l.to_phone || "—"}</TableCell>
                     <TableCell>
                       <Badge variant={l.status === "sent" ? "default" : l.status === "failed" ? "destructive" : "secondary"}>
                         {l.status}
                       </Badge>
+                      {l.attempt_count ? (
+                        <span className="ml-1 text-[10px] text-muted-foreground">×{l.attempt_count}</span>
+                      ) : null}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground max-w-[280px] truncate">
                       {l.reason || l.message_preview || "—"}
@@ -258,6 +270,7 @@ const SmsNotificationsPanel = () => {
             </Table>
           </div>
         )}
+
       </CardContent>
     </Card>
   );
