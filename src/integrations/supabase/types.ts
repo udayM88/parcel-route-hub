@@ -1323,51 +1323,75 @@ export type Database = {
       }
       sms_logs: {
         Row: {
+          attempt_count: number
           awb: string | null
           booking_id: string | null
+          courier_name: string | null
           created_at: string
+          dedupe_key: string | null
           event_key: string
           id: string
           is_test: boolean
           message_preview: string | null
+          next_retry_at: string | null
+          normalized_status: string | null
           provider_response: Json | null
+          raw_status: string | null
           reason: string | null
+          sent_at: string | null
           status: string
           status_event_id: string | null
           template_id: string | null
           to_phone: string | null
+          updated_at: string
           variables: string[]
         }
         Insert: {
+          attempt_count?: number
           awb?: string | null
           booking_id?: string | null
+          courier_name?: string | null
           created_at?: string
+          dedupe_key?: string | null
           event_key: string
           id?: string
           is_test?: boolean
           message_preview?: string | null
+          next_retry_at?: string | null
+          normalized_status?: string | null
           provider_response?: Json | null
+          raw_status?: string | null
           reason?: string | null
+          sent_at?: string | null
           status: string
           status_event_id?: string | null
           template_id?: string | null
           to_phone?: string | null
+          updated_at?: string
           variables?: string[]
         }
         Update: {
+          attempt_count?: number
           awb?: string | null
           booking_id?: string | null
+          courier_name?: string | null
           created_at?: string
+          dedupe_key?: string | null
           event_key?: string
           id?: string
           is_test?: boolean
           message_preview?: string | null
+          next_retry_at?: string | null
+          normalized_status?: string | null
           provider_response?: Json | null
+          raw_status?: string | null
           reason?: string | null
+          sent_at?: string | null
           status?: string
           status_event_id?: string | null
           template_id?: string | null
           to_phone?: string | null
+          updated_at?: string
           variables?: string[]
         }
         Relationships: [
