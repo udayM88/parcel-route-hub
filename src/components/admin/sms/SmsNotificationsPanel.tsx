@@ -202,10 +202,30 @@ const SmsNotificationsPanel = () => {
                     </p>
                   </div>
 
+                  <div className="space-y-2 rounded-md border p-3">
+                    <Label>Send a test SMS for this event</Label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        className="w-48"
+                        placeholder="10-digit test number"
+                        value={testPhones[t.event_key] || ""}
+                        onChange={(e) => setTestPhones((p) => ({ ...p, [t.event_key]: e.target.value }))}
+                      />
+                      <Button variant="outline" onClick={() => sendTest(t)} disabled={testingKey === t.event_key}>
+                        {testingKey === t.event_key ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                        Send test
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Uses sample values for the template variables. Logged as a TEST entry in SMS Logs.
+                    </p>
+                  </div>
+
                   <Button onClick={() => save(t)} disabled={savingKey === t.event_key}>
                     {savingKey === t.event_key ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Save {t.label}
                   </Button>
+
                 </AccordionContent>
               </AccordionItem>
             ))}
