@@ -22,7 +22,13 @@ interface SmsLog {
   reason: string | null;
   message_preview: string | null;
   created_at: string;
+  courier_name: string | null;
+  raw_status: string | null;
+  normalized_status: string | null;
+  attempt_count: number | null;
+  next_retry_at: string | null;
 }
+
 
 interface SmsTemplate {
   id: string;
