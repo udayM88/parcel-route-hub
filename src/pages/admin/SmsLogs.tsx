@@ -178,6 +178,30 @@ const SmsLogs = () => {
     }
   };
 
+  const retryNow = async (row: SmsLogRow) => {
+    setRetryingId(row.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-order-sms", {
+        body: { mode: "manual_retry", log_id: row.id },
+      });
+      if (error) throw error;
+      const decision = (data as any)?.decision || "unknown";
+      toast({
+        title: `Retry ${decision}`,
+        description: decision === "duplicate"
+          ? "Already delivered — duplicate protection blocked a second send."
+          : (data as any)?.reason || "Retry processed.",
+        variant: decision === "sent" || decision === "duplicate" ? undefined : "destructive",
+      });
+      await load();
+      setSelected(null);
+    } catch (e: any) {
+      toast({ title: "Retry failed", description: e.message, variant: "destructive" });
+    } finally {
+      setRetryingId(null);
+    }
+  };
+
   const clearFilters = () => {
     setFrom(""); setTo(""); setCourier("all"); setEvent("all"); setStatus("all"); setSearch("");
   };
