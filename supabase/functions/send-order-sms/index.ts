@@ -244,6 +244,13 @@ Deno.serve(async (req) => {
       return json({ ok: true, decision: "retry_sweep", ...out });
     }
 
+    if (String(body?.mode || "") === "manual_retry") {
+      const logId = String(body?.log_id || "");
+      if (!logId) return json({ ok: false, decision: "failed", reason: "missing log_id" }, 400);
+      return await manualRetry(admin, req, logId);
+    }
+
+
     event = String(body?.event || "").toUpperCase();
     bookingId = body?.booking_id ? String(body.booking_id) : null;
     const statusEventId: string | null = body?.status_event_id || null;
