@@ -439,12 +439,19 @@ const SmsLogs = () => {
                   </pre>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
+                  {st.label === "FAILED" && !selected.is_test && (
+                    <Button disabled={retryingId === selected.id} onClick={() => retryNow(selected)}>
+                      {retryingId === selected.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCw className="h-4 w-4 mr-2" />}
+                      Retry notification
+                    </Button>
+                  )}
                   <Button variant="outline" disabled={testingId === selected.id} onClick={() => sendTest(selected)}>
                     {testingId === selected.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
                     Send test SMS
                   </Button>
                 </div>
+
               </div>
             );
           })()}
