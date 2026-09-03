@@ -4,7 +4,7 @@
 export async function notifySms(
   event: string,
   bookingId: string | null,
-  opts: { statusEventId?: string | null; vars?: Record<string, unknown> } = {},
+  opts: { statusEventId?: string | null; normalizedStatus?: string | null; vars?: Record<string, unknown> } = {},
 ): Promise<void> {
   try {
     const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-order-sms`;
@@ -18,6 +18,7 @@ export async function notifySms(
         event,
         booking_id: bookingId,
         status_event_id: opts.statusEventId ?? null,
+        normalized_status: opts.normalizedStatus ?? null,
         vars: opts.vars ?? {},
       }),
     });
@@ -29,7 +30,7 @@ export async function notifySms(
 export function dispatchSms(
   event: string,
   bookingId: string | null,
-  opts: { statusEventId?: string | null; vars?: Record<string, unknown> } = {},
+  opts: { statusEventId?: string | null; normalizedStatus?: string | null; vars?: Record<string, unknown> } = {},
 ): void {
   try {
     const p = notifySms(event, bookingId, opts);

@@ -101,6 +101,7 @@ export async function recordCourierStatus(
   else {
     dispatchSms(STATUS_EVENT_KEY[n.normalized] ?? n.normalized, booking.id, {
       statusEventId: eventId,
+      normalizedStatus: n.normalized,
       vars: { status: n.rawStatus, courier_status: n.rawStatus, courier_code: n.rawCode },
     });
     notified = true;
