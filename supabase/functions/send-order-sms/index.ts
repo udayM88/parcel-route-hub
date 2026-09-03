@@ -107,6 +107,69 @@ async function sendViaFast2Sms(
 const nextRetryAt = (attempt: number) =>
   new Date(Date.now() + (BACKOFF_MIN[Math.min(attempt, BACKOFF_MIN.length) - 1] ?? 180) * 60_000).toISOString();
 
+/**
+ * Idempotency guard used before EVERY retry (automatic or manual).
+ * A notification is considered already delivered when another log row for the
+ * same order/AWB/event/normalized-status (its dedupe key) is already `sent`.
+ * This makes delayed provider responses, webhook retries and server restarts
+ * safe: the same SMS can never go out twice.
+ */
+async function alreadyDelivered(admin: any, row: Record<string, any>): Promise<boolean> {
+  if (row.status === "sent") return true;
+  if (!row.dedupe_key) return false;
+  const { data } = await admin
+    .from("sms_logs")
+    .select("id")
+    .eq("dedupe_key", row.dedupe_key)
+    .eq("status", "sent")
+    .neq("id", row.id)
+    .limit(1);
+  return Boolean(data && data.length);
+}
+
+/** One retry attempt on an existing log row — never creates a new row. */
+async function retryLogRow(
+  admin: any, row: Record<string, any>, origin: "cron" | "admin",
+): Promise<{ result: "sent" | "failed" | "abandoned" | "duplicate"; reason?: string }> {
+  if (await alreadyDelivered(admin, row)) {
+    await admin.from("sms_logs").update({
+      reason: "retry skipped — notification already delivered", next_retry_at: null,
+    }).eq("id", row.id).neq("status", "sent");
+    console.log(`[send-order-sms][${origin}-retry] log=${row.id} duplicate suppressed`);
+    return { result: "duplicate" };
+  }
+
+  const numbers = String(row.to_phone || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+  const values: string[] = Array.isArray(row.variables) ? row.variables : [];
+  if (!row.template_id || numbers.length === 0) {
+    await admin.from("sms_logs").update({
+      status: "skipped", reason: "retry abandoned — missing template or recipients", next_retry_at: null,
+    }).eq("id", row.id);
+    return { result: "abandoned", reason: "missing template or recipients" };
+  }
+
+  const attempt = Number(row.attempt_count || 0) + 1;
+  const res = await sendViaFast2Sms(String(row.template_id), values, numbers);
+  const willRetry = !res.ok && res.retryable && attempt < MAX_ATTEMPTS;
+  await admin.from("sms_logs").update({
+    status: res.ok ? "sent" : "failed",
+    reason: res.ok
+      ? null
+      : `${res.reason} (${origin} attempt ${attempt}/${MAX_ATTEMPTS}${willRetry ? "" : " — max retries exhausted"})`,
+    provider_response: res.payload ?? null,
+    attempt_count: attempt,
+    sent_at: res.ok ? new Date().toISOString() : null,
+    next_retry_at: willRetry ? nextRetryAt(attempt) : null,
+  }).eq("id", row.id);
+
+  console.log(
+    `[send-order-sms][${origin}-retry] log=${row.id} event=${row.event_key} booking=${row.booking_id} ` +
+    `attempt=${attempt} result=${res.ok ? "sent" : "failed"}${res.reason ? ` reason=${res.reason}` : ""}`,
+  );
+  if (res.ok) return { result: "sent" };
+  return { result: willRetry ? "failed" : "abandoned", reason: res.reason ?? undefined };
+}
+
 /** Retry sweep — re-sends previously failed notifications on the same log row. */
 async function retrySweep(admin: any, limit: number) {
   const nowIso = new Date().toISOString();
@@ -120,36 +183,47 @@ async function retrySweep(admin: any, limit: number) {
     .order("next_retry_at", { ascending: true })
     .limit(limit);
 
-  let sent = 0, failed = 0, abandoned = 0;
+  let sent = 0, failed = 0, abandoned = 0, duplicate = 0;
   for (const row of rows || []) {
-    const numbers = String(row.to_phone || "").split(",").map((s: string) => s.trim()).filter(Boolean);
-    const values: string[] = Array.isArray(row.variables) ? row.variables : [];
-    if (!row.template_id || numbers.length === 0) {
-      await admin.from("sms_logs").update({
-        status: "skipped", reason: "retry abandoned — missing template or recipients", next_retry_at: null,
-      }).eq("id", row.id);
-      abandoned++;
-      continue;
-    }
-    const attempt = Number(row.attempt_count || 0) + 1;
-    const res = await sendViaFast2Sms(String(row.template_id), values, numbers);
-    const willRetry = !res.ok && res.retryable && attempt < MAX_ATTEMPTS;
-    await admin.from("sms_logs").update({
-      status: res.ok ? "sent" : "failed",
-      reason: res.ok ? null : `${res.reason} (attempt ${attempt}/${MAX_ATTEMPTS})`,
-      provider_response: res.payload ?? null,
-      attempt_count: attempt,
-      sent_at: res.ok ? new Date().toISOString() : null,
-      next_retry_at: willRetry ? nextRetryAt(attempt) : null,
-    }).eq("id", row.id);
-    console.log(
-      `[send-order-sms][retry] log=${row.id} event=${row.event_key} booking=${row.booking_id} ` +
-      `attempt=${attempt} result=${res.ok ? "sent" : "failed"}${res.reason ? ` reason=${res.reason}` : ""}`,
-    );
-    res.ok ? sent++ : (willRetry ? failed++ : abandoned++);
+    const out = await retryLogRow(admin, row, "cron");
+    if (out.result === "sent") sent++;
+    else if (out.result === "failed") failed++;
+    else if (out.result === "duplicate") duplicate++;
+    else abandoned++;
   }
-  return { processed: (rows || []).length, sent, failed, abandoned };
+  return { processed: (rows || []).length, sent, failed, abandoned, duplicate };
 }
+
+/** Manual retry from Admin → SMS Logs. Caller must be an active admin. */
+async function manualRetry(admin: any, req: Request, logId: string) {
+  const authHeader = req.headers.get("Authorization") || "";
+  const bearer = authHeader.replace("Bearer ", "").trim();
+  if (!bearer) return json({ ok: false, decision: "unauthorized", reason: "Missing authorization" }, 401);
+
+  const userClient = createClient(
+    Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: authHeader } } },
+  );
+  const { data: claims, error: claimsErr } = await userClient.auth.getClaims(bearer);
+  const uid = claims?.claims?.sub;
+  if (claimsErr || !uid) return json({ ok: false, decision: "unauthorized", reason: "Invalid session" }, 401);
+  const { data: adminRow } = await admin
+    .from("admin_users").select("id").eq("user_id", uid).eq("is_active", true).maybeSingle();
+  if (!adminRow) return json({ ok: false, decision: "forbidden", reason: "Admin access required" }, 403);
+
+  const { data: row } = await admin.from("sms_logs").select("*").eq("id", logId).maybeSingle();
+  if (!row) return json({ ok: false, decision: "not_found", reason: "Log not found" }, 404);
+  if (row.status === "sent") return json({ ok: true, decision: "duplicate", reason: "Already sent" });
+
+  const out = await retryLogRow(admin, row, "admin");
+  return json({
+    ok: out.result === "sent" || out.result === "duplicate",
+    decision: out.result,
+    reason: out.reason ?? null,
+    log_id: logId,
+  });
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -169,6 +243,13 @@ Deno.serve(async (req) => {
       console.log(`[send-order-sms][retry] sweep`, JSON.stringify(out));
       return json({ ok: true, decision: "retry_sweep", ...out });
     }
+
+    if (String(body?.mode || "") === "manual_retry") {
+      const logId = String(body?.log_id || "");
+      if (!logId) return json({ ok: false, decision: "failed", reason: "missing log_id" }, 400);
+      return await manualRetry(admin, req, logId);
+    }
+
 
     event = String(body?.event || "").toUpperCase();
     bookingId = body?.booking_id ? String(body.booking_id) : null;

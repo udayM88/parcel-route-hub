@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, MessageSquare, RefreshCw, Search, Send, X } from "lucide-react";
+import { Loader2, MessageSquare, RefreshCw, RotateCw, Search, Send, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -74,6 +74,7 @@ const SmsLogs = () => {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<SmsLogRow | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
   const [testPhone, setTestPhone] = useState("");
 
   // filters
@@ -175,6 +176,30 @@ const SmsLogs = () => {
       toast({ title: "Test SMS failed", description: e.message, variant: "destructive" });
     } finally {
       setTestingId(null);
+    }
+  };
+
+  const retryNow = async (row: SmsLogRow) => {
+    setRetryingId(row.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-order-sms", {
+        body: { mode: "manual_retry", log_id: row.id },
+      });
+      if (error) throw error;
+      const decision = (data as any)?.decision || "unknown";
+      toast({
+        title: `Retry ${decision}`,
+        description: decision === "duplicate"
+          ? "Already delivered — duplicate protection blocked a second send."
+          : (data as any)?.reason || "Retry processed.",
+        variant: decision === "sent" || decision === "duplicate" ? undefined : "destructive",
+      });
+      await load();
+      setSelected(null);
+    } catch (e: any) {
+      toast({ title: "Retry failed", description: e.message, variant: "destructive" });
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -314,16 +339,30 @@ const SmsLogs = () => {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={testingId === l.id}
-                          onClick={(e) => { e.stopPropagation(); sendTest(l); }}
-                        >
-                          {testingId === l.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                          <span className="ml-1">Test</span>
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          {st.label === "FAILED" && !l.is_test && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={retryingId === l.id}
+                              onClick={(e) => { e.stopPropagation(); retryNow(l); }}
+                            >
+                              {retryingId === l.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCw className="h-3 w-3" />}
+                              <span className="ml-1">Retry</span>
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={testingId === l.id}
+                            onClick={(e) => { e.stopPropagation(); sendTest(l); }}
+                          >
+                            {testingId === l.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                            <span className="ml-1">Test</span>
+                          </Button>
+                        </div>
                       </TableCell>
+
                     </TableRow>
                   );
                 })}
@@ -400,12 +439,19 @@ const SmsLogs = () => {
                   </pre>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
+                  {st.label === "FAILED" && !selected.is_test && (
+                    <Button disabled={retryingId === selected.id} onClick={() => retryNow(selected)}>
+                      {retryingId === selected.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCw className="h-4 w-4 mr-2" />}
+                      Retry notification
+                    </Button>
+                  )}
                   <Button variant="outline" disabled={testingId === selected.id} onClick={() => sendTest(selected)}>
                     {testingId === selected.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
                     Send test SMS
                   </Button>
                 </div>
+
               </div>
             );
           })()}
