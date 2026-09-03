@@ -169,6 +169,8 @@ const App = () => (
             <Route path="analytics" element={<ProtectedAdminRoute allowedRoles={["super_admin"]}><Analytics /></ProtectedAdminRoute>} />
             <Route path="abandonment" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><AbandonmentFunnel /></ProtectedAdminRoute>} />
             <Route path="settings" element={<ProtectedAdminRoute allowedRoles={["super_admin"]}><SystemSettings /></ProtectedAdminRoute>} />
+            <Route path="sms-logs" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><SmsLogs /></ProtectedAdminRoute>} />
+
             <Route path="cms" element={<ProtectedAdminRoute allowedRoles={["super_admin", "cms_editor"]}><CMSDashboard /></ProtectedAdminRoute>} />
             <Route path="cms/posts" element={<ProtectedAdminRoute allowedRoles={["super_admin", "cms_editor"]}><ContentList type="post" /></ProtectedAdminRoute>} />
             <Route path="cms/posts/:id" element={<ProtectedAdminRoute allowedRoles={["super_admin", "cms_editor"]}><ContentEditor type="post" /></ProtectedAdminRoute>} />
