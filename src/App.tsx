@@ -66,6 +66,8 @@ const Reconciliation = lazy(() => import("./pages/admin/Reconciliation"));
 const SupportManagement = lazy(() => import("./pages/admin/SupportManagement"));
 const Analytics = lazy(() => import("./pages/admin/Analytics"));
 const SystemSettings = lazy(() => import("./pages/admin/SystemSettings"));
+const SmsLogs = lazy(() => import("./pages/admin/SmsLogs"));
+
 const DisputeResolution = lazy(() => import("./pages/admin/DisputeResolution"));
 const AbandonmentFunnel = lazy(() => import("./pages/admin/AbandonmentFunnel"));
 const AssistedBooking = lazy(() => import("./pages/admin/AssistedBooking"));
