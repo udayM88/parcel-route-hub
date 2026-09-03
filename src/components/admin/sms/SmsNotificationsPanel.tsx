@@ -49,6 +49,9 @@ const SmsNotificationsPanel = () => {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [logs, setLogs] = useState<SmsLog[]>([]);
+  const [testPhones, setTestPhones] = useState<Record<string, string>>({});
+  const [testingKey, setTestingKey] = useState<string | null>(null);
+
 
   const load = async () => {
     setLoading(true);
