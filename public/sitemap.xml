@@ -136,6 +136,24 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://www.viasetu.com/blog/courier-charges-in-india</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.viasetu.com/blog/send-parcels-online-india</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.viasetu.com/blog/sending-parcels-online-courier-booking</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.viasetu.com/blog/multiple-courier-partners-india</loc>
     <lastmod>2026-09-02</lastmod>
     <changefreq>weekly</changefreq>
@@ -150,12 +168,6 @@
   <url>
     <loc>https://www.viasetu.com/blog/online-courier-service-in-india</loc>
     <lastmod>2026-08-26</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://www.viasetu.com/blog/send-parcels-online-india</loc>
-    <lastmod>2026-08-25</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -185,18 +197,6 @@
   </url>
   <url>
     <loc>https://www.viasetu.com/blog/one-platform-to-compare-all-major-courier-services-in-india</loc>
-    <lastmod>2026-08-09</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://www.viasetu.com/blog/delhivery-vs-dtdc-for-regular-shipments</loc>
-    <lastmod>2026-08-09</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://www.viasetu.com/blog/indias-trusted-courier-aggregator-for-hassle-free-shipping</loc>
     <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -238,7 +238,19 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.viasetu.com/blog/indias-trusted-courier-aggregator-for-hassle-free-shipping</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.viasetu.com/blog/compare-courier-prices-and-delivery-time</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.viasetu.com/blog/delhivery-vs-dtdc-for-regular-shipments</loc>
     <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
