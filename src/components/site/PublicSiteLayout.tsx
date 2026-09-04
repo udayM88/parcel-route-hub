@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Menu, X, Linkedin, Facebook, Instagram, ChevronDown, BookOpen, HelpCircle, Briefcase, Package, Truck, Zap, MapPin, User, Home, Building2, Hand, Landmark } from "lucide-react";
 import Logo from "@/components/Logo";
+import googlePlayBadgeAsset from "@/assets/google-play-badge.png.asset.json";
 
 const C = {
   bg: "#FFFFFF",
@@ -60,6 +61,24 @@ const ROUTES = [
 type DropdownItem = { href: string; label: string; icon: any };
 
 const APP_STORE_URL = "https://apps.apple.com/in/app/viasetu/id6801613415";
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.viasetu.app";
+
+type StorePlatform = "ios" | "android" | "desktop";
+
+function useStorePlatform(): StorePlatform {
+  const [platform, setPlatform] = useState<StorePlatform>("desktop");
+
+  useEffect(() => {
+    const userAgent = navigator.userAgent || "";
+    const isAndroid = /Android/i.test(userAgent);
+    const isIOS = /iPhone|iPad|iPod/i.test(userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+    setPlatform(isAndroid ? "android" : isIOS ? "ios" : "desktop");
+  }, []);
+
+  return platform;
+}
 
 function AppStoreBadge({ className = "", height = 48 }: { className?: string; height?: number }) {
   // The App Store SVG contains internal padding around the badge artwork.
@@ -86,6 +105,41 @@ function AppStoreBadge({ className = "", height = 48 }: { className?: string; he
         decoding="async"
       />
     </a>
+  );
+}
+
+function PlayStoreBadge({ className = "", height = 48 }: { className?: string; height?: number }) {
+  return (
+    <a
+      href={PLAY_STORE_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Get ViaSetu on Google Play"
+      className={`inline-flex items-center transition-transform hover:scale-[1.04] ${className}`}
+      style={{ height, width: Math.round(height * 3.0514) }}
+    >
+      <img
+        src={googlePlayBadgeAsset.url}
+        alt="Get it on Google Play"
+        className="h-full w-full object-contain"
+        loading="lazy"
+        decoding="async"
+      />
+    </a>
+  );
+}
+
+function HeaderStoreBadge({ height }: { height: number }) {
+  const platform = useStorePlatform();
+
+  if (platform === "ios") return <AppStoreBadge height={height} />;
+  if (platform === "android") return <PlayStoreBadge height={height} />;
+
+  return (
+    <div className="flex items-center gap-2">
+      <AppStoreBadge height={height} />
+      <PlayStoreBadge height={height} />
+    </div>
   );
 }
 
@@ -191,8 +245,8 @@ function SiteHeader() {
           </Link>
         </nav>
 
-        <div className="hidden md:flex items-center gap-5 shrink-0">
-          <AppStoreBadge height={44} />
+        <div className="hidden md:flex items-center gap-3 shrink-0">
+          <HeaderStoreBadge height={40} />
           <button
             onClick={() => navigate("/login")}
             className="px-4 xl:px-5 h-10 rounded-lg font-bold text-[13px] xl:text-[14px] whitespace-nowrap transition-transform hover:scale-[1.02]"
@@ -203,7 +257,7 @@ function SiteHeader() {
         </div>
 
         <div className="flex md:hidden items-center gap-3 shrink-0">
-          <AppStoreBadge height={40} />
+          <HeaderStoreBadge height={40} />
           <button style={{ color: C.text }} onClick={() => setOpen(true)} aria-label="Open menu">
             <Menu className="h-6 w-6" />
           </button>
@@ -316,7 +370,10 @@ function SiteFooter() {
           </div>
           <div className="mt-6">
             <div className="text-[14px] font-bold" style={{ color: C.text }}>Download the app</div>
-            <AppStoreBadge className="mt-3" height={54} />
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <AppStoreBadge height={54} />
+              <PlayStoreBadge height={54} />
+            </div>
           </div>
 
         </div>
