@@ -91,7 +91,7 @@ const Index = () => {
   ];
 
   return (
-    <div className="min-h-screen pb-24 md:pb-4 relative">
+    <div className="min-h-screen pb-24 xl:pb-4 relative">
       <PageSeo title="ViaSetu Home — Book & Track Couriers" description="Your ViaSetu dashboard to book new shipments, track parcels and view recent orders across India's top couriers." path="/home" noindex />
       <PageBackground variant="logistics" opacity={0.75} />
 

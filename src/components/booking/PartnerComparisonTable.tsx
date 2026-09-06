@@ -150,8 +150,8 @@ const PartnerComparisonTable = ({
         </Select>
       </div>
 
-      <div className="rounded-xl border border-border overflow-hidden bg-card">
-      <Table>
+      <div className="rounded-xl border border-border overflow-x-auto bg-card overscroll-x-contain">
+      <Table className="min-w-[680px]">
         <TableHeader>
           <TableRow className="bg-muted/50 hover:bg-muted/50">
             <TableHead className="w-12"></TableHead>

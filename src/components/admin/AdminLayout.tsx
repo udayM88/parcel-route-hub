@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -143,16 +144,25 @@ function AdminSidebar() {
 }
 
 const AdminLayout = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1280);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1280px)");
+    const syncSidebar = (event: MediaQueryListEvent) => setSidebarOpen(event.matches);
+    media.addEventListener("change", syncSidebar);
+    return () => media.removeEventListener("change", syncSidebar);
+  }, []);
+
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
+      <div className="min-h-screen flex w-full min-w-0">
         <AdminSidebar />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 border-b flex items-center px-4">
             <SidebarTrigger />
             <h1 className="ml-4 font-semibold">Admin Dashboard</h1>
           </header>
-          <main className="flex-1 p-6">
+          <main className="flex-1 min-w-0 p-3 sm:p-4 lg:p-6 overflow-x-auto">
             <Outlet />
           </main>
         </div>

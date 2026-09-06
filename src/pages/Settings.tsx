@@ -183,7 +183,7 @@ const Settings = () => {
   }
 
   return (
-    <div className="min-h-screen pb-24 md:pb-4 relative">
+    <div className="min-h-screen pb-24 xl:pb-4 relative">
       <PageSeo title="Settings — Profile & Preferences | ViaSetu" description="Manage your ViaSetu profile, notifications, language and theme preferences." path="/settings" noindex />
       <PageBackground variant="warehouse" opacity={0.8} />
       

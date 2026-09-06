@@ -348,7 +348,7 @@ const Tracking = () => {
   // Show search form when no tracking data
   if (!trackingData) {
     return (
-      <div className="min-h-screen relative pb-24 md:pb-4">
+      <div className="min-h-screen relative pb-24 xl:pb-4">
         <PageBackground variant="logistics" opacity={0.75} />
         
         <header className="bg-white/10 backdrop-blur-xl border-b border-white/20 p-4 sticky top-0 z-50">
@@ -470,7 +470,7 @@ const Tracking = () => {
   const sortedStatuses = [...(statuses || [])].sort((a, b) => b.statusTimestamp - a.statusTimestamp);
 
   return (
-    <div className="min-h-screen relative pb-24 md:pb-4">
+    <div className="min-h-screen relative pb-24 xl:pb-4">
       <PageSeo title="Track Parcel — Unified Courier Tracking | ViaSetu" description="Track shipments from Delhivery, XpressBees, Shadowfax, Shree Maruti and other couriers in one place by AWB number." path="/tracking" />
       <PageBackground variant="logistics" opacity={0.75} />
       
