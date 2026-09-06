@@ -77,13 +77,13 @@ const Support = () => {
   };
 
   return (
-    <div className="min-h-screen relative pb-24 md:pb-4">
+    <div className="min-h-screen relative pb-24 lg:pb-4">
       <PageSeo title="Support & Help — Contact ViaSetu" description="Get help with your courier booking, tracking, refunds or account. Reach ViaSetu support by phone, chat or email." path="/support" />
       <PageBackground variant="parcels" opacity={0.8} />
       
       {/* Header */}
       <header className="bg-white/10 backdrop-blur-xl border-b border-white/20 p-4 sticky top-0 z-50">
-        <div className="flex items-center gap-3 max-w-md mx-auto">
+        <div className="flex items-center gap-3 max-w-2xl mx-auto">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-white hover:bg-white/10">
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -91,7 +91,7 @@ const Support = () => {
         </div>
       </header>
 
-      <div className="p-4 space-y-6 max-w-md mx-auto relative z-10">
+      <div className="p-4 md:p-6 space-y-6 max-w-2xl mx-auto relative z-10">
         {/* Quick Contact */}
         <Card className="bg-white/10 backdrop-blur-xl border-white/20">
           <CardHeader>

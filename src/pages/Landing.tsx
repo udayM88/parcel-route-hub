@@ -463,9 +463,8 @@ const Landing = () => {
       <section
         id="hero"
         aria-label="Compare courier services India"
-        className="relative pt-4 md:pt-5 lg:pt-24 pb-6 md:pb-10 px-4 md:px-6 overflow-hidden flex flex-col lg:flex-row lg:items-center"
+        className="relative min-h-[calc(100svh-64px)] md:min-h-0 lg:min-h-screen pt-4 md:py-10 lg:pt-24 lg:pb-16 pb-6 px-4 md:px-8 lg:px-6 overflow-hidden flex flex-col lg:flex-row lg:items-center"
         style={{
-          minHeight: "100vh",
           backgroundColor: "#F4F7FB",
         }}
       >

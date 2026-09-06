@@ -17,7 +17,7 @@ const BottomNav = () => {
   const { t } = useTranslation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden">
       {/* Gradient border top */}
       <div className="h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
       

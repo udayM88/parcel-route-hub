@@ -129,11 +129,12 @@ function PlayStoreBadge({ className = "", height = 48 }: { className?: string; h
   );
 }
 
-function HeaderStoreBadge({ height }: { height: number }) {
+function HeaderStoreBadge({ height, compact = false }: { height: number; compact?: boolean }) {
   const platform = useStorePlatform();
 
   if (platform === "ios") return <AppStoreBadge height={height} />;
   if (platform === "android") return <PlayStoreBadge height={height} />;
+  if (compact) return <PlayStoreBadge height={height} />;
 
   return (
     <div className="flex items-center gap-2">
@@ -245,7 +246,7 @@ function SiteHeader() {
           </Link>
         </nav>
 
-        <div className="hidden md:flex items-center gap-3 shrink-0">
+        <div className="hidden lg:flex items-center gap-3 shrink-0">
           <HeaderStoreBadge height={40} />
           <button
             onClick={() => navigate("/login")}
@@ -256,9 +257,9 @@ function SiteHeader() {
           </button>
         </div>
 
-        <div className="flex md:hidden items-center gap-3 shrink-0">
-          <HeaderStoreBadge height={40} />
-          <button style={{ color: C.text }} onClick={() => setOpen(true)} aria-label="Open menu">
+        <div className="flex lg:hidden items-center gap-2 sm:gap-3 shrink-0">
+          <HeaderStoreBadge height={36} compact />
+          <button className="h-10 w-10 inline-flex items-center justify-center rounded-lg" style={{ color: C.text }} onClick={() => setOpen(true)} aria-label="Open menu">
             <Menu className="h-6 w-6" />
           </button>
         </div>
@@ -267,7 +268,7 @@ function SiteHeader() {
     </header>
 
     {open && createPortal(
-        <div className="fixed inset-0 z-[100] md:hidden overflow-y-auto overscroll-contain" style={{ background: C.bg }}>
+        <div className="fixed inset-0 z-[100] lg:hidden overflow-y-auto overscroll-contain" style={{ background: C.bg }}>
           <div className="sticky top-0 flex justify-between items-center px-6 h-16" style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
             <Logo size="md" />
             <button onClick={() => setOpen(false)} style={{ color: C.text }} aria-label="Close menu"><X className="h-6 w-6" /></button>
@@ -358,7 +359,7 @@ function SiteFooter() {
   const goTrack = () => navigate("/tracking");
   return (
     <footer className="px-6 pt-16 pb-10" style={{ background: C.bg, borderTop: `1px solid ${C.border}` }}>
-      <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-10">
+      <div className="max-w-7xl mx-auto grid sm:grid-cols-2 lg:grid-cols-4 gap-10">
         <div>
           <Logo size="md" />
           <div className="text-[13px] font-semibold mt-2 text-[#0B1220]">India's First Consumer Courier Aggregator</div>
