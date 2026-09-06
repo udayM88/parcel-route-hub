@@ -229,7 +229,7 @@ function SiteHeader() {
           <Logo size="md" />
         </Link>
 
-        <nav className="hidden lg:flex items-center gap-3 xl:gap-5 flex-1 justify-center">
+        <nav className="hidden xl:flex items-center gap-5 flex-1 justify-center">
           <NavDropdown label="Our Services" items={serviceItems} width="w-64" />
           {plainLinks
             .filter((l) => l.label !== "Contact Us" && l.label !== "Track Parcel")
@@ -246,7 +246,7 @@ function SiteHeader() {
           </Link>
         </nav>
 
-        <div className="hidden lg:flex items-center gap-3 shrink-0">
+        <div className="hidden xl:flex items-center gap-3 shrink-0">
           <HeaderStoreBadge height={40} />
           <button
             onClick={() => navigate("/login")}
@@ -257,7 +257,7 @@ function SiteHeader() {
           </button>
         </div>
 
-        <div className="flex lg:hidden items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex xl:hidden items-center gap-2 sm:gap-3 shrink-0">
           <HeaderStoreBadge height={36} compact />
           <button className="h-10 w-10 inline-flex items-center justify-center rounded-lg" style={{ color: C.text }} onClick={() => setOpen(true)} aria-label="Open menu">
             <Menu className="h-6 w-6" />
@@ -268,7 +268,7 @@ function SiteHeader() {
     </header>
 
     {open && createPortal(
-        <div className="fixed inset-0 z-[100] lg:hidden overflow-y-auto overscroll-contain" style={{ background: C.bg }}>
+        <div className="fixed inset-0 z-[100] xl:hidden overflow-y-auto overscroll-contain" style={{ background: C.bg }}>
           <div className="sticky top-0 flex justify-between items-center px-6 h-16" style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
             <Logo size="md" />
             <button onClick={() => setOpen(false)} style={{ color: C.text }} aria-label="Close menu"><X className="h-6 w-6" /></button>

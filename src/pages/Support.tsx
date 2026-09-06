@@ -77,7 +77,7 @@ const Support = () => {
   };
 
   return (
-    <div className="min-h-screen relative pb-24 lg:pb-4">
+    <div className="min-h-screen relative pb-24 xl:pb-4">
       <PageSeo title="Support & Help — Contact ViaSetu" description="Get help with your courier booking, tracking, refunds or account. Reach ViaSetu support by phone, chat or email." path="/support" />
       <PageBackground variant="parcels" opacity={0.8} />
       

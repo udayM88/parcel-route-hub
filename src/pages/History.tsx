@@ -222,7 +222,7 @@ const History = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen relative pb-24 md:pb-4">
+      <div className="min-h-screen relative pb-24 xl:pb-4">
         <PageBackground variant="shipping" opacity={0.75} />
         <header className="bg-white/10 backdrop-blur-xl border-b border-white/20 p-4 sticky top-0 z-50">
           <div className="flex items-center gap-3 max-w-4xl mx-auto">
@@ -241,7 +241,7 @@ const History = () => {
   }
 
   return (
-    <div className="min-h-screen relative pb-24 md:pb-4">
+    <div className="min-h-screen relative pb-24 xl:pb-4">
       <PageSeo title="Order History — My Shipments | ViaSetu" description="View your past ViaSetu shipments, download invoices and labels, and reorder past bookings." path="/history" noindex />
       <PageBackground variant="shipping" opacity={0.75} />
       

@@ -144,10 +144,10 @@ function AdminSidebar() {
 }
 
 const AdminLayout = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1280);
 
   useEffect(() => {
-    const media = window.matchMedia("(min-width: 1024px)");
+    const media = window.matchMedia("(min-width: 1280px)");
     const syncSidebar = (event: MediaQueryListEvent) => setSidebarOpen(event.matches);
     media.addEventListener("change", syncSidebar);
     return () => media.removeEventListener("change", syncSidebar);

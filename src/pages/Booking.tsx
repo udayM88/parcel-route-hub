@@ -1500,7 +1500,7 @@ const Booking = () => {
           </div>
         )}
 
-        <div className="booking-shell booking-safe-bottom p-3 md:p-4 max-w-2xl mx-auto md:pb-4">
+        <div className="booking-shell booking-safe-bottom p-3 md:p-4 max-w-2xl mx-auto xl:pb-4">
 
 
           <BookingProgress currentStep={currentStep} totalSteps={totalSteps} />

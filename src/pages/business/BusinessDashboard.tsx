@@ -463,7 +463,7 @@ const BusinessDashboard = () => {
       </header>
 
       <main className="max-w-6xl mx-auto p-4 space-y-6">
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
           {tiles.map((t) => {
             const Icon = t.icon;
             const active = filter === t.key;
@@ -530,8 +530,8 @@ const BusinessDashboard = () => {
             ) : filtered.length === 0 ? (
               <p className="text-center py-8 text-muted-foreground">No shipments found.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto overscroll-x-contain">
+                <Table className="min-w-[760px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
