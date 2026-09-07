@@ -145,10 +145,25 @@ const OrderDetails = () => {
     }
   }, [orderId]);
 
+  // Paid-but-unconfirmed orders resolve server-side within seconds/minutes.
+  useEffect(() => {
+    if (!processing) return;
+    const startedAt = Date.now();
+    const tick = () => {
+      if (Date.now() - startedAt > 5 * 60 * 1000) return;
+      fetchOrderDetails(true);
+    };
+    const id = setInterval(tick, 15000);
+    window.addEventListener('focus', tick);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('focus', tick);
+    };
+  }, [processing]);
 
+  const fetchOrderDetails = async (silent = false) => {
+    if (!silent) setLoading(true);
 
-  const fetchOrderDetails = async () => {
-    setLoading(true);
     try {
       const auth = getAuthSession();
       if (!auth) {
