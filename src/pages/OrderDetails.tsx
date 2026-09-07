@@ -115,8 +115,11 @@ const OrderDetails = () => {
     booking_source: string;
     status: string;
     awb?: string | null;
+    payment_status?: string | null;
   } | null>(null);
   const [balance, setBalance] = useState<BookingBalance | null>(null);
+  const processing = isProcessingOrder(bookingMeta);
+
 
   const fetchBalance = async (bookingId: string) => {
     try {
