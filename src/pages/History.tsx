@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Package, MapPin, Calendar, Eye, Navigation, Truck, FileDown, Edit, Copy } from "lucide-react";
+import { ArrowLeft, Package, MapPin, Calendar, Eye, Navigation, Truck, FileDown, Edit, Copy, Loader2, RefreshCw, Camera } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,10 @@ import PageBackground from "@/components/PageBackground";
 import BottomNav from "@/components/BottomNav";
 import PageSeo from "@/components/PageSeo";
 import BalanceDueCard, { type BookingBalance } from "@/components/booking/BalanceDueCard";
+import ParcelPhotoUpload from "@/components/booking/ParcelPhotoUpload";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { isProcessingOrder, resolveDisplayStatus, PROCESSING_LABEL, PROCESSING_MESSAGE } from "@/lib/order-status";
+
 
 interface OrderAddress {
   type: string;
