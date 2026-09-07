@@ -356,20 +356,21 @@ const History = () => {
                         {order.shipments?.[0]?.awbNumber || order.orderId}
                       </h3>
                       {(() => {
-                        // Prefer DB status when terminal — Prayog doesn't know
-                        // about direct-partner cancellations/refunds, so its
+                        // Processing wins (paid, courier hasn't confirmed yet);
+                        // then terminal DB status — Prayog doesn't know about
+                        // direct-partner cancellations/refunds, so its
                         // orderStatus can stay stale at "CREATED" forever.
-                        const dbStatus = bookingsMap[order.orderId]?.status;
-                        const terminal = ['CANCELLED', 'CANCELED', 'DELIVERED', 'RTO', 'FAILED'];
-                        const displayStatus = (dbStatus && terminal.includes(dbStatus.toUpperCase()))
-                          ? dbStatus
-                          : (order.orderStatus || dbStatus || 'Unknown');
+                        const displayStatus = resolveDisplayStatus(order.orderStatus, bookingsMap[order.orderId]);
                         return (
                           <Badge className={getStatusColor(displayStatus)}>
+                            {displayStatus === PROCESSING_LABEL && (
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin inline" />
+                            )}
                             {displayStatus}
                           </Badge>
                         );
                       })()}
+
                       {bookingsMap[order.orderId]?.payment_status === 'cop_pending' && (
                         <Badge className="bg-yellow-500/90 text-yellow-950 border-0 text-xs">
                           💵 COP Pending
