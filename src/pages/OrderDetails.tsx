@@ -180,11 +180,13 @@ const OrderDetails = () => {
       });
 
       if (error || !data?.order) {
-        toast({
-          title: "Order not found",
-          description: "We couldn't find this order. It may belong to a different account.",
-          variant: "destructive",
-        });
+        if (!silent) {
+          toast({
+            title: "Order not found",
+            description: "We couldn't find this order. It may belong to a different account.",
+            variant: "destructive",
+          });
+        }
         return;
       }
 
@@ -197,6 +199,7 @@ const OrderDetails = () => {
           booking_source: b.booking_source || '',
           status: b.status || '',
           awb: b.awb || b.prayog_awb || b.tracking_id || null,
+          payment_status: b.payment_status || null,
         });
         fetchBalance(b.id);
 
@@ -215,14 +218,17 @@ const OrderDetails = () => {
       }
     } catch (error: any) {
       console.error("Error fetching order details:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load order details",
-        variant: "destructive",
-      });
+      if (!silent) {
+        toast({
+          title: "Error",
+          description: "Failed to load order details",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
+
   };
 
   const handleDownloadInvoice = () => {
