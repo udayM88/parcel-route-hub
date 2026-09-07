@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { deriveUserId, setAuthSession, isAuthenticated } from "@/lib/auth";
 import PageBackground from "@/components/PageBackground";
 import PageSeo from "@/components/PageSeo";
+import ClerkAuthButtons from "@/components/auth/ClerkAuthButtons";
 
 type Step = "details" | "otp";
 
@@ -309,6 +310,8 @@ const Login = () => {
                 </div>
               </>
             )}
+
+            {step === "details" && <ClerkAuthButtons />}
 
             <p className="text-xs text-white/60 text-center">
               By continuing, you agree to our Terms and Privacy Policy.
