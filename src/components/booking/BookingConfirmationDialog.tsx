@@ -7,7 +7,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Download, Package, Printer, Truck } from "lucide-react";
+import { CheckCircle, Download, Package, Printer, Truck, Loader2 } from "lucide-react";
 import ParcelPhotoUpload from "@/components/booking/ParcelPhotoUpload";
 
 interface BookingConfirmationDialogProps {
@@ -18,6 +18,7 @@ interface BookingConfirmationDialogProps {
   courierName?: string;
   isReversePickup?: boolean;
   bookingId?: string | null;
+  processing?: boolean;
 }
 
 const BookingConfirmationDialog = ({
@@ -28,6 +29,7 @@ const BookingConfirmationDialog = ({
   courierName,
   isReversePickup = false,
   bookingId,
+  processing = false,
 }: BookingConfirmationDialogProps) => {
   const handleDownloadLabel = () => {
     if (labelUrl) {
@@ -39,19 +41,33 @@ const BookingConfirmationDialog = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/20">
-            <CheckCircle className="h-10 w-10 text-success" />
+          <div className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ${processing ? "bg-warning/20" : "bg-success/20"}`}>
+            {processing ? (
+              <Loader2 className="h-10 w-10 text-warning animate-spin" />
+            ) : (
+              <CheckCircle className="h-10 w-10 text-success" />
+            )}
           </div>
           <DialogTitle className="text-xl font-bold text-center">
-            Booking Confirmed!
+            {processing ? "Order Under Processing" : "Booking Confirmed!"}
           </DialogTitle>
           <DialogDescription className="text-center text-muted-foreground">
-            Your shipment has been successfully booked
+            {processing
+              ? "Payment received. We're confirming your booking with the courier."
+              : "Your shipment has been successfully booked"}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           {/* AWB Number */}
+          {processing ? (
+            <div className="rounded-lg border border-warning/30 bg-warning/10 p-4 text-center space-y-1">
+              <p className="text-sm font-semibold">We're confirming your booking with the courier.</p>
+              <p className="text-xs text-muted-foreground">
+                Your tracking number will appear in Order History shortly. No action is needed from you.
+              </p>
+            </div>
+          ) : (
           <div className="rounded-lg bg-muted p-4 text-center">
             <p className="text-sm text-muted-foreground mb-1">AWB Number</p>
             <p className="text-lg font-bold font-mono">{awbNumber}</p>
@@ -59,8 +75,9 @@ const BookingConfirmationDialog = ({
               <p className="text-xs text-muted-foreground mt-1">via {courierName}</p>
             )}
           </div>
+          )}
 
-          {isReversePickup ? (
+          {processing ? null : isReversePickup ? (
             <>
               {/* Reverse Pickup — no print needed */}
               <div className="rounded-lg border border-success/30 bg-success/10 p-4 space-y-3">
@@ -133,7 +150,7 @@ const BookingConfirmationDialog = ({
         </div>
 
         <DialogFooter className="flex flex-col gap-2 sm:flex-col">
-          {labelUrl && !isReversePickup && (
+          {labelUrl && !isReversePickup && !processing && (
             <Button onClick={handleDownloadLabel} className="w-full gap-2">
               <Download className="h-4 w-4" />
               Download Shipping Label

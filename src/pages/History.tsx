@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Package, MapPin, Calendar, Eye, Navigation, Truck, FileDown, Edit, Copy } from "lucide-react";
+import { ArrowLeft, Package, MapPin, Calendar, Eye, Navigation, Truck, FileDown, Edit, Copy, Loader2, RefreshCw, Camera } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,10 @@ import PageBackground from "@/components/PageBackground";
 import BottomNav from "@/components/BottomNav";
 import PageSeo from "@/components/PageSeo";
 import BalanceDueCard, { type BookingBalance } from "@/components/booking/BalanceDueCard";
+import ParcelPhotoUpload from "@/components/booking/ParcelPhotoUpload";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { isProcessingOrder, resolveDisplayStatus, PROCESSING_LABEL, PROCESSING_MESSAGE } from "@/lib/order-status";
+
 
 interface OrderAddress {
   type: string;
@@ -102,6 +106,10 @@ const History = () => {
   const [bookingsMap, setBookingsMap] = useState<Record<string, { id: string; booking_source: string; status: string; awb?: string | null; payment_status?: string | null }>>({});
   const [partialFailure, setPartialFailure] = useState<string | null>(null);
   const [balances, setBalances] = useState<Record<string, BookingBalance>>({});
+  const [refreshing, setRefreshing] = useState(false);
+  const [photoBookingId, setPhotoBookingId] = useState<string | null>(null);
+  const pollStartedAt = useRef<number>(Date.now());
+
 
   // Outstanding / recently settled price differences on re-booked shipments.
   const fetchBalances = async () => {
@@ -134,7 +142,33 @@ const History = () => {
     } catch {}
   }, []);
 
-  const fetchOrders = async () => {
+  // Orders that are paid but not yet confirmed by the courier resolve on the
+  // server within seconds/minutes — quietly re-check so the AWB shows up on
+  // its own. Stops once nothing is processing, or after ~5 minutes.
+  const hasProcessing = orders.some((o) => isProcessingOrder(bookingsMap[o.orderId]));
+
+  useEffect(() => {
+    if (!hasProcessing) return;
+    if (Date.now() - pollStartedAt.current > 5 * 60 * 1000) return;
+
+    const id = setInterval(() => {
+      if (Date.now() - pollStartedAt.current > 5 * 60 * 1000) return;
+      fetchOrders(true);
+    }, 15000);
+
+    const onFocus = () => fetchOrders(true);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [hasProcessing]);
+
+
+  const fetchOrders = async (silent = false) => {
+    if (silent) setRefreshing(true);
+
     try {
       const auth = getAuthSession();
 
@@ -180,15 +214,19 @@ const History = () => {
       setPartialFailure(null);
     } catch (error: any) {
       console.error("Error fetching orders:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load orders",
-        variant: "destructive",
-      });
+      if (!silent) {
+        toast({
+          title: "Error",
+          description: "Failed to load orders",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
 
   const getStatusColor = (status: string) => {
     const statusLower = status?.toLowerCase() || '';
@@ -201,7 +239,9 @@ const History = () => {
         return 'bg-blue-500';
       case 'pending':
       case 'booked':
-        return 'bg-yellow-500';
+      case 'processing':
+        return 'bg-amber-500';
+
       case 'cancelled':
         return 'bg-red-500';
       default:
@@ -316,20 +356,21 @@ const History = () => {
                         {order.shipments?.[0]?.awbNumber || order.orderId}
                       </h3>
                       {(() => {
-                        // Prefer DB status when terminal — Prayog doesn't know
-                        // about direct-partner cancellations/refunds, so its
+                        // Processing wins (paid, courier hasn't confirmed yet);
+                        // then terminal DB status — Prayog doesn't know about
+                        // direct-partner cancellations/refunds, so its
                         // orderStatus can stay stale at "CREATED" forever.
-                        const dbStatus = bookingsMap[order.orderId]?.status;
-                        const terminal = ['CANCELLED', 'CANCELED', 'DELIVERED', 'RTO', 'FAILED'];
-                        const displayStatus = (dbStatus && terminal.includes(dbStatus.toUpperCase()))
-                          ? dbStatus
-                          : (order.orderStatus || dbStatus || 'Unknown');
+                        const displayStatus = resolveDisplayStatus(order.orderStatus, bookingsMap[order.orderId]);
                         return (
                           <Badge className={getStatusColor(displayStatus)}>
+                            {displayStatus === PROCESSING_LABEL && (
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin inline" />
+                            )}
                             {displayStatus}
                           </Badge>
                         );
                       })()}
+
                       {bookingsMap[order.orderId]?.payment_status === 'cop_pending' && (
                         <Badge className="bg-yellow-500/90 text-yellow-950 border-0 text-xs">
                           💵 COP Pending
@@ -351,6 +392,22 @@ const History = () => {
                         {order.statusReason}
                       </p>
                     )}
+                    {isProcessingOrder(bookingsMap[order.orderId]) && (
+                      <div className="mt-2 rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-2 max-w-md">
+                        <p className="text-xs text-amber-100">{PROCESSING_MESSAGE}</p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={refreshing}
+                          onClick={() => fetchOrders()}
+                          className="mt-1 h-7 px-2 text-xs text-amber-100 hover:bg-amber-500/20"
+                        >
+                          <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+                          Check again
+                        </Button>
+                      </div>
+                    )}
+
                   </div>
                   <Button
                     variant="ghost"
@@ -473,6 +530,25 @@ const History = () => {
                       </Button>
                     );
                   })()}
+                  {(() => {
+                    const bm = bookingsMap[order.orderId];
+                    const bookingId = (order as any)._localBookingId || bm?.id;
+                    const dbStatus = String(bm?.status || order.orderStatus || '').toUpperCase();
+                    const closed = ['DELIVERED', 'CANCELLED', 'CANCELED', 'FAILED', 'RTO', 'PAYMENT_ABANDONED', 'PENDING_PAYMENT'];
+                    if (!bookingId || closed.includes(dbStatus)) return null;
+                    return (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                        onClick={() => setPhotoBookingId(bookingId)}
+                      >
+                        <Camera className="h-4 w-4 mr-1" />
+                        Parcel Photos
+                      </Button>
+                    );
+                  })()}
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -537,8 +613,22 @@ const History = () => {
           })
         )}
       </div>
+
+      <Dialog open={!!photoBookingId} onOpenChange={(o) => !o && setPhotoBookingId(null)}>
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Parcel Photos</DialogTitle>
+            <DialogDescription>
+              Add photos of your packed parcel. These help us verify its condition at pickup and delivery.
+            </DialogDescription>
+          </DialogHeader>
+          {photoBookingId && <ParcelPhotoUpload bookingId={photoBookingId} />}
+        </DialogContent>
+      </Dialog>
+
       <BottomNav />
     </div>
+
   );
 };
 

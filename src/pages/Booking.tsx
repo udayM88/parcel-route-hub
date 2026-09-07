@@ -70,6 +70,7 @@ const Booking = () => {
     courierName: string;
     trackingId: string;
     bookingId: string | null;
+    processing?: boolean;
   } | null>(null);
   const [senderData, setSenderData] = useState({
     name: "",
@@ -720,11 +721,19 @@ const Booking = () => {
         }
       }
 
-      toast({
-        title: "Still processing",
-        description: "Your payment is confirmed and the shipment is being created. Track it in Order History.",
+      // Payment is confirmed but the courier hasn't returned an AWB yet — show
+      // an explicit processing state instead of silently dropping the user in
+      // history, and let them add parcel photos right away.
+      setConfirmationData({
+        awbNumber: '',
+        labelUrl: null,
+        courierName: selectedCourierData?.name || '',
+        trackingId: '',
+        bookingId,
+        processing: true,
       });
-      navigate('/history');
+      localStorage.removeItem('booking_draft');
+      setShowConfirmationDialog(true);
       return;
     }
 
@@ -1649,7 +1658,9 @@ const Booking = () => {
         {/* Booking Confirmation Dialog */}
         <BookingConfirmationDialog isOpen={showConfirmationDialog} onClose={() => {
         setShowConfirmationDialog(false);
-        if (confirmationData) {
+        if (confirmationData?.processing) {
+          navigate('/history');
+        } else if (confirmationData) {
           navigate("/tracking", {
             state: {
               orderId: confirmationData.trackingId,
@@ -1661,7 +1672,7 @@ const Booking = () => {
             }
           });
         }
-      }} awbNumber={confirmationData?.awbNumber || ""} labelUrl={confirmationData?.labelUrl} courierName={confirmationData?.courierName} isReversePickup={(confirmationData?.courierName || "").toLowerCase().includes("shadowfax")} bookingId={confirmationData?.bookingId} />
+      }} awbNumber={confirmationData?.awbNumber || ""} labelUrl={confirmationData?.labelUrl} courierName={confirmationData?.courierName} isReversePickup={(confirmationData?.courierName || "").toLowerCase().includes("shadowfax")} bookingId={confirmationData?.bookingId} processing={confirmationData?.processing} />
       </div>
     </PageBackground>;
 };

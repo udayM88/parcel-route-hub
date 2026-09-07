@@ -11,6 +11,8 @@ import { getAuthSession } from "@/lib/auth";
 import { isCancellable } from "@/hooks/useCancelOrder";
 import ParcelPhotoUpload from "@/components/booking/ParcelPhotoUpload";
 import BalanceDueCard, { type BookingBalance } from "@/components/booking/BalanceDueCard";
+import { isProcessingOrder, resolveDisplayStatus, PROCESSING_LABEL, PROCESSING_MESSAGE } from "@/lib/order-status";
+
 
 interface OrderAddress {
   type: string;
@@ -115,8 +117,11 @@ const OrderDetails = () => {
     booking_source: string;
     status: string;
     awb?: string | null;
+    payment_status?: string | null;
   } | null>(null);
   const [balance, setBalance] = useState<BookingBalance | null>(null);
+  const processing = isProcessingOrder(bookingMeta);
+
 
   const fetchBalance = async (bookingId: string) => {
     try {
@@ -140,10 +145,25 @@ const OrderDetails = () => {
     }
   }, [orderId]);
 
+  // Paid-but-unconfirmed orders resolve server-side within seconds/minutes.
+  useEffect(() => {
+    if (!processing) return;
+    const startedAt = Date.now();
+    const tick = () => {
+      if (Date.now() - startedAt > 5 * 60 * 1000) return;
+      fetchOrderDetails(true);
+    };
+    const id = setInterval(tick, 15000);
+    window.addEventListener('focus', tick);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('focus', tick);
+    };
+  }, [processing]);
 
+  const fetchOrderDetails = async (silent = false) => {
+    if (!silent) setLoading(true);
 
-  const fetchOrderDetails = async () => {
-    setLoading(true);
     try {
       const auth = getAuthSession();
       if (!auth) {
@@ -160,11 +180,13 @@ const OrderDetails = () => {
       });
 
       if (error || !data?.order) {
-        toast({
-          title: "Order not found",
-          description: "We couldn't find this order. It may belong to a different account.",
-          variant: "destructive",
-        });
+        if (!silent) {
+          toast({
+            title: "Order not found",
+            description: "We couldn't find this order. It may belong to a different account.",
+            variant: "destructive",
+          });
+        }
         return;
       }
 
@@ -177,6 +199,7 @@ const OrderDetails = () => {
           booking_source: b.booking_source || '',
           status: b.status || '',
           awb: b.awb || b.prayog_awb || b.tracking_id || null,
+          payment_status: b.payment_status || null,
         });
         fetchBalance(b.id);
 
@@ -195,14 +218,17 @@ const OrderDetails = () => {
       }
     } catch (error: any) {
       console.error("Error fetching order details:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load order details",
-        variant: "destructive",
-      });
+      if (!silent) {
+        toast({
+          title: "Error",
+          description: "Failed to load order details",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
+
   };
 
   const handleDownloadInvoice = () => {
@@ -520,11 +546,30 @@ const OrderDetails = () => {
                 <p className="text-sm text-muted-foreground">AWB: {shipment.awbNumber}</p>
               )}
             </div>
-            <Badge className={getStatusColor(order.orderStatus)}>
-              {order.orderStatus || 'Unknown'}
+            <Badge className={getStatusColor(resolveDisplayStatus(order.orderStatus, bookingMeta))}>
+              {resolveDisplayStatus(order.orderStatus, bookingMeta)}
             </Badge>
           </div>
-          
+
+          {processing && (
+            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <RefreshCw className="h-4 w-4 text-amber-600 animate-spin" />
+                <p className="text-sm font-semibold text-amber-900">{PROCESSING_LABEL}</p>
+              </div>
+              <p className="text-xs text-amber-900">{PROCESSING_MESSAGE}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 h-8 text-xs"
+                onClick={() => fetchOrderDetails()}
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Check again
+              </Button>
+            </div>
+          )}
+
           <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
             <span className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
@@ -541,6 +586,7 @@ const OrderDetails = () => {
               {order.deliveryPromise || 'Standard'}
             </span>
           </div>
+
 
           {balance && (
             <BalanceDueCard
