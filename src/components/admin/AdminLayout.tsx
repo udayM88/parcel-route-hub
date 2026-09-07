@@ -77,10 +77,11 @@ const panelTitleByRole: Record<Role, string> = {
 };
 
 function AdminSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
-  const collapsed = state === "collapsed";
+  const collapsed = state === "collapsed" && !isMobile;
+
   const { adminUser } = useAdminAuth();
   const userRole = adminUser?.role;
 
