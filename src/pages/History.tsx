@@ -613,8 +613,22 @@ const History = () => {
           })
         )}
       </div>
+
+      <Dialog open={!!photoBookingId} onOpenChange={(o) => !o && setPhotoBookingId(null)}>
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Parcel Photos</DialogTitle>
+            <DialogDescription>
+              Add photos of your packed parcel. These help us verify its condition at pickup and delivery.
+            </DialogDescription>
+          </DialogHeader>
+          {photoBookingId && <ParcelPhotoUpload bookingId={photoBookingId} />}
+        </DialogContent>
+      </Dialog>
+
       <BottomNav />
     </div>
+
   );
 };
 
