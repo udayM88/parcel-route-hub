@@ -392,6 +392,22 @@ const History = () => {
                         {order.statusReason}
                       </p>
                     )}
+                    {isProcessingOrder(bookingsMap[order.orderId]) && (
+                      <div className="mt-2 rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-2 max-w-md">
+                        <p className="text-xs text-amber-100">{PROCESSING_MESSAGE}</p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={refreshing}
+                          onClick={() => fetchOrders()}
+                          className="mt-1 h-7 px-2 text-xs text-amber-100 hover:bg-amber-500/20"
+                        >
+                          <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+                          Check again
+                        </Button>
+                      </div>
+                    )}
+
                   </div>
                   <Button
                     variant="ghost"
