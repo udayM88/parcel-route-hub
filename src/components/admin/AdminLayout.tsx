@@ -158,14 +158,15 @@ const AdminLayout = () => {
       <div className="min-h-screen flex w-full min-w-0">
         <AdminSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 border-b flex items-center px-4">
-            <SidebarTrigger />
-            <h1 className="ml-4 font-semibold">Admin Dashboard</h1>
+          <header className="h-14 border-b flex items-center gap-2 px-3 sm:px-4 sticky top-0 z-30 bg-background">
+            <SidebarTrigger className="shrink-0" />
+            <h1 className="ml-1 sm:ml-4 font-semibold text-sm sm:text-base truncate">Admin Dashboard</h1>
           </header>
-          <main className="flex-1 min-w-0 p-3 sm:p-4 lg:p-6 overflow-x-auto">
+          <main className="admin-shell flex-1 min-w-0 w-full max-w-full p-3 sm:p-4 lg:p-6 overflow-x-hidden">
             <Outlet />
           </main>
         </div>
+
       </div>
     </SidebarProvider>
   );
