@@ -106,6 +106,10 @@ const History = () => {
   const [bookingsMap, setBookingsMap] = useState<Record<string, { id: string; booking_source: string; status: string; awb?: string | null; payment_status?: string | null }>>({});
   const [partialFailure, setPartialFailure] = useState<string | null>(null);
   const [balances, setBalances] = useState<Record<string, BookingBalance>>({});
+  const [refreshing, setRefreshing] = useState(false);
+  const [photoBookingId, setPhotoBookingId] = useState<string | null>(null);
+  const pollStartedAt = useRef<number>(Date.now());
+
 
   // Outstanding / recently settled price differences on re-booked shipments.
   const fetchBalances = async () => {
