@@ -166,7 +166,9 @@ const History = () => {
   }, [hasProcessing]);
 
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (silent = false) => {
+    if (silent) setRefreshing(true);
+
     try {
       const auth = getAuthSession();
 
