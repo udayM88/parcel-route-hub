@@ -426,6 +426,71 @@ All colors MUST be HSL.
   }
 }
 
+/* ============================================================
+   ADMIN / CMS MOBILE OPTIMIZATION (≤ 767px)
+   Scoped to the admin shell so the public app is untouched.
+   ============================================================ */
+@media (max-width: 767px) {
+  .admin-shell {
+    padding: 0.75rem !important;
+  }
+
+  /* Headings scale down so titles never wrap awkwardly */
+  .admin-shell h1, .admin-shell .text-3xl { font-size: 1.35rem !important; line-height: 1.25 !important; }
+  .admin-shell h2 { font-size: 1.2rem !important; line-height: 1.3 !important; }
+  .admin-shell h3, .admin-shell .text-2xl { font-size: 1.05rem !important; line-height: 1.3 !important; }
+  .admin-shell .text-xl { font-size: 1rem !important; }
+
+  /* Stat / filter grids stack instead of squeezing */
+  .admin-shell .grid[class*="grid-cols-3"],
+  .admin-shell .grid[class*="grid-cols-4"],
+  .admin-shell .grid[class*="grid-cols-5"],
+  .admin-shell .grid[class*="grid-cols-6"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .admin-shell .grid[class*="grid-cols-2"]:not([class*="grid-cols-2 "]) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Header rows (title + actions) stack and stay reachable */
+  .admin-shell .flex.items-center.justify-between {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* Tables scroll horizontally inside their card */
+  .admin-shell .overflow-x-auto,
+  .admin-shell table {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-shell table { white-space: nowrap; }
+  .admin-shell td, .admin-shell th { word-break: normal; }
+
+  /* Compact card padding */
+  .admin-shell .p-6 { padding: 0.875rem !important; }
+  .admin-shell [class*="CardHeader"], .admin-shell .space-y-6 > * + * { margin-top: 1rem !important; }
+
+  /* Tabs and filter bars scroll instead of overflowing */
+  .admin-shell [role="tablist"] {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .admin-shell [role="tablist"] > * { flex: 0 0 auto; }
+
+  /* Dialogs use nearly full width on phones */
+  [data-radix-dialog-content] {
+    width: calc(100vw - 1.5rem) !important;
+    max-width: calc(100vw - 1.5rem) !important;
+    max-height: 85dvh;
+    overflow-y: auto;
+  }
+}
+
+
+
 
 /* CMS rich content rendering (used in editor + public article) */
 .cms-content { line-height: 1.7; color: hsl(var(--foreground)); }
