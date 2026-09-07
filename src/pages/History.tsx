@@ -214,15 +214,19 @@ const History = () => {
       setPartialFailure(null);
     } catch (error: any) {
       console.error("Error fetching orders:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load orders",
-        variant: "destructive",
-      });
+      if (!silent) {
+        toast({
+          title: "Error",
+          description: "Failed to load orders",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
 
   const getStatusColor = (status: string) => {
     const statusLower = status?.toLowerCase() || '';
