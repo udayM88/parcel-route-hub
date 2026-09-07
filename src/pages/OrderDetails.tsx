@@ -546,11 +546,30 @@ const OrderDetails = () => {
                 <p className="text-sm text-muted-foreground">AWB: {shipment.awbNumber}</p>
               )}
             </div>
-            <Badge className={getStatusColor(order.orderStatus)}>
-              {order.orderStatus || 'Unknown'}
+            <Badge className={getStatusColor(resolveDisplayStatus(order.orderStatus, bookingMeta))}>
+              {resolveDisplayStatus(order.orderStatus, bookingMeta)}
             </Badge>
           </div>
-          
+
+          {processing && (
+            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <RefreshCw className="h-4 w-4 text-amber-600 animate-spin" />
+                <p className="text-sm font-semibold text-amber-900">{PROCESSING_LABEL}</p>
+              </div>
+              <p className="text-xs text-amber-900">{PROCESSING_MESSAGE}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 h-8 text-xs"
+                onClick={() => fetchOrderDetails()}
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Check again
+              </Button>
+            </div>
+          )}
+
           <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
             <span className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
@@ -567,6 +586,7 @@ const OrderDetails = () => {
               {order.deliveryPromise || 'Standard'}
             </span>
           </div>
+
 
           {balance && (
             <BalanceDueCard
