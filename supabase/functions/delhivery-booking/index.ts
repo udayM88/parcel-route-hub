@@ -160,22 +160,42 @@ Deno.serve(async (req) => {
     const formBody = `format=json&data=${encodeURIComponent(JSON.stringify(fullPayload))}`;
     console.log("[delhivery-booking] step 4: cmu/create payload:", JSON.stringify(fullPayload));
 
-    const cmuRes = await fetch(`${apiBaseUrl}/api/cmu/create.json`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Token ${token}`,
-        Accept: "application/json",
-      },
-      body: formBody,
-    });
-    const cmuText = await cmuRes.text();
-    let cmuResult: any;
-    try { cmuResult = JSON.parse(cmuText); } catch { cmuResult = { raw: cmuText }; }
-    console.log("[delhivery-booking] cmu response:", cmuRes.status, cmuText.slice(0, 1200));
+    // Freshly created pickup locations can take a few seconds to propagate in
+    // Delhivery's HQ. Retry the manifest when it reports the warehouse missing.
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    let cmuRes!: Response;
+    let cmuText = "";
+    let cmuResult: any = null;
+    let pkg: any = null;
+    let cmuOk = false;
 
-    const pkg = Array.isArray(cmuResult?.packages) ? cmuResult.packages[0] : null;
-    const cmuOk = cmuRes.ok && (cmuResult?.success === true || pkg?.status === "Success");
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      cmuRes = await fetch(`${apiBaseUrl}/api/cmu/create.json`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Token ${token}`,
+          Accept: "application/json",
+        },
+        body: formBody,
+      });
+      cmuText = await cmuRes.text();
+      try { cmuResult = JSON.parse(cmuText); } catch { cmuResult = { raw: cmuText }; }
+      console.log(`[delhivery-booking] cmu response (attempt ${attempt}):`, cmuRes.status, cmuText.slice(0, 1200));
+
+      pkg = Array.isArray(cmuResult?.packages) ? cmuResult.packages[0] : null;
+      cmuOk = cmuRes.ok && (cmuResult?.success === true || pkg?.status === "Success");
+      if (cmuOk) break;
+
+      const warehouseMissing = /clientwarehouse matching query does not exist/i.test(
+        `${cmuResult?.rmk || ""} ${pkg?.remarks?.join?.("; ") || ""} ${cmuText}`,
+      );
+      if (!warehouseMissing || attempt === 4) break;
+
+      console.warn(`[delhivery-booking] warehouse ${warehouseName} not visible yet, retrying in ${attempt * 5}s`);
+      await sleep(attempt * 5000);
+    }
+
     if (!cmuOk) {
       const errMsg =
         pkg?.remarks?.join?.("; ") ||
@@ -188,6 +208,7 @@ Deno.serve(async (req) => {
         error: errMsg, delhivery_response: cmuResult,
       }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+
     const finalAwb = pkg?.waybill || awb;
 
     // ───── Step 6: Schedule pickup at sender's address ─────
