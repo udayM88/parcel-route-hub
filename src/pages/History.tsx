@@ -239,7 +239,9 @@ const History = () => {
         return 'bg-blue-500';
       case 'pending':
       case 'booked':
-        return 'bg-yellow-500';
+      case 'processing':
+        return 'bg-amber-500';
+
       case 'cancelled':
         return 'bg-red-500';
       default:
