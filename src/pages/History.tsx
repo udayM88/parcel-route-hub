@@ -142,6 +142,30 @@ const History = () => {
     } catch {}
   }, []);
 
+  // Orders that are paid but not yet confirmed by the courier resolve on the
+  // server within seconds/minutes — quietly re-check so the AWB shows up on
+  // its own. Stops once nothing is processing, or after ~5 minutes.
+  const hasProcessing = orders.some((o) => isProcessingOrder(bookingsMap[o.orderId]));
+
+  useEffect(() => {
+    if (!hasProcessing) return;
+    if (Date.now() - pollStartedAt.current > 5 * 60 * 1000) return;
+
+    const id = setInterval(() => {
+      if (Date.now() - pollStartedAt.current > 5 * 60 * 1000) return;
+      fetchOrders(true);
+    }, 15000);
+
+    const onFocus = () => fetchOrders(true);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [hasProcessing]);
+
+
   const fetchOrders = async () => {
     try {
       const auth = getAuthSession();
