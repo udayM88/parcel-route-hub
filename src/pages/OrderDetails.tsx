@@ -11,6 +11,8 @@ import { getAuthSession } from "@/lib/auth";
 import { isCancellable } from "@/hooks/useCancelOrder";
 import ParcelPhotoUpload from "@/components/booking/ParcelPhotoUpload";
 import BalanceDueCard, { type BookingBalance } from "@/components/booking/BalanceDueCard";
+import { isProcessingOrder, resolveDisplayStatus, PROCESSING_LABEL, PROCESSING_MESSAGE } from "@/lib/order-status";
+
 
 interface OrderAddress {
   type: string;
