@@ -530,6 +530,25 @@ const History = () => {
                       </Button>
                     );
                   })()}
+                  {(() => {
+                    const bm = bookingsMap[order.orderId];
+                    const bookingId = (order as any)._localBookingId || bm?.id;
+                    const dbStatus = String(bm?.status || order.orderStatus || '').toUpperCase();
+                    const closed = ['DELIVERED', 'CANCELLED', 'CANCELED', 'FAILED', 'RTO', 'PAYMENT_ABANDONED', 'PENDING_PAYMENT'];
+                    if (!bookingId || closed.includes(dbStatus)) return null;
+                    return (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                        onClick={() => setPhotoBookingId(bookingId)}
+                      >
+                        <Camera className="h-4 w-4 mr-1" />
+                        Parcel Photos
+                      </Button>
+                    );
+                  })()}
+
                   <Button
                     variant="outline"
                     size="sm"
