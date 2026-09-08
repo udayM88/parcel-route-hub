@@ -60,6 +60,7 @@ function buildVars(b: Record<string, any> | null, extra: Record<string, any> = {
     sender_phone: b.sender_phone || "-",
     receiver_name: b.receiver_name || "-",
     receiver_phone: b.receiver_phone || "-",
+    sender_pincode: b.sender_pincode || "-",
     receiver_pincode: b.receiver_pincode || "-",
     failure_reason: b.failure_reason || "-",
     refund_reason: b.refund_reason || "-",
