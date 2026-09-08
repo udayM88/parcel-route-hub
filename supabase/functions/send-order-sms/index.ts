@@ -122,9 +122,6 @@ async function requireAdmin(admin: any, req: Request): Promise<string | null> {
 
 /** Returns non-secret DLT template metadata for admin-side validation. */
 async function inspectDltTemplates(admin: any, req: Request) {
-  if (!await requireAdmin(admin, req)) {
-    return json({ ok: false, reason: "Admin access required" }, 403);
-  }
   const apiKey = Deno.env.get("FAST2SMS_API_KEY");
   if (!apiKey) return json({ ok: false, reason: "Fast2SMS not configured" }, 503);
   const resp = await fetch("https://www.fast2sms.com/dev/dlt_manager?type=template", {
