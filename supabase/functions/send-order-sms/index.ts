@@ -104,36 +104,6 @@ async function sendViaFast2Sms(
   }
 }
 
-async function requireAdmin(admin: any, req: Request): Promise<string | null> {
-  const authHeader = req.headers.get("Authorization") || "";
-  const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
-  if (!bearer) return null;
-  const userClient = createClient(
-    Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!,
-    { global: { headers: { Authorization: authHeader } } },
-  );
-  const { data: claims, error } = await userClient.auth.getClaims(bearer);
-  const uid = claims?.claims?.sub;
-  if (error || !uid) return null;
-  const { data: adminRow } = await admin
-    .from("admin_users").select("id").eq("user_id", uid).eq("is_active", true).maybeSingle();
-  return adminRow?.id ?? null;
-}
-
-/** Returns non-secret DLT template metadata for admin-side validation. */
-async function inspectDltTemplates(admin: any, req: Request) {
-  const apiKey = Deno.env.get("FAST2SMS_API_KEY");
-  if (!apiKey) return json({ ok: false, reason: "Fast2SMS not configured" }, 503);
-  const resp = await fetch("https://www.fast2sms.com/dev/dlt_manager?type=template", {
-    headers: { Authorization: apiKey },
-  });
-  const payload = await resp.json().catch(() => ({}));
-  if (!resp.ok || payload?.success === false) {
-    return json({ ok: false, reason: `Fast2SMS template lookup failed (${resp.status})` }, 502);
-  }
-  return json({ ok: true, templates: payload?.data ?? [] });
-}
-
 const nextRetryAt = (attempt: number) =>
   new Date(Date.now() + (BACKOFF_MIN[Math.min(attempt, BACKOFF_MIN.length) - 1] ?? 180) * 60_000).toISOString();
 
@@ -278,10 +248,6 @@ Deno.serve(async (req) => {
       const logId = String(body?.log_id || "");
       if (!logId) return json({ ok: false, decision: "failed", reason: "missing log_id" }, 400);
       return await manualRetry(admin, req, logId);
-    }
-
-    if (String(body?.mode || "") === "inspect_dlt_templates") {
-      return await inspectDltTemplates(admin, req);
     }
 
 
