@@ -463,14 +463,14 @@ const Landing = () => {
       <section
         id="hero"
         aria-label="Compare courier services India"
-        className="relative min-h-[calc(100svh-64px)] md:min-h-0 lg:min-h-screen pt-4 md:py-10 lg:pt-24 lg:pb-16 pb-6 px-4 md:px-8 lg:px-6 overflow-hidden flex flex-col lg:flex-row lg:items-center"
+        className="relative min-h-[calc(100svh-64px)] md:min-h-[calc(100svh-80px)] xl:min-h-screen pt-4 md:py-8 xl:pt-24 xl:pb-16 pb-6 px-4 md:px-8 xl:px-6 overflow-hidden flex flex-col items-center justify-center xl:flex-row xl:items-center"
         style={{
           backgroundColor: "#F4F7FB",
         }}
       >
-        {/* Desktop-only background image */}
+        {/* Tablet and desktop background image */}
         <img
-          className="hidden lg:block absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none"
+          className="hidden md:block absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none"
           src={heroDesktopImage.url}
           alt=""
           aria-hidden="true"
@@ -479,24 +479,24 @@ const Landing = () => {
         />
 
 
-        <div className="relative w-full lg:pl-12 self-start lg:self-center" style={{ zIndex: 3 }}>
+        <div className="relative w-full max-w-7xl mx-auto xl:pl-12" style={{ zIndex: 3 }}>
 
 
           <div
-            className="max-w-xl mx-auto md:ml-0 md:mr-auto rounded-2xl p-5 md:p-7 md:backdrop-blur-sm bg-white md:bg-white/95 shadow-sm"
+            className="max-w-xl mx-auto md:max-w-2xl lg:max-w-[590px] xl:ml-0 xl:mr-auto rounded-2xl p-5 md:p-8 lg:p-7 md:backdrop-blur-md bg-white md:bg-white/95 shadow-sm"
           >
-            <h1 className="font-bold leading-[1.2] text-[24px] md:text-[32px] lg:text-[36px] text-[#0B1220] whitespace-pre-line">
+            <h1 className="font-bold leading-[1.2] text-[24px] md:text-[32px] xl:text-[36px] text-[#0B1220] whitespace-pre-line">
               Send Anything. Anywhere. Easily.{"\n"}
               Compare top couriers.&nbsp;{"\n"}
               Doorstep Pickup.&nbsp;{"\n"}
               Real-Time Tracking.&nbsp;{"\n"}
               All at one place.
             </h1>
-            <h2 className="mt-3 text-[14px] md:text-[16px] font-normal" style={{ color: C.gray }}>
+            <h2 className="mt-3 md:mt-4 text-[14px] md:text-[16px] font-normal" style={{ color: C.gray }}>
               Compare Courier Prices &amp; Book Online <span style={{ color: C.teal }}>Save Up to 40%</span> on Every Parcel
             </h2>
 
-            <div className="mt-5 flex flex-col sm:flex-row gap-3">
+            <div className="mt-5 md:mt-6 flex flex-col sm:flex-row gap-3">
               <button
                 onClick={goSend}
                 className="h-12 px-6 rounded-lg font-bold text-[15px] flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]"
@@ -513,11 +513,11 @@ const Landing = () => {
               </a>
             </div>
 
-            <div id="track" className="mt-4">
+            <div id="track" className="mt-4 md:mt-5">
               <TrackForm onTrack={trackAwb} />
             </div>
 
-            <div className="mt-4 text-[12px] md:text-[13px] flex flex-wrap gap-x-3 gap-y-1" style={{ color: C.gray }}>
+            <div className="mt-4 md:mt-5 text-[12px] md:text-[13px] flex flex-wrap gap-x-3 gap-y-1" style={{ color: C.gray }}>
               <span>Trusted by 10,000+ users</span>
               <span>·</span>
               <span>Pan-India coverage</span>
