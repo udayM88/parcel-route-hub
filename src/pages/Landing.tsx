@@ -468,9 +468,9 @@ const Landing = () => {
           backgroundColor: "#F4F7FB",
         }}
       >
-        {/* Tablet and desktop background image */}
+        {/* Desktop-only background image */}
         <img
-          className="hidden md:block absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none"
+          className="hidden xl:block absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none"
           src={heroDesktopImage.url}
           alt=""
           aria-hidden="true"
