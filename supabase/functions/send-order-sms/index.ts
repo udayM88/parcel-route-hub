@@ -41,6 +41,7 @@ function buildVars(b: Record<string, any> | null, extra: Record<string, any> = {
       status: "CONFIRMED", amount: inr(499), delivery_time: "2-3 days",
       sender_name: "Test Sender", receiver_name: "Test Receiver",
       receiver_phone: "8888888888", failure_reason: "-", refund_reason: "-",
+      sender_pincode: "411001", receiver_pincode: "400059",
       tracking_url: "https://www.viasetu.com/tracking", ...extra,
     };
   }
@@ -60,6 +61,7 @@ function buildVars(b: Record<string, any> | null, extra: Record<string, any> = {
     sender_phone: b.sender_phone || "-",
     receiver_name: b.receiver_name || "-",
     receiver_phone: b.receiver_phone || "-",
+    sender_pincode: b.sender_pincode || "-",
     receiver_pincode: b.receiver_pincode || "-",
     failure_reason: b.failure_reason || "-",
     refund_reason: b.refund_reason || "-",
@@ -341,9 +343,10 @@ Deno.serve(async (req) => {
     // One SMS per order/AWB/event/status-event. A unique index on dedupe_key
     // makes concurrent webhook + polling deliveries collide instead of double
     // sending. The claim row is inserted BEFORE the provider call.
-    const dedupeKey = isTest
-      ? null
-      : [event, bookingId ?? "-", awbForLog ?? "-", statusEventId ?? String(rawStatus ?? "-")].join("|");
+    // Event-level key: the same event for the same order can only ever send
+    // once, no matter whether it came from the booking flow, a webhook or the
+    // status-sync cron (those used to produce different keys and double-send).
+    const dedupeKey = isTest ? null : [event, bookingId ?? awbForLog ?? "-"].join("|");
 
     const { data: claim, error: claimErr } = await admin
       .from("sms_logs")
