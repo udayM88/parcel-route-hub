@@ -343,9 +343,10 @@ Deno.serve(async (req) => {
     // One SMS per order/AWB/event/status-event. A unique index on dedupe_key
     // makes concurrent webhook + polling deliveries collide instead of double
     // sending. The claim row is inserted BEFORE the provider call.
-    const dedupeKey = isTest
-      ? null
-      : [event, bookingId ?? "-", awbForLog ?? "-", statusEventId ?? String(rawStatus ?? "-")].join("|");
+    // Event-level key: the same event for the same order can only ever send
+    // once, no matter whether it came from the booking flow, a webhook or the
+    // status-sync cron (those used to produce different keys and double-send).
+    const dedupeKey = isTest ? null : [event, bookingId ?? awbForLog ?? "-"].join("|");
 
     const { data: claim, error: claimErr } = await admin
       .from("sms_logs")
