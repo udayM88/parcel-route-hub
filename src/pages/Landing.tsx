@@ -469,13 +469,16 @@ const Landing = () => {
         }}
       >
         {/* Background image — visible on tablet and desktop */}
-        <img
-          className="hidden md:block absolute inset-0 w-full h-full object-cover object-[66%_center] pointer-events-none select-none"
-          src={heroDesktopImage.url}
-          alt=""
+        <div
+          className="hidden md:block absolute inset-0 w-full h-full pointer-events-none select-none"
           aria-hidden="true"
-          draggable={false}
-          style={{ zIndex: 0 }}
+          style={{
+            zIndex: 0,
+            backgroundImage: `url(${heroDesktopImage.url})`,
+            backgroundSize: "cover",
+            backgroundPosition: "66% center",
+            backgroundRepeat: "no-repeat",
+          }}
         />
 
 
