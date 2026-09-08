@@ -468,9 +468,9 @@ const Landing = () => {
           backgroundColor: "#F4F7FB",
         }}
       >
-        {/* Desktop-only background image */}
+        {/* Background image — visible on tablet and desktop */}
         <img
-          className="hidden xl:block absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none"
+          className="hidden md:block absolute inset-0 w-full h-full object-cover object-[66%_center] pointer-events-none select-none"
           src={heroDesktopImage.url}
           alt=""
           aria-hidden="true"
@@ -483,7 +483,7 @@ const Landing = () => {
 
 
           <div
-            className="max-w-xl mx-auto md:max-w-2xl lg:max-w-[590px] xl:ml-0 xl:mr-auto rounded-2xl p-5 md:p-8 lg:p-7 md:backdrop-blur-md bg-white md:bg-white/95 shadow-sm"
+            className="max-w-xl mx-auto md:max-w-2xl lg:max-w-[590px] xl:ml-0 xl:mr-auto rounded-2xl p-5 md:p-8 lg:p-7 bg-white/95 md:bg-white/95 backdrop-blur-md shadow-sm"
           >
             <h1 className="font-bold leading-[1.2] text-[24px] md:text-[32px] xl:text-[36px] text-[#0B1220] whitespace-pre-line">
               Send Anything. Anywhere. Easily.{"\n"}
