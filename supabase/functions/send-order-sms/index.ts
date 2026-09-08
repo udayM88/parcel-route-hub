@@ -41,6 +41,7 @@ function buildVars(b: Record<string, any> | null, extra: Record<string, any> = {
       status: "CONFIRMED", amount: inr(499), delivery_time: "2-3 days",
       sender_name: "Test Sender", receiver_name: "Test Receiver",
       receiver_phone: "8888888888", failure_reason: "-", refund_reason: "-",
+      sender_pincode: "411001", receiver_pincode: "400059",
       tracking_url: "https://www.viasetu.com/tracking", ...extra,
     };
   }
