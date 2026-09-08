@@ -104,6 +104,18 @@ async function sendViaFast2Sms(
   }
 }
 
+// Temporary diagnostics branch used during deployment verification. It exposes
+// only approved template metadata, never the Fast2SMS credential.
+async function inspectDltTemplates() {
+  const apiKey = Deno.env.get("FAST2SMS_API_KEY");
+  if (!apiKey) return json({ ok: false, reason: "Fast2SMS not configured" }, 503);
+  const resp = await fetch("https://www.fast2sms.com/dev/dlt_manager?type=template", {
+    headers: { Authorization: apiKey },
+  });
+  const payload = await resp.json().catch(() => ({}));
+  return json({ ok: resp.ok, status: resp.status, templates: payload?.data ?? payload });
+}
+
 const nextRetryAt = (attempt: number) =>
   new Date(Date.now() + (BACKOFF_MIN[Math.min(attempt, BACKOFF_MIN.length) - 1] ?? 180) * 60_000).toISOString();
 
@@ -237,6 +249,10 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
+
+    if (String(body?.mode || "") === "inspect_dlt_templates") {
+      return await inspectDltTemplates();
+    }
 
     if (String(body?.mode || "") === "retry") {
       const out = await retrySweep(admin, Math.min(Number(body?.limit) || 25, 100));
