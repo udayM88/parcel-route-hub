@@ -452,8 +452,8 @@ const Landing = () => {
     <PublicSiteLayout>
       <div style={{ background: C.bg, color: C.white, fontFamily: FONT_STACK }}>
       <PageSeo
-        title="Best Courier Service in India | Compare & Book — ViaSetu"
-        description="Compare prices from 14+ couriers, book doorstep pickup and track every parcel in one app. Save 20-40% on every shipment."
+        title="Compare Courier Prices & Book Online in India | ViaSetu"
+        description="Compare courier services, prices & delivery times. Book doorstep pickup and track parcels across India's top couriers."
         path="/"
       />
 
@@ -488,16 +488,15 @@ const Landing = () => {
           <div
             className="max-w-xl mx-auto md:max-w-2xl lg:max-w-[590px] xl:ml-0 xl:mr-auto rounded-2xl p-5 md:p-8 lg:p-7 bg-white/95 md:bg-white/95 backdrop-blur-md shadow-sm"
           >
-            <h1 className="font-bold leading-[1.2] text-[24px] md:text-[32px] xl:text-[36px] text-[#0B1220] whitespace-pre-line">
-              Send Anything. Anywhere. Easily.{"\n"}
-              Compare top couriers.&nbsp;{"\n"}
-              Doorstep Pickup.&nbsp;{"\n"}
-              Real-Time Tracking.&nbsp;{"\n"}
-              All at one place.
+            <h1 className="font-bold leading-[1.2] text-[24px] md:text-[32px] xl:text-[36px] text-[#0B1220]">
+              Compare Courier Prices &amp; Book Online in India
             </h1>
-            <h2 className="mt-3 md:mt-4 text-[14px] md:text-[16px] font-normal" style={{ color: C.gray }}>
-              Compare Courier Prices &amp; Book Online <span style={{ color: C.teal }}>Save Up to 40%</span> on Every Parcel
+            <h2 className="mt-3 md:mt-4 text-[15px] md:text-[18px] font-semibold" style={{ color: C.gray }}>
+              Compare Courier Services, Prices &amp; Delivery Times
             </h2>
+            <p className="mt-3 md:mt-4 text-[14px] md:text-[16px] font-medium" style={{ color: C.teal }}>
+              Compare → Book → Pickup → Track
+            </p>
 
             <div className="mt-5 md:mt-6 flex flex-col sm:flex-row gap-3">
               <button
