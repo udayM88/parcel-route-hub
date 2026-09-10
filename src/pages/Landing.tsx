@@ -452,8 +452,8 @@ const Landing = () => {
     <PublicSiteLayout>
       <div style={{ background: C.bg, color: C.white, fontFamily: FONT_STACK }}>
       <PageSeo
-        title="Best Courier Service in India | Compare & Book — ViaSetu"
-        description="Compare prices from 14+ couriers, book doorstep pickup and track every parcel in one app. Save 20-40% on every shipment."
+        title="Compare Courier Prices & Book Online in India | ViaSetu"
+        description="Compare courier services, prices & delivery times. Book doorstep pickup and track parcels across India's top couriers."
         path="/"
       />
 
