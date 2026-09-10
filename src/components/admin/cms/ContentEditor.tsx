@@ -14,7 +14,7 @@ import SEOPanel from '@/components/admin/cms/SEOPanel';
 import TagInput from '@/components/admin/cms/TagInput';
 import { CONTENT_TYPE_LABELS, CONTENT_TYPE_PATHS, slugify, type CmsContent, type CmsContentType } from '@/lib/cms/types';
 import { analyzeSeo } from '@/lib/cms/seo-score';
-import { Loader2, Save, ArrowLeft, ExternalLink, Plus } from 'lucide-react';
+import { Loader2, Save, ArrowLeft, ExternalLink, Plus, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Props {
@@ -40,6 +40,7 @@ export default function ContentEditor({ type }: Props) {
   const [authorDialogOpen, setAuthorDialogOpen] = useState(false);
   const [newAuthorName, setNewAuthorName] = useState('');
   const [creatingAuthor, setCreatingAuthor] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const loadCategories = () =>
     supabase.from('cms_categories').select('id,name').order('name').then(({ data }) => setCategories(data || []));
@@ -197,6 +198,9 @@ export default function ContentEditor({ type }: Props) {
               <a href={publicUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4 mr-1" /> View</a>
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
+            <Eye className="h-4 w-4 mr-1" /> Preview
+          </Button>
           <Button variant="outline" size="sm" onClick={() => save(false)} disabled={saving}>
             <Save className="h-4 w-4 mr-1" /> Save Draft
           </Button>
@@ -333,6 +337,35 @@ export default function ContentEditor({ type }: Props) {
           </Card>
         </div>
       </div>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-4 w-4" /> Preview
+              <span className="text-xs font-normal text-muted-foreground">{publicUrl}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <article className="pb-4">
+            <h1 className="text-2xl md:text-3xl font-bold mb-3">{data.title || 'Untitled'}</h1>
+            {data.excerpt && <p className="text-muted-foreground mb-4">{data.excerpt}</p>}
+            {data.featured_image_url && (
+              <img src={data.featured_image_url} alt={data.featured_image_alt || data.title || ''}
+                className="w-full rounded-xl mb-6" />
+            )}
+            <div className="cms-content prose prose-slate max-w-none"
+              dangerouslySetInnerHTML={{ __html: data.body_html || '<p class="text-muted-foreground">No content yet.</p>' }} />
+            {data.tags && data.tags.length > 0 && (
+              <div className="mt-8 pt-4 border-t flex flex-wrap gap-2">
+                {data.tags.map(t => <span key={t} className="text-xs px-2 py-1 rounded bg-muted">#{t}</span>)}
+              </div>
+            )}
+          </article>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={catDialogOpen} onOpenChange={setCatDialogOpen}>
         <DialogContent className="sm:max-w-md">
