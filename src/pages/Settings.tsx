@@ -44,6 +44,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import BottomNav from "@/components/BottomNav";
 import PageBackground from "@/components/PageBackground";
+import { clearAuthSession } from "@/lib/auth";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -148,8 +149,7 @@ const Settings = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('auth_session');
-    localStorage.removeItem('prayog_auth');
+    clearAuthSession();
     toast({
       title: t('settings.logout'),
       description: "You have been logged out.",

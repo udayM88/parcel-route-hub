@@ -15,6 +15,7 @@ Deno.serve(async (req) => {
       user_id, 
       full_name, 
       phone, 
+      email,
       preferred_language, 
       theme_preference, 
       sms_notifications, 
@@ -60,6 +61,7 @@ Deno.serve(async (req) => {
       const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
       if (full_name !== undefined) updateData.full_name = full_name;
       if (phone !== undefined) updateData.phone = phone;
+      if (email !== undefined) updateData.email = email;
       if (preferred_language !== undefined) updateData.preferred_language = preferred_language;
       if (theme_preference !== undefined) updateData.theme_preference = theme_preference;
       if (sms_notifications !== undefined) updateData.sms_notifications = sms_notifications;
@@ -90,6 +92,7 @@ Deno.serve(async (req) => {
           user_id,
           full_name: full_name || null,
           phone: phone || null,
+          email: email || null,
           preferred_language: preferred_language || 'en',
           theme_preference: theme_preference || 'light',
           sms_notifications: sms_notifications ?? true,
