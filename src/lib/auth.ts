@@ -4,8 +4,11 @@
 // Prayog removal migration.
 
 export interface AuthSession {
-  phone: string;          // Stored as +91XXXXXXXXXX
-  user_id: string;        // Deterministic Base64 hash of phone
+  phone?: string;         // Stored as +91XXXXXXXXXX for OTP users
+  email?: string;         // Primary email for Clerk users
+  auth_provider?: 'phone' | 'clerk';
+  external_auth_id?: string;
+  user_id: string;        // Stable UUID used by ViaSetu data tables
   customer_id: string;    // Same as user_id (kept for compat)
   userName?: string;
   full_name?: string;
@@ -46,6 +49,7 @@ export const setAuthSession = (session: AuthSession) => {
 export const clearAuthSession = () => {
   localStorage.removeItem(NEW_KEY);
   localStorage.removeItem(LEGACY_KEY);
+  window.dispatchEvent(new CustomEvent('viasetu:logout'));
 };
 
 export const isAuthenticated = (): boolean => Boolean(getAuthSession());
@@ -85,6 +89,22 @@ export const deriveUserId = async (phoneDigits: string): Promise<string> => {
   const hashBuffer = await crypto.subtle.digest('SHA-1', combined);
   const hashBytes = new Uint8Array(hashBuffer).slice(0, 16);
   // Set UUID v5 version + variant bits
+  hashBytes[6] = (hashBytes[6] & 0x0f) | 0x50;
+  hashBytes[8] = (hashBytes[8] & 0x3f) | 0x80;
+  return bytesToUuid(hashBytes);
+};
+
+// Clerk account IDs are not UUIDs, while ViaSetu's customer tables use UUIDs.
+// Derive a stable UUID without requiring or inventing a mobile number.
+export const deriveClerkUserId = async (clerkUserId: string): Promise<string> => {
+  const namespaceBytes = hexToBytes(VIASETU_PHONE_NAMESPACE.replace(/-/g, ''));
+  const nameBytes = new TextEncoder().encode(`clerk:${clerkUserId}`);
+  const combined = new Uint8Array(namespaceBytes.length + nameBytes.length);
+  combined.set(namespaceBytes, 0);
+  combined.set(nameBytes, namespaceBytes.length);
+
+  const hashBuffer = await crypto.subtle.digest('SHA-1', combined);
+  const hashBytes = new Uint8Array(hashBuffer).slice(0, 16);
   hashBytes[6] = (hashBytes[6] & 0x0f) | 0x50;
   hashBytes[8] = (hashBytes[8] & 0x3f) | 0x80;
   return bytesToUuid(hashBytes);

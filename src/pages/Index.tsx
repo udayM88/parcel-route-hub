@@ -14,6 +14,7 @@ import PageSeo from "@/components/PageSeo";
 import OnboardingSurveyDialog from "@/components/OnboardingSurveyDialog";
 import { CURRENT_ENV, setEnvironment, isLovablePreview } from "@/config/environment";
 import { cn } from "@/lib/utils";
+import { clearAuthSession } from "@/lib/auth";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -47,8 +48,7 @@ const Index = () => {
   };
 
   const handleLogout = async () => {
-    localStorage.removeItem('auth_session');
-    localStorage.removeItem('prayog_auth');
+    clearAuthSession();
     setUser(null);
     setProfile(null);
     toast({
