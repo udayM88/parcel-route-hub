@@ -514,13 +514,45 @@ All colors MUST be HSL.
 .cms-content hr { border: 0; border-top: 1px solid hsl(var(--border)); margin: 1.5rem 0; }
 .cms-content mark { background: #fef08a; padding: 0 0.15em; border-radius: 2px; }
 .cms-content [style*="text-align"] { display: block; }
-.cms-editor .ProseMirror { min-height: 400px; padding: 1rem; outline: none; }
+.cms-editor { position: relative; }
+.cms-toolbar-sentinel { height: 1px; margin-bottom: -1px; }
+.cms-toolbar {
+  transition: box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
+}
+.cms-toolbar--stuck {
+  border-color: hsl(var(--border));
+  box-shadow: 0 8px 18px -14px hsl(var(--foreground) / 0.45);
+}
+.cms-toolbar-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.cms-editor .ProseMirror {
+  min-height: 400px;
+  padding: 1rem;
+  outline: none;
+  overflow-wrap: anywhere;
+}
+.cms-editor .ProseMirror:focus { box-shadow: inset 3px 0 0 hsl(var(--primary)); }
+.cms-editor .ProseMirror img { height: auto; }
 .cms-editor .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
   color: hsl(var(--muted-foreground));
   pointer-events: none;
   height: 0;
+}
+
+@media (max-width: 767px) {
+  .cms-toolbar { top: 3.5rem; }
+  .cms-editor .ProseMirror { min-height: 55dvh; padding: 0.875rem; font-size: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cms-toolbar { transition: none; }
 }
 
 
