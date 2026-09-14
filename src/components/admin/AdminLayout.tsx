@@ -163,7 +163,7 @@ const AdminLayout = () => {
             <SidebarTrigger className="shrink-0" />
             <h1 className="ml-1 sm:ml-4 font-semibold text-sm sm:text-base truncate">Admin Dashboard</h1>
           </header>
-          <main className="admin-shell flex-1 min-w-0 w-full max-w-full p-3 sm:p-4 lg:p-6 overflow-x-hidden">
+          <main className="admin-shell flex-1 min-w-0 w-full max-w-full p-3 sm:p-4 lg:p-6 overflow-x-clip">
             <Outlet />
           </main>
         </div>
