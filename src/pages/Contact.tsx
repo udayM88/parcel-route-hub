@@ -58,12 +58,12 @@ export default function Contact() {
             <p className="text-[12.5px] mt-1" style={{ color: C.teal }}>We reply within 24 hours</p>
           </a>
 
-          <a href="tel:+919013999909" className="p-6 rounded-2xl border transition-shadow hover:shadow-lg" style={{ background: C.bg, borderColor: C.border }}>
+          <a href="tel:+919406833147" className="p-6 rounded-2xl border transition-shadow hover:shadow-lg" style={{ background: C.bg, borderColor: C.border }}>
             <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl mb-4" style={{ background: `${C.teal}1A`, color: C.teal }}>
               <Phone className="h-5 w-5" />
             </div>
             <h3 className="font-bold text-[16px]" style={{ color: C.text }}>Call Us</h3>
-            <p className="text-[13.5px] mt-2" style={{ color: C.gray }}>+91 90139 99909</p>
+            <p className="text-[13.5px] mt-2" style={{ color: C.gray }}>+91 94068 33147</p>
             <p className="text-[12.5px] mt-1" style={{ color: C.teal }}>Mon–Sat, 9 AM – 7 PM IST</p>
           </a>
 
