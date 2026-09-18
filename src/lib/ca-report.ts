@@ -77,7 +77,16 @@ export interface CaReportData {
 
 const n = (value: unknown) => Number(value) || 0;
 const money = '#,##0.00;(#,##0.00);"-"';
-const dateTime = (unixSeconds: number) => format(new Date(unixSeconds * 1000), "dd/MM/yyyy HH:mm");
+const istDateTime = (value: number | string | Date) => new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Kolkata",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+}).format(value instanceof Date ? value : new Date(typeof value === "number" ? value * 1000 : value)).replace(",", "");
+const dateTime = (unixSeconds: number) => istDateTime(unixSeconds);
 const paymentAmount = (payment: CaPayment) => n(payment.amount) / 100;
 const refundAmount = (refund: CaRefund) => n(refund.amount) / 100;
 
@@ -97,6 +106,14 @@ function bookingAmounts(booking: CaBooking) {
   const platform = n(booking.platform_fee);
   const partner = n(booking.courier_rate) || Math.max(0, n(booking.base_fare) - platform);
   return { total, gst, packaging, insurance, taxable, platform, partner };
+}
+
+function isReliableBooking(payment: CaPayment, booking: CaBooking) {
+  const captured = paymentAmount(payment);
+  const values = bookingAmounts(booking);
+  const storedSplit = n(booking.base_fare) + values.gst + values.packaging + values.insurance;
+  const incomplete = ["pending_payment", "payment_abandoned"].includes(String(booking.status || "").toLowerCase());
+  return !incomplete && Math.abs(captured - values.total) <= 1 && Math.abs(storedSplit - values.total) <= 1;
 }
 
 function addSheet(
@@ -131,11 +148,7 @@ export function buildCaWorkbook(data: CaReportData, generatedBy = "admin"): Blob
   const validSales = data.payments.filter((payment) => {
     const booking = bookingByPayment.get(payment.id);
     if (!booking || payment.status !== "captured" || payment.created_at < periodStart || payment.created_at > periodEnd) return false;
-    const captured = paymentAmount(payment);
-    const values = bookingAmounts(booking);
-    const storedSplit = n(booking.base_fare) + values.gst + values.packaging + values.insurance;
-    const incomplete = ["pending_payment", "payment_abandoned"].includes(String(booking.status || "").toLowerCase());
-    return !incomplete && Math.abs(captured - values.total) <= 1 && Math.abs(storedSplit - values.total) <= 1;
+    return isReliableBooking(payment, booking);
   });
 
   const salesHeader = [
@@ -173,7 +186,8 @@ export function buildCaWorkbook(data: CaReportData, generatedBy = "admin"): Blob
     const booking = bookingByPayment.get(refund.payment_id);
     const original = payment ? paymentAmount(payment) : 0;
     const refunded = refundAmount(refund);
-    const ratio = original > 0 ? Math.min(1, refunded / original) : 0;
+    const reliable = Boolean(payment && booking && isReliableBooking(payment, booking));
+    const ratio = reliable && original > 0 ? Math.min(1, refunded / original) : 0;
     const values = booking ? bookingAmounts(booking) : { taxable: 0, gst: 0 };
     const reversedTaxable = Math.round(values.taxable * ratio * 100) / 100;
     const reversedGst = Math.round(values.gst * ratio * 100) / 100;
@@ -190,8 +204,10 @@ export function buildCaWorkbook(data: CaReportData, generatedBy = "admin"): Blob
   const statusHeader = ["Booking Date", "Booking ID", "AWB", "Customer", "Courier", "Raw Status", "Status Group", "Payment Status", "Total"];
   const statusRows: (string | number | { f: string })[][] = [statusHeader];
   for (const booking of data.bookings) {
+    const status = String(booking.status || "").toLowerCase();
+    if (["pending_payment", "payment_abandoned"].includes(status) || booking.payment_status === "pending") continue;
     statusRows.push([
-      format(new Date(booking.created_at), "dd/MM/yyyy HH:mm"), booking.id, booking.prayog_awb || booking.tracking_id || "",
+      istDateTime(booking.created_at), booking.id, booking.prayog_awb || booking.tracking_id || "",
       booking.sender_name || "", booking.courier_name || "", booking.status || "", bucketOfStatus(booking.status),
       booking.payment_status || "", n(booking.courier_price),
     ]);
@@ -216,38 +232,6 @@ export function buildCaWorkbook(data: CaReportData, generatedBy = "admin"): Blob
     ]);
   }
   addSheet(workbook, "Payment Reconciliation", reconciliationRows, [3, 4, 5, 6, 7]);
-
-  const grossTaxable = validSales.reduce((sum, payment) => {
-    const booking = bookingByPayment.get(payment.id);
-    return sum + (booking ? bookingAmounts(booking).taxable : 0);
-  }, 0);
-  const grossGst = validSales.reduce((sum, payment) => sum + n(bookingByPayment.get(payment.id)?.gst), 0);
-  const grossCollections = validSales.reduce((sum, payment) => sum + paymentAmount(payment), 0);
-  const refundedTotal = data.refunds.reduce((sum, refund) => sum + refundAmount(refund), 0);
-  const reversedTaxable = data.refunds.reduce((sum, refund) => {
-    const payment = paymentById.get(refund.payment_id);
-    const booking = bookingByPayment.get(refund.payment_id);
-    if (!payment || !booking || paymentAmount(payment) <= 0) return sum;
-    return sum + bookingAmounts(booking).taxable * Math.min(1, refundAmount(refund) / paymentAmount(payment));
-  }, 0);
-  const reversedGst = data.refunds.reduce((sum, refund) => {
-    const payment = paymentById.get(refund.payment_id);
-    const booking = bookingByPayment.get(refund.payment_id);
-    if (!payment || !booking || paymentAmount(payment) <= 0) return sum;
-    return sum + n(booking.gst) * Math.min(1, refundAmount(refund) / paymentAmount(payment));
-  }, 0);
-  const saleSplits = validSales.reduce((total, payment) => {
-    const booking = bookingByPayment.get(payment.id);
-    const split = gstSplit(n(booking?.gst), booking?.sender_state || null);
-    return { cgst: total.cgst + split.cgst, sgst: total.sgst + split.sgst, igst: total.igst + split.igst };
-  }, { cgst: 0, sgst: 0, igst: 0 });
-  const creditSplits = data.refunds.reduce((total, refund) => {
-    const payment = paymentById.get(refund.payment_id);
-    const booking = bookingByPayment.get(refund.payment_id);
-    const ratio = payment && paymentAmount(payment) > 0 ? Math.min(1, refundAmount(refund) / paymentAmount(payment)) : 0;
-    const split = gstSplit(n(booking?.gst) * ratio, booking?.sender_state || null);
-    return { cgst: total.cgst + split.cgst, sgst: total.sgst + split.sgst, igst: total.igst + split.igst };
-  }, { cgst: 0, sgst: 0, igst: 0 });
 
   const salesLastRow = Math.max(2, salesRows.length);
   const creditLastRow = Math.max(2, creditRows.length);
@@ -312,7 +296,7 @@ export function buildCaWorkbook(data: CaReportData, generatedBy = "admin"): Blob
 
   const notesRows: (string | number | { f: string })[][] = [
     ["Report Notes", "Detail"],
-    ["Generated at (IST)", format(new Date(), "dd MMM yyyy HH:mm")],
+    ["Generated at (IST)", istDateTime(new Date())],
     ["Generated by", generatedBy],
     ["Place of supply", PLACE_OF_SUPPLY_STATE],
     ["Sales date", "Actual Razorpay payment capture date"],
