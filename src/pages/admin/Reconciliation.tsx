@@ -15,10 +15,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, RefreshCw, Search, IndianRupee, CheckCircle2, XCircle, FileWarning } from "lucide-react";
+import { AlertTriangle, RefreshCw, Search, IndianRupee, CheckCircle2, XCircle, FileWarning, FileSpreadsheet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format, subDays } from "date-fns";
+import { downloadCaWorkbook, type CaReportData } from "@/lib/ca-report";
 
 type Category = "matched" | "orphan" | "failed" | "refunded";
 
@@ -71,6 +72,55 @@ const Reconciliation = () => {
   const [filter, setFilter] = useState<"all" | Category>("all");
   const [actioning, setActioning] = useState<string | null>(null);
   const [refundTarget, setRefundTarget] = useState<ReconcileItem | null>(null);
+  const [reportMode, setReportMode] = useState<"month" | "custom">("month");
+  const [reportMonth, setReportMonth] = useState(format(new Date(), "yyyy-MM"));
+  const [reportFrom, setReportFrom] = useState(format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), "yyyy-MM-dd"));
+  const [reportTo, setReportTo] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [exporting, setExporting] = useState(false);
+
+  const reportBoundaries = () => {
+    if (reportMode === "month") {
+      const [year, month] = reportMonth.split("-").map(Number);
+      const lastDay = new Date(year, month, 0).getDate();
+      return {
+        from: `${reportMonth}-01T00:00:00+05:30`,
+        to: `${reportMonth}-${String(lastDay).padStart(2, "0")}T23:59:59+05:30`,
+        label: reportMonth,
+      };
+    }
+    return {
+      from: `${reportFrom}T00:00:00+05:30`,
+      to: `${reportTo}T23:59:59+05:30`,
+      label: `${reportFrom}-to-${reportTo}`,
+    };
+  };
+
+  const handleCaExport = async () => {
+    const range = reportBoundaries();
+    if (!range.from || !range.to || new Date(range.from) > new Date(range.to)) {
+      toast({ title: "Invalid date range", description: "Choose a valid reporting period.", variant: "destructive" });
+      return;
+    }
+    setExporting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("razorpay-reconcile", {
+        body: { action: "ca_report", from: range.from, to: range.to },
+      });
+      if (error) throw error;
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+      const report = data as CaReportData;
+      downloadCaWorkbook(report, range.label);
+      toast({
+        title: "CA report ready",
+        description: `${report.payments.length} payments, ${report.refunds.length} credit notes, and ${report.exceptions.length} review items exported.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not generate the report.";
+      toast({ title: "Report generation failed", description: message, variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -181,6 +231,52 @@ const Reconciliation = () => {
               Reconcile
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Monthly Billing & GST Report</CardTitle>
+          <CardDescription>
+            Download a CA-ready Excel workbook using actual payment and refund dates. Historical amounts are preserved as recorded.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Period type</label>
+                <div className="flex gap-2">
+                  <Button size="sm" variant={reportMode === "month" ? "default" : "outline"} onClick={() => setReportMode("month")}>Month</Button>
+                  <Button size="sm" variant={reportMode === "custom" ? "default" : "outline"} onClick={() => setReportMode("custom")}>Custom dates</Button>
+                </div>
+              </div>
+              {reportMode === "month" ? (
+                <div className="space-y-1">
+                  <label htmlFor="ca-report-month" className="text-xs font-medium text-muted-foreground">Report month</label>
+                  <Input id="ca-report-month" type="month" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} className="w-full sm:w-[190px]" />
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-1">
+                    <label htmlFor="ca-report-from" className="text-xs font-medium text-muted-foreground">From</label>
+                    <Input id="ca-report-from" type="date" value={reportFrom} onChange={(event) => setReportFrom(event.target.value)} className="w-full sm:w-[170px]" />
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="ca-report-to" className="text-xs font-medium text-muted-foreground">To</label>
+                    <Input id="ca-report-to" type="date" value={reportTo} onChange={(event) => setReportTo(event.target.value)} className="w-full sm:w-[170px]" />
+                  </div>
+                </>
+              )}
+            </div>
+            <Button onClick={handleCaExport} disabled={exporting || (reportMode === "month" && !reportMonth)} className="w-full sm:w-auto">
+              {exporting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
+              {exporting ? "Generating complete report…" : "Generate CA Excel Report"}
+            </Button>
+          </div>
+          <p className="mt-4 text-xs text-muted-foreground">
+            Includes sales register, separate credit notes, GST summary, courier totals, order statuses, payment matching, and exceptions requiring review.
+          </p>
         </CardContent>
       </Card>
 
