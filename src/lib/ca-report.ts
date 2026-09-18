@@ -126,7 +126,17 @@ export function buildCaWorkbook(data: CaReportData, generatedBy = "admin"): Blob
   const workbook = XLSX.utils.book_new();
   const bookingByPayment = new Map(data.bookings.filter((b) => b.payment_id).map((b) => [b.payment_id as string, b]));
   const paymentById = new Map(data.payments.map((payment) => [payment.id, payment]));
-  const validSales = data.payments.filter((payment) => payment.status === "captured" && bookingByPayment.has(payment.id));
+  const periodStart = new Date(data.range.from).getTime() / 1000;
+  const periodEnd = new Date(data.range.to).getTime() / 1000;
+  const validSales = data.payments.filter((payment) => {
+    const booking = bookingByPayment.get(payment.id);
+    if (!booking || payment.status !== "captured" || payment.created_at < periodStart || payment.created_at > periodEnd) return false;
+    const captured = paymentAmount(payment);
+    const values = bookingAmounts(booking);
+    const storedSplit = n(booking.base_fare) + values.gst + values.packaging + values.insurance;
+    const incomplete = ["pending_payment", "payment_abandoned"].includes(String(booking.status || "").toLowerCase());
+    return !incomplete && Math.abs(captured - values.total) <= 1 && Math.abs(storedSplit - values.total) <= 1;
+  });
 
   const salesHeader = [
     "Payment Date (IST)", "Payment ID", "Razorpay Order ID", "Booking ID", "AWB", "Order Status",
