@@ -249,30 +249,32 @@ export function buildCaWorkbook(data: CaReportData, generatedBy = "admin"): Blob
     return { cgst: total.cgst + split.cgst, sgst: total.sgst + split.sgst, igst: total.igst + split.igst };
   }, { cgst: 0, sgst: 0, igst: 0 });
 
+  const salesLastRow = Math.max(2, salesRows.length);
+  const creditLastRow = Math.max(2, creditRows.length);
   const summaryRows: (string | number | { f: string })[][] = [
     ["ViaSetu Monthly Billing & GST Report", "Value"],
     ["Reporting period", `${format(new Date(data.range.from), "dd MMM yyyy")} to ${format(new Date(data.range.to), "dd MMM yyyy")}`],
-    ["Captured booked payments", validSales.length],
-    ["Gross collections", grossCollections],
-    ["Gross taxable value", grossTaxable],
-    ["Gross GST", grossGst],
-    ["Credit notes", data.refunds.length],
-    ["Refunds", refundedTotal],
-    ["Taxable value reversed", reversedTaxable],
-    ["GST reversed", reversedGst],
-    ["Net collections", grossCollections - refundedTotal],
-    ["Net taxable value", grossTaxable - reversedTaxable],
-    ["Net GST payable", grossGst - reversedGst],
+    ["Captured booked payments", { f: `MAX(0,COUNTA('Sales Register'!B2:B${salesLastRow}))` }],
+    ["Gross collections", { f: `SUM('Sales Register'!O2:O${salesLastRow})` }],
+    ["Gross taxable value", { f: `SUM('Sales Register'!Q2:Q${salesLastRow})` }],
+    ["Gross GST", { f: `SUM('Sales Register'!U2:U${salesLastRow})` }],
+    ["Credit notes", { f: `MAX(0,COUNTA('Credit Notes'!B2:B${creditLastRow}))` }],
+    ["Refunds", { f: `SUM('Credit Notes'!L2:L${creditLastRow})` }],
+    ["Taxable value reversed", { f: `SUM('Credit Notes'!M2:M${creditLastRow})` }],
+    ["GST reversed", { f: `SUM('Credit Notes'!Q2:Q${creditLastRow})` }],
+    ["Net collections", { f: "B4-B8" }],
+    ["Net taxable value", { f: "B5-B9" }],
+    ["Net GST payable", { f: "B6-B10" }],
     ["Exceptions requiring review", data.exceptions.length],
   ];
   addSheet(workbook, "Executive Summary", summaryRows, [1]);
 
   const gstRows: (string | number | { f: string })[][] = [
     ["Tax Type", "Gross Output Tax", "Credit Note Reversal", "Net Payable"],
-    ["CGST", saleSplits.cgst, creditSplits.cgst, saleSplits.cgst - creditSplits.cgst],
-    ["SGST", saleSplits.sgst, creditSplits.sgst, saleSplits.sgst - creditSplits.sgst],
-    ["IGST", saleSplits.igst, creditSplits.igst, saleSplits.igst - creditSplits.igst],
-    ["TOTAL", grossGst, reversedGst, grossGst - reversedGst],
+    ["CGST", { f: `SUM('Sales Register'!R2:R${salesLastRow})` }, { f: `SUM('Credit Notes'!N2:N${creditLastRow})` }, { f: "B2-C2" }],
+    ["SGST", { f: `SUM('Sales Register'!S2:S${salesLastRow})` }, { f: `SUM('Credit Notes'!O2:O${creditLastRow})` }, { f: "B3-C3" }],
+    ["IGST", { f: `SUM('Sales Register'!T2:T${salesLastRow})` }, { f: `SUM('Credit Notes'!P2:P${creditLastRow})` }, { f: "B4-C4" }],
+    ["TOTAL", { f: "SUM(B2:B4)" }, { f: "SUM(C2:C4)" }, { f: "SUM(D2:D4)" }],
   ];
   addSheet(workbook, "GST Summary", gstRows, [1, 2, 3]);
 
