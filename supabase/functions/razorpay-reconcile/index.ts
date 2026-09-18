@@ -32,6 +32,15 @@ interface RzpPayment {
   notes: Record<string, string> | unknown[] | null;
 }
 
+interface RzpRefund {
+  id: string;
+  payment_id: string;
+  amount: number;
+  status: string;
+  created_at: number;
+  notes: Record<string, string> | null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -85,7 +94,7 @@ Deno.serve(async (req) => {
     const { from, to, action, payment_id, amount } = (await req.json().catch(() => ({}))) as {
       from?: string; // ISO date or unix seconds
       to?: string;
-      action?: "list" | "refund" | "create_audit_row";
+      action?: "list" | "refund" | "create_audit_row" | "ca_report";
       payment_id?: string;
       amount?: number;
     };
@@ -99,6 +108,214 @@ Deno.serve(async (req) => {
       );
     }
     const rzpAuth = btoa(`${razorpayConfig.keyId}:${razorpayConfig.keySecret}`);
+
+    const parseBoundary = (value: string | undefined, fallback: number) => {
+      if (!value) return fallback;
+      const parsed = new Date(value).getTime();
+      return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : NaN;
+    };
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const fromSec = parseBoundary(from, nowSec - 14 * 86400);
+    const toSec = parseBoundary(to, nowSec);
+    if (!Number.isFinite(fromSec) || !Number.isFinite(toSec) || fromSec > toSec) {
+      return new Response(JSON.stringify({ error: "A valid reporting period is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const razorpayGet = async (path: string) => {
+      const response = await fetch(`https://api.razorpay.com/v1${path}`, {
+        headers: { Authorization: `Basic ${rzpAuth}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error?.description || `Razorpay request failed (${response.status})`);
+      }
+      return data;
+    };
+
+    const pagedRazorpay = async <T>(resource: "payments" | "refunds") => {
+      const rows: T[] = [];
+      const count = 100;
+      for (let skip = 0; skip < 5000; skip += count) {
+        const data = await razorpayGet(`/${resource}?from=${fromSec}&to=${toSec}&count=${count}&skip=${skip}`);
+        const items = (data?.items || []) as T[];
+        rows.push(...items);
+        if (items.length < count) break;
+      }
+      return rows;
+    };
+
+    if (action === "ca_report") {
+      try {
+        const [periodPayments, refunds] = await Promise.all([
+          pagedRazorpay<RzpPayment>("payments"),
+          pagedRazorpay<RzpRefund>("refunds"),
+        ]);
+        const captured = periodPayments.filter((payment) => payment.status === "captured");
+        const paymentMap = new Map(captured.map((payment) => [payment.id, payment]));
+
+        // A refund in this month can relate to a sale from an earlier month.
+        for (const refund of refunds) {
+          if (paymentMap.has(refund.payment_id)) continue;
+          try {
+            const original = await razorpayGet(`/payments/${encodeURIComponent(refund.payment_id)}`) as RzpPayment;
+            paymentMap.set(original.id, original);
+          } catch (error) {
+            console.error("[razorpay-reconcile] original payment lookup failed", refund.payment_id, error);
+          }
+        }
+
+        const payments = Array.from(paymentMap.values());
+        const paymentIds = payments.map((payment) => payment.id);
+        const bookingColumns = [
+          "id", "payment_id", "payment_status", "status", "courier_name", "courier_price", "courier_rate",
+          "base_fare", "platform_fee", "consumer_platform_fee", "gst", "packaging_amount", "insurance_amount",
+          "sender_name", "sender_phone", "sender_city", "sender_state", "sender_pincode", "receiver_name",
+          "receiver_city", "receiver_state", "receiver_pincode", "tracking_id", "prayog_awb", "booking_source",
+          "account_type", "box_count", "refund_id", "refund_reason", "created_at",
+        ].join(",");
+
+        const bookingMap = new Map<string, any>();
+        for (let index = 0; index < paymentIds.length; index += 200) {
+          const batch = paymentIds.slice(index, index + 200);
+          if (batch.length === 0) continue;
+          const { data, error } = await supabase.from("bookings").select(bookingColumns).in("payment_id", batch);
+          if (error) throw error;
+          for (const booking of data || []) {
+            if (booking.payment_id) bookingMap.set(booking.payment_id, booking);
+          }
+        }
+
+        // Operational status detail follows booking creation date, while tax sales follow capture date.
+        const { data: periodBookings, error: periodError } = await supabase
+          .from("bookings")
+          .select(bookingColumns)
+          .gte("created_at", new Date(fromSec * 1000).toISOString())
+          .lte("created_at", new Date(toSec * 1000).toISOString())
+          .order("created_at", { ascending: true });
+        if (periodError) throw periodError;
+        for (const booking of periodBookings || []) {
+          if (booking.payment_id && !bookingMap.has(booking.payment_id)) bookingMap.set(booking.payment_id, booking);
+        }
+        const bookings = Array.from(new Map(
+          Array.from(bookingMap.values()).concat(periodBookings || []).map((booking) => [booking.id, booking]),
+        ).values());
+
+        const cancellationEvents: Record<string, string> = {};
+        const bookingIds = bookings.map((booking: any) => booking.id);
+        for (let index = 0; index < bookingIds.length; index += 200) {
+          const batch = bookingIds.slice(index, index + 200);
+          if (batch.length === 0) continue;
+          const { data: events } = await supabase
+            .from("shipment_status_events")
+            .select("booking_id,event_time,normalized_status")
+            .in("booking_id", batch)
+            .eq("normalized_status", "CANCELLED")
+            .order("event_time", { ascending: true });
+          for (const event of events || []) {
+            if (event.booking_id && !cancellationEvents[event.booking_id]) {
+              cancellationEvents[event.booking_id] = event.event_time;
+            }
+          }
+        }
+
+        const exceptions: Array<Record<string, unknown>> = [];
+        for (const payment of captured) {
+          const booking = bookingMap.get(payment.id);
+          const capturedAmount = payment.amount / 100;
+          if (!booking) {
+            exceptions.push({
+              type: "ORPHAN_PAYMENT", payment_id: payment.id, amount: capturedAmount,
+              detail: "Captured Razorpay payment has no booking record and is excluded from GST totals.",
+            });
+            continue;
+          }
+          const storedTotal = Number(booking.courier_price) || 0;
+          if (Math.abs(capturedAmount - storedTotal) > 1) {
+            exceptions.push({
+              type: "PAYMENT_AMOUNT_MISMATCH", payment_id: payment.id, booking_id: booking.id,
+              amount: capturedAmount - storedTotal,
+              detail: `Captured ₹${capturedAmount.toFixed(2)} but stored booking total is ₹${storedTotal.toFixed(2)}.`,
+            });
+          }
+          const split = (Number(booking.base_fare) || 0) + (Number(booking.gst) || 0) +
+            (Number(booking.packaging_amount) || 0) + (Number(booking.insurance_amount) || 0);
+          if (Math.abs(split - storedTotal) > 1) {
+            exceptions.push({
+              type: "STORED_SPLIT_MISMATCH", payment_id: payment.id, booking_id: booking.id,
+              amount: split - storedTotal,
+              detail: `Stored components total ₹${split.toFixed(2)} versus order total ₹${storedTotal.toFixed(2)}.`,
+            });
+          }
+        }
+        for (const refund of refunds) {
+          const booking = bookingMap.get(refund.payment_id);
+          if (!booking) {
+            exceptions.push({
+              type: "UNMATCHED_REFUND", payment_id: refund.payment_id, amount: refund.amount / 100,
+              detail: `Refund ${refund.id} has no matching booking and is excluded from GST reversal totals.`,
+            });
+          }
+        }
+        for (const booking of periodBookings || []) {
+          const status = String(booking.status || "").toLowerCase();
+          if ((booking.payment_status === "refunded" || booking.payment_status === "refund_failed") && !booking.refund_id) {
+            exceptions.push({
+              type: "MISSING_REFUND_REFERENCE", booking_id: booking.id, payment_id: booking.payment_id,
+              amount: Number(booking.courier_price) || 0,
+              detail: "Booking is marked refunded/refund failed but has no stored refund ID.",
+            });
+          }
+          if ((status.includes("cancel") || status.includes("failed")) && !cancellationEvents[booking.id]) {
+            exceptions.push({
+              type: "UNVERIFIED_CANCELLATION_DATE", booking_id: booking.id, payment_id: booking.payment_id,
+              amount: Number(booking.courier_price) || 0,
+              detail: "No reliable courier cancellation event timestamp is stored; booking date was not substituted.",
+            });
+          }
+          if (["external_settled", "cop_pending"].includes(booking.payment_status)) {
+            exceptions.push({
+              type: "NON_RAZORPAY_COLLECTION", booking_id: booking.id, payment_id: booking.payment_id,
+              amount: Number(booking.courier_price) || 0,
+              detail: `Payment status ${booking.payment_status} requires CA review and is excluded from Razorpay sales totals.`,
+            });
+          }
+        }
+
+        const { data: balancePayments } = await supabase
+          .from("booking_balance_payments")
+          .select("id,booking_id,payment_id,amount_due,status,paid_at,created_at")
+          .eq("status", "paid")
+          .gte("paid_at", new Date(fromSec * 1000).toISOString())
+          .lte("paid_at", new Date(toSec * 1000).toISOString());
+        for (const balance of balancePayments || []) {
+          exceptions.push({
+            type: "BALANCE_PAYMENT_REVIEW", payment_id: balance.payment_id, booking_id: balance.booking_id,
+            amount: Number(balance.amount_due) || 0,
+            detail: "Additional booking balance was collected; tax allocation requires review because no separate GST split is stored.",
+          });
+        }
+
+        return new Response(JSON.stringify({
+          range: { from: new Date(fromSec * 1000).toISOString(), to: new Date(toSec * 1000).toISOString() },
+          payments, refunds, bookings, exceptions, cancellation_events: cancellationEvents,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        console.error("[razorpay-reconcile] CA report failed", error);
+        return new Response(JSON.stringify({
+          error: "Could not generate a complete report from Razorpay. No partial report was produced.",
+          details: String(error),
+        }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     // ── Refund action ─────────────────────────────────────────────
     if (action === "refund") {
@@ -220,10 +437,6 @@ Deno.serve(async (req) => {
 
     // ── Default: list ─────────────────────────────────────────────
     // Default range: last 14 days
-    const nowSec = Math.floor(Date.now() / 1000);
-    const fromSec = from ? Math.floor(new Date(from).getTime() / 1000) : nowSec - 14 * 86400;
-    const toSec = to ? Math.floor(new Date(to).getTime() / 1000) : nowSec;
-
     // Page through Razorpay /payments
     const allPayments: RzpPayment[] = [];
     let skip = 0;
