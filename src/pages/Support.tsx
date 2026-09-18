@@ -113,7 +113,7 @@ const Support = () => {
             </a>
 
             <a
-              href="tel:+919013999909"
+              href="tel:+919406833147"
               className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-colors"
             >
               <div className="h-11 w-11 rounded-full bg-[#00A8A8]/20 flex items-center justify-center flex-shrink-0">
@@ -121,7 +121,7 @@ const Support = () => {
               </div>
               <div className="min-w-0">
                 <p className="font-semibold text-[15px]">Call Us</p>
-                <p className="text-sm text-white/80 truncate">+91 90139 99909</p>
+                <p className="text-sm text-white/80 truncate">+91 94068 33147</p>
                 <p className="text-xs text-white/60 mt-0.5">Mon–Sat, 9 AM – 7 PM IST</p>
               </div>
             </a>
