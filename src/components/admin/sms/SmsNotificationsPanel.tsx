@@ -194,7 +194,7 @@ const SmsNotificationsPanel = () => {
                     <Label>Internal recipients (10-digit numbers, comma separated)</Label>
                     <Input
                       value={(t.recipients || []).join(", ")}
-                      placeholder="9013999909, 8830306901"
+                      placeholder="9406833147, 8830306901"
                       onChange={(e) =>
                         patch(t.event_key, {
                           recipients: e.target.value.split(",").map((v) => v.trim()).filter(Boolean),

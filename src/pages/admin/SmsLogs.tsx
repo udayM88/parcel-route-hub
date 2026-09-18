@@ -278,7 +278,7 @@ const SmsLogs = () => {
           <div className="md:col-span-3 lg:col-span-6 flex flex-wrap items-end gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Test number (10-digit) for “Send test”</Label>
-              <Input className="w-56" placeholder="9013999909" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
+              <Input className="w-56" placeholder="9406833147" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
             </div>
             <Button variant="ghost" onClick={clearFilters}><X className="h-4 w-4 mr-2" />Clear filters</Button>
             <span className="text-xs text-muted-foreground ml-auto">{filtered.length} record(s)</span>
