@@ -204,6 +204,8 @@ export function buildCaWorkbook(data: CaReportData, generatedBy = "admin"): Blob
   const statusHeader = ["Booking Date", "Booking ID", "AWB", "Customer", "Courier", "Raw Status", "Status Group", "Payment Status", "Total"];
   const statusRows: (string | number | { f: string })[][] = [statusHeader];
   for (const booking of data.bookings) {
+    const status = String(booking.status || "").toLowerCase();
+    if (["pending_payment", "payment_abandoned"].includes(status) || booking.payment_status === "pending") continue;
     statusRows.push([
       istDateTime(booking.created_at), booking.id, booking.prayog_awb || booking.tracking_id || "",
       booking.sender_name || "", booking.courier_name || "", booking.status || "", bucketOfStatus(booking.status),
