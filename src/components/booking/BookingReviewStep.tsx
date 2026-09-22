@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Package, MapPin, IndianRupee, Truck, CreditCard, AlertTriangle } from "lucide-react";
 import {
   AlertDialog,
@@ -68,6 +69,7 @@ const BookingReviewStep = ({
 }: BookingReviewStepProps) => {
   const [submitting] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
+  const [shippingDisclaimerAccepted, setShippingDisclaimerAccepted] = useState(false);
 
   // Calculate GST at 18% on the base fare (which includes hidden platform fee)
   const totalAmount = Math.round(courierDetails.baseFare);
@@ -277,30 +279,71 @@ const BookingReviewStep = ({
         </div>
       </CardContent>
 
-      <AlertDialog open={showCancelWarning} onOpenChange={setShowCancelWarning}>
-        <AlertDialogContent>
+      <AlertDialog
+        open={showCancelWarning}
+        onOpenChange={(open) => {
+          setShowCancelWarning(open);
+          if (!open) setShippingDisclaimerAccepted(false);
+        }}
+      >
+        <AlertDialogContent className="max-w-lg max-h-[90vh] overflow-y-auto border-destructive/50">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              Orders cannot be cancelled once placed
+              Important Shipping Disclaimer
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              Please confirm all details are correct. Once you proceed to pay and the order is
-              placed, it cannot be cancelled from the app. If you need to cancel after booking,
-              email <span className="font-semibold">support@viasetu.com</span> — our team will
-              try to help, but cancellation is not guaranteed once the courier accepts the
-              shipment.
+            <AlertDialogDescription className="text-left space-y-3 text-foreground">
+              <span className="block font-semibold">
+                ViaSetu is a logistics facilitation platform that connects customers with
+                independent courier partners.
+              </span>
+              <span className="block">
+                The selected courier partner is responsible for the physical pickup, handling,
+                transportation, and delivery of your shipment.
+              </span>
+              <span className="block">
+                Pickup or delivery delays, loss, theft, tampering, or damage occurring while the
+                shipment is handled by the courier partner are outside ViaSetu&apos;s direct
+                operational control. Accordingly, ViaSetu cannot accept responsibility for such
+                events, subject to applicable law and the courier partner&apos;s terms and conditions.
+              </span>
+              <span className="block">
+                If an issue occurs, ViaSetu will assist with tracking, escalation, and eligible
+                claim coordination. The final investigation, decision, and settlement remain
+                subject to the courier partner&apos;s policies.
+              </span>
+              <span className="block font-semibold text-destructive">
+                Orders cannot be cancelled from the app after payment. Cancellation is not
+                guaranteed once the courier partner has accepted the shipment.
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-4">
+            <Checkbox
+              id="shipping-disclaimer-accept"
+              checked={shippingDisclaimerAccepted}
+              onCheckedChange={(checked) => setShippingDisclaimerAccepted(checked === true)}
+              className="mt-0.5"
+            />
+            <label
+              htmlFor="shipping-disclaimer-accept"
+              className="cursor-pointer text-sm font-semibold leading-5"
+            >
+              I have read and understood this shipping disclaimer and agree to proceed with
+              payment.
+            </label>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Review again</AlertDialogCancel>
             <AlertDialogAction
+              disabled={!shippingDisclaimerAccepted}
               onClick={() => {
                 setShowCancelWarning(false);
+                setShippingDisclaimerAccepted(false);
                 onConfirm();
               }}
             >
-              Yes, place order
+              I Understand — Continue to Payment
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
