@@ -528,11 +528,18 @@ const Booking = () => {
       ...extraParcels,
     ];
     if (parcels.length < 2) return undefined;
-    const perParcelRate = courierRateValue != null ? Math.round(courierRateValue / parcels.length) : null;
-    const perParcelPrice = Math.round(totalAmount / parcels.length);
-    return parcels.map((p) => toBoxPayload(p, isDocument, {
-      courier_rate: perParcelRate,
-      price: perParcelPrice,
+    const allocateAmount = (amount: number | null) => {
+      if (amount == null || !Number.isFinite(amount)) return parcels.map(() => null);
+      const totalPaise = Math.round(amount * 100);
+      const basePaise = Math.floor(totalPaise / parcels.length);
+      const remainder = totalPaise - (basePaise * parcels.length);
+      return parcels.map((_, index) => (basePaise + (index < remainder ? 1 : 0)) / 100);
+    };
+    const parcelRates = allocateAmount(courierRateValue);
+    const parcelPrices = allocateAmount(totalAmount);
+    return parcels.map((p, index) => toBoxPayload(p, isDocument, {
+      courier_rate: parcelRates[index],
+      price: parcelPrices[index],
     }));
   };
 
