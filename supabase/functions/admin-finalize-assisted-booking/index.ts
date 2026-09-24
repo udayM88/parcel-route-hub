@@ -1,6 +1,6 @@
 // Admin-triggered: refresh the Razorpay payment status of an assisted
 // (PENDING_PAYMENT) booking, and — if paid — automatically fire the correct
-// direct-partner booking function so the row lands at CREATED with an AWB.
+// shared shipment function so each parcel lands at CREATED with its own AWB.
 //
 // Input:  { booking_id: string, manual_payment_id?: string }
 // Output: { paid, booked, awb_number?, tracking_id?, label_url?, error?, link_status? }
@@ -14,41 +14,6 @@ const corsHeaders = {
 };
 
 const ALLOWED_ROLES = new Set(["super_admin", "operations", "support"]);
-
-// Map partner_id / courier_name → partner booking edge function name
-function pickPartnerFn(row: any): string | null {
-  const pid = String(row.partner_id || "").toLowerCase();
-  if (pid === "shadowfax_direct") return "shadowfax-booking";
-  if (pid === "delhivery_direct") return "delhivery-booking";
-  if (pid === "urbanebolt_direct") return "urbanebolt-booking";
-  if (pid === "xpressbees_direct") return "xpressbees-booking";
-  if (pid === "shree_maruti_direct") return "shree-maruti-booking";
-
-  const name = String(row.courier_name || "").toLowerCase();
-  if (name.includes("shadowfax")) return "shadowfax-booking";
-  if (name.includes("delhivery")) return "delhivery-booking";
-  if (name.includes("urbanebolt") || name.includes("urbane bolt")) return "urbanebolt-booking";
-  if (name.includes("xpressbees")) return "xpressbees-booking";
-  if (name.includes("shree maruti") || name.includes("shree_maruti") || name.includes("maruti")) {
-    return "shree-maruti-booking";
-  }
-  return null;
-}
-
-function genOrderId(): string {
-  const now = new Date();
-  const ts = [
-    now.getFullYear().toString().slice(-2),
-    (now.getMonth() + 1).toString().padStart(2, "0"),
-    now.getDate().toString().padStart(2, "0"),
-    now.getHours().toString().padStart(2, "0"),
-    now.getMinutes().toString().padStart(2, "0"),
-    now.getSeconds().toString().padStart(2, "0"),
-  ].join("");
-  const cs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  const rand = Array.from({ length: 6 }, () => cs[Math.floor(Math.random() * cs.length)]).join("");
-  return ts + rand;
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -209,117 +174,34 @@ Deno.serve(async (req) => {
       payment_link_status: "paid",
     }).eq("id", bookingId);
 
-    // ── Fire partner booking ──────────────────────────────────────
-    const partnerFn = pickPartnerFn(row);
-    if (!partnerFn) {
-      return new Response(JSON.stringify({
-        paid: true, booked: false,
-        error: `Cannot determine partner for courier '${row.courier_name}'. Manual booking required.`,
-      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
-    const orderId = genOrderId();
-    const partnerPayload = {
-      order_id: orderId,
-      sender_name: row.sender_name,
-      sender_phone: row.sender_phone,
-      sender_address: row.sender_address,
-      sender_pincode: row.sender_pincode,
-      sender_city: row.sender_city,
-      sender_state: row.sender_state,
-      receiver_name: row.receiver_name,
-      receiver_phone: row.receiver_phone,
-      receiver_address: row.receiver_address,
-      receiver_pincode: row.receiver_pincode,
-      receiver_city: row.receiver_city,
-      receiver_state: row.receiver_state,
-      package_weight: parseFloat(String(row.package_weight || "1")) || 1,
-      goods_type: row.goods_type || "Package",
-      shipment_value: row.shipment_value ? Number(row.shipment_value) : 0,
-      length: row.length ? parseFloat(String(row.length)) : 10,
-      width: row.width ? parseFloat(String(row.width)) : 10,
-      height: row.height ? parseFloat(String(row.height)) : 10,
-      service_code: row.service_code || undefined,
-    };
-
-    const fnUrl = `${supabaseUrl}/functions/v1/${partnerFn}`;
-    const partnerRes = await fetch(fnUrl, {
+    // Use the same shipment engine as customer bookings. It atomically claims
+    // the booking, resumes unfinished boxes without duplicating successful
+    // ones, creates one AWB/label per box, and handles full/partial refunds.
+    const shipmentRes = await fetch(`${supabaseUrl}/functions/v1/create-consumer-shipment`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${anonKey}`,
+        "x-internal-key": serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
         "x-environment": env,
       },
-      body: JSON.stringify(partnerPayload),
+      body: JSON.stringify({ booking_id: bookingId }),
     });
-    const partnerText = await partnerRes.text();
-    let partnerJson: any;
-    try { partnerJson = JSON.parse(partnerText); } catch { partnerJson = { raw: partnerText }; }
+    const shipmentText = await shipmentRes.text();
+    let shipment: any;
+    try { shipment = JSON.parse(shipmentText); } catch { shipment = { error: shipmentText }; }
 
-    if (!partnerRes.ok || !partnerJson?.success) {
-      // Auto-refund on partner failure.
-      const errDetail = partnerJson?.error || partnerJson?.message || partnerText.slice(0, 500);
-      let refundId: string | null = null;
-      try {
-        const refRes = await fetch(
-          `https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId!)}/refund`,
-          { method: "POST", headers: { ...rzHeaders, "Content-Type": "application/json" },
-            body: JSON.stringify({ speed: "normal" }) },
-        );
-        const refText = await refRes.text();
-        if (refRes.ok) {
-          try { refundId = JSON.parse(refText)?.id || null; } catch { /* ignore */ }
-        } else {
-          console.error("[admin-finalize] refund failed:", refText);
-        }
-      } catch (e) {
-        console.error("[admin-finalize] refund threw:", e);
-      }
-
-      await admin.from("bookings").update({
-        status: "FAILED",
-        payment_status: refundId ? "refunded" : "paid",
-        failure_reason: `Partner booking failed: ${errDetail}`.slice(0, 500),
-        refund_id: refundId,
-        refund_reason: refundId ? "partner_booking_failed" : null,
-      }).eq("id", bookingId);
-
+    if (!shipmentRes.ok) {
       return new Response(JSON.stringify({
-        paid: true, booked: false,
-        error: `Partner booking failed: ${errDetail}`,
-        refund_id: refundId,
+        paid: true,
+        booked: false,
+        error: shipment?.error || "Courier booking failed",
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const awb = partnerJson.awbNumber || null;
-    const labelUrl = partnerJson.label_url || partnerJson.labelUrl || null;
-    const trackingId = awb || partnerJson.orderId || orderId;
-
-    const { data: updated } = await admin.from("bookings").update({
-      status: "CREATED",
-      prayog_awb: awb,
-      tracking_id: trackingId,
-      label_url: labelUrl,
-      prayog_order_id: orderId,
-      booking_source: "admin_assisted",
-    }).eq("id", bookingId).select().single();
-
-    // Trigger admin notification email (best-effort).
-    try {
-      fetch(`${supabaseUrl}/functions/v1/send-order-admin-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${anonKey}`,
-        },
-        body: JSON.stringify({ booking_id: bookingId }),
-      }).catch(() => { /* fire-and-forget */ });
-    } catch { /* ignore */ }
-
     return new Response(JSON.stringify({
-      paid: true, booked: true,
-      awb_number: awb, tracking_id: trackingId, label_url: labelUrl,
-      booking: updated,
+      paid: true,
+      ...shipment,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err: any) {
     console.error("[admin-finalize-assisted-booking] error:", err);

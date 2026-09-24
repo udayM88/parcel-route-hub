@@ -6,6 +6,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
+import { normalizeBoxes, syncBookingBoxes } from "../_shared/booking-draft.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -191,10 +192,17 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Preserve every parcel before the customer pays. The shared helper is
+    // idempotent and intentionally keeps legacy single-parcel bookings on the
+    // parent row, while multi-parcel bookings get one booking_boxes row each.
+    const boxes = normalizeBoxes(draft?.boxes);
+    await syncBookingBoxes(admin, inserted.id, boxes);
+
     return new Response(
       JSON.stringify({
         success: true,
         booking_id: inserted.id,
+        parcel_count: Math.max(1, boxes.length),
         payment_link_id: rzJson.id,
         payment_link_url: rzJson.short_url,
         reference_id: referenceId,

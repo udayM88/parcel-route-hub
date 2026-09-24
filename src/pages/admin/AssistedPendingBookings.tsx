@@ -46,6 +46,7 @@ interface PendingRow {
   booking_source: string | null;
   partner_id: string | null;
   prayog_order_id: string | null;
+  box_count: number | null;
 }
 
 
@@ -65,7 +66,7 @@ const AssistedPendingBookings = () => {
   const [tracking, setTracking] = useState<Record<string, TrackEvent[]>>({});
 
   const SELECT_COLS =
-    "id, created_at, sender_name, receiver_name, courier_name, courier_price, payment_link_id, payment_link_url, payment_link_status, status, created_by_admin_email, sender_city, receiver_city, prayog_awb, tracking_id, label_url, booking_source, partner_id, prayog_order_id";
+    "id, created_at, sender_name, receiver_name, courier_name, courier_price, payment_link_id, payment_link_url, payment_link_status, status, created_by_admin_email, sender_city, receiver_city, prayog_awb, tracking_id, label_url, booking_source, partner_id, prayog_order_id, box_count";
 
 
   const fetchRows = async () => {
@@ -120,7 +121,9 @@ const AssistedPendingBookings = () => {
     if (data?.paid && data?.booked) {
       toast({
         title: "Booking confirmed",
-        description: data.awb_number
+        description: data?.multi
+          ? `${(data.boxes || []).filter((box: any) => box?.success).length} of ${(data.boxes || []).length} parcels booked${data.failed_count ? ` · ${data.failed_count} refunded` : ""}`
+          : data.awb_number
           ? `AWB ${data.awb_number}${data.already ? " (already booked)" : ""}`
           : "Courier booking created",
       });
@@ -305,6 +308,7 @@ const AssistedPendingBookings = () => {
                     <CardDescription className="mt-1 text-xs">
                       {row.sender_city || "?"} → {row.receiver_city || "?"} ·{" "}
                       {row.courier_name || "—"} · ₹{Number(row.courier_price || 0).toFixed(0)}
+                       {Number(row.box_count || 1) > 1 ? ` · ${row.box_count} parcels` : ""}
                       {" · "}
                       created {new Date(row.created_at).toLocaleString()}
                       {row.created_by_admin_email ? ` by ${row.created_by_admin_email}` : ""}
@@ -387,6 +391,7 @@ const AssistedPendingBookings = () => {
                       <CardDescription className="mt-1 text-xs">
                         {row.sender_city || "?"} → {row.receiver_city || "?"} ·{" "}
                         {row.courier_name || "—"} · ₹{Number(row.courier_price || 0).toFixed(0)}
+                         {Number(row.box_count || 1) > 1 ? ` · ${row.box_count} parcels` : ""}
                         {" · "}
                         AWB <span className="font-mono">{awb}</span>
                         {" · "}

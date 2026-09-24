@@ -9,6 +9,7 @@
 //          reason, note?, manifest_now?: boolean }
 // Output: { success, booking_id, manifested, awb?, error? }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { normalizeBoxes, syncBookingBoxes } from "../_shared/booking-draft.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -135,11 +136,17 @@ Deno.serve(async (req) => {
       return json({ error: insErr.message }, 500);
     }
 
+    // Save all parcels before optional manifesting so the shared shipment
+    // creator books one courier shipment (AWB + label) for every box.
+    const boxes = normalizeBoxes(draft?.boxes);
+    await syncBookingBoxes(admin, inserted.id, boxes);
+
     // Optionally manifest with the courier straight away (server-side, so the
     // admin's tab can close safely).
     let manifested = false;
     let awb: string | null = null;
     let manifestError: string | null = null;
+    let manifestBoxes: unknown[] = [];
 
     if (manifest_now) {
       try {
@@ -156,6 +163,7 @@ Deno.serve(async (req) => {
         });
         const payload = await res.json().catch(() => ({}));
         awb = payload?.awb_number || payload?.awb || payload?.tracking_id || null;
+        manifestBoxes = Array.isArray(payload?.boxes) ? payload.boxes : [];
         manifested = Boolean(payload?.booked && awb);
         if (!manifested) manifestError = payload?.error || "Courier booking did not return an AWB";
       } catch (e) {
@@ -173,6 +181,11 @@ Deno.serve(async (req) => {
     return json({
       success: true,
       booking_id: inserted.id,
+      parcel_count: Math.max(1, boxes.length),
+      booked_count: manifestBoxes.length
+        ? manifestBoxes.filter((box: any) => box?.success).length
+        : (manifested ? 1 : 0),
+      boxes: manifestBoxes,
       manifested,
       awb,
       manifest_error: manifestError,

@@ -601,7 +601,7 @@ const Booking = () => {
       setPaymentLinkInfo({ url: data.payment_link_url, bookingId: data.booking_id });
       toast({
         title: "Payment link sent",
-        description: `SMS sent to +91 ${assistedContext.phone}`,
+        description: `${data.parcel_count || 1} parcel${(data.parcel_count || 1) === 1 ? '' : 's'} saved · SMS sent to +91 ${assistedContext.phone}`,
       });
     } catch (e: any) {
       toast({ title: "Could not send payment link", description: e?.message || 'Please try again', variant: 'destructive' });
@@ -644,8 +644,8 @@ const Booking = () => {
       toast({
         title: "Booking created without payment",
         description: data.manifested
-          ? `Courier booked · AWB ${data.awb}`
-          : "Saved. Add the AWB manually from Order Monitoring once booked with the courier.",
+          ? `${data.booked_count || 1} of ${data.parcel_count || 1} parcels booked${data.awb ? ` · First AWB ${data.awb}` : ''}`
+          : `${data.parcel_count || 1} parcel${(data.parcel_count || 1) === 1 ? '' : 's'} saved. Add the AWB manually from Order Monitoring once booked with the courier.`,
       });
       navigate('/admin/assisted-pending');
     } catch (e: any) {
