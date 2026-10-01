@@ -1,166 +1,165 @@
-// Shree Maruti Ecom Booking.
-// POST /fulfillment/public/seller/order/ecomm/push-order
-// Returns AWB/CAWB. Hardcodes paymentType=ONLINE, paymentStatus=PAID (no COD).
-
+// Shree Maruti ECOMM booking through the documented Innofulfill gateway v2.
 import { getEnvironmentFromRequest } from "../_shared/environment.ts";
-import { shreeMarutiFetch } from "../_shared/shree-maruti-auth.ts";
+import {
+  readGatewayError,
+  SHREE_MARUTI_CARRIER_ID,
+  SHREE_MARUTI_CARRIER_NAME,
+  shreeMarutiGatewayFetch,
+} from "../_shared/shree-maruti-gateway.ts";
+import { isPartnerEnabled } from "../_shared/partner-toggle.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-environment",
+    "authorization, x-client-info, apikey, content-type, x-environment, x-internal-key, x-prayog-auth",
 };
 
-interface BookingBody {
-  order_id: string;
-  sender_name: string;
-  sender_phone: string;
-  sender_address: string;
-  sender_pincode: string;
-  sender_city: string;
-  sender_state: string;
-  receiver_name: string;
-  receiver_phone: string;
-  receiver_address: string;
-  receiver_pincode: string;
-  receiver_city: string;
-  receiver_state: string;
-  package_weight: number; // kg
-  goods_type?: string;
-  shipment_value?: number;
-  length?: number;
-  width?: number;
-  height?: number;
-  service_code?: string; // shree_maruti_surface | shree_maruti_express
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { ...corsHeaders, "Content-Type": "application/json" },
+});
+
+function cleanPhone(value: unknown): string {
+  return String(value || "").replace(/\D/g, "").slice(-10);
 }
 
-function buildAddress(
-  name: string, phone: string, address: string, city: string, state: string, zip: string,
-) {
+function validBody(body: any): string | null {
+  for (const field of ["order_id", "sender_name", "sender_phone", "sender_address", "sender_pincode", "sender_city", "sender_state", "receiver_name", "receiver_phone", "receiver_address", "receiver_pincode", "receiver_city", "receiver_state"]) {
+    if (!String(body?.[field] || "").trim()) return `Missing required field: ${field}`;
+  }
+  if (!/^\d{6}$/.test(String(body.sender_pincode)) || !/^\d{6}$/.test(String(body.receiver_pincode))) return "Pincodes must be 6 digits";
+  if (!/^\d{10}$/.test(cleanPhone(body.sender_phone)) || !/^\d{10}$/.test(cleanPhone(body.receiver_phone))) return "Phone numbers must be 10 digits";
+  if (!(Number(body.package_weight) > 0)) return "package_weight must be a positive number in kg";
+  for (const field of ["length", "width", "height"]) {
+    if (body[field] != null && !(Number(body[field]) > 0)) return `${field} must be positive`;
+  }
+  return null;
+}
+
+function address(type: string, body: any, sender: boolean) {
+  const prefix = sender ? "sender" : "receiver";
+  const addressText = String(body[`${prefix}_address`] || "");
   return {
-    name: name || "",
+    type,
+    zip: Number(body[`${prefix}_pincode`]),
+    name: String(body[`${prefix}_name`]),
+    phone: cleanPhone(body[`${prefix}_phone`]),
     email: "",
-    phone: String(phone).replace(/\D/g, "").slice(-10) || "",
-    address1: address || "",
-    address2: "",
-    city: city || "",
-    state: state || "",
+    street: addressText,
+    landmark: "",
+    city: String(body[`${prefix}_city`]),
+    state: String(body[`${prefix}_state`]),
     country: "India",
-    zip: String(zip || ""),
+    addressName: addressText,
+    ...(type === "PICKUP" ? { GSTNumber: "" } : {}),
   };
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-
   try {
-    const env = getEnvironmentFromRequest(req);
-    const body = (await req.json()) as BookingBody;
-    const {
-      order_id,
-      sender_name, sender_phone, sender_address, sender_pincode, sender_city, sender_state,
-      receiver_name, receiver_phone, receiver_address, receiver_pincode, receiver_city, receiver_state,
-      package_weight, goods_type, shipment_value,
-      length = 10, width = 10, height = 10,
-      service_code = "shree_maruti_surface",
-    } = body;
-
-    if (!order_id || !sender_name || !receiver_name || !sender_phone || !receiver_phone) {
-      return new Response(JSON.stringify({
-        success: false, error: "Missing required fields",
-      }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const bearer = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+    const internal = req.headers.get("x-internal-key") || "";
+    const prayogAuth = req.headers.get("x-prayog-auth");
+    if (!(serviceKey && (bearer === serviceKey || internal === serviceKey)) && !prayogAuth) {
+      return json({ success: false, error: "Unauthorized" }, 401);
+    }
+    if (!(await isPartnerEnabled("shree_maruti"))) {
+      return json({ success: false, error: "Shree Maruti is currently disabled" }, 503);
     }
 
-    const declared = Number(shipment_value) || 100;
-    const weightG = Math.max(1, Math.round(Number(package_weight) * 1000));
-    const itemName = goods_type || "Package";
-    const isExpress = service_code.includes("express");
+    const env = getEnvironmentFromRequest(req);
+    const body = await req.json().catch(() => ({}));
+    const validationError = validBody(body);
+    if (validationError) return json({ success: false, error: validationError }, 400);
+
+    const referenceId = String(body.order_id);
+    const weightKg = Number(body.package_weight);
+    const declaredValue = Math.max(1, Number(body.shipment_value) || 100);
+    const length = Number(body.length) || 10;
+    const width = Number(body.width) || 10;
+    const height = Number(body.height) || 10;
+    const mode = String(body.service_code || "").toLowerCase().includes("express") ? "AIR" : "SURFACE";
+    const volumetricWeight = Math.round(((length * width * height) / 5000) * 1000) / 1000;
 
     const payload = {
-      orderId: order_id,
-      orderSubtype: "FORWARD",
-      readyToPick: true,
-      orderCreatedAt: new Date().toISOString(),
-      currency: "INR",
-      amount: declared,
-      weight: weightG,
-      paymentType: "ONLINE",
-      paymentStatus: "PAID",
-      remarks: "Booked via ViaSetu",
-      // Delivery mode hint (some payloads use deliveryMode/deliveryPromise)
-      deliveryMode: isExpress ? "AIR" : "SURFACE",
-      deliveryPromise: isExpress ? "AIR" : "SURFACE",
-      length: Number(length),
-      width: Number(width),
-      height: Number(height),
-      lineItems: [{
-        name: itemName,
-        weight: weightG,
-        unitPrice: declared,
-        price: declared,
-        quantity: 1,
-        sku: order_id,
+      referenceId,
+      orderDate: new Date().toISOString(),
+      orderType: "FORWARD",
+      orderStatus: "CONFIRMED",
+      parcelCategory: "ECOMM",
+      autoManifest: true,
+      eWaybills: [],
+      deliveryPromise: "ECOMM",
+      deliveryMode: mode,
+      documentType: "",
+      taxes: [],
+      discounts: [],
+      metadata: { source: "viasetu" },
+      documents: [],
+      addresses: [
+        address("PICKUP", body, true),
+        address("DELIVERY", body, false),
+        address("BILLING", body, false),
+        address("RETURN", body, true),
+      ],
+      shipments: [{
+        dimensions: { length, width, height },
+        shipmentStatus: "CONFIRMED",
+        awbNumber: "",
+        physicalWeight: weightKg,
+        physicalWeightUnit: "KG",
+        volumetricWeight,
+        note: "Booked via ViaSetu",
+        items: [{
+          name: String(body.goods_type || "Package"),
+          quantity: 1,
+          unitPrice: declaredValue,
+          sku: referenceId,
+          hsnCode: "",
+          description: String(body.goods_type || "Package"),
+        }],
       }],
-      shippingAddress: buildAddress(
-        receiver_name, receiver_phone, receiver_address,
-        receiver_city, receiver_state, receiver_pincode,
-      ),
-      billingAddress: buildAddress(
-        receiver_name, receiver_phone, receiver_address,
-        receiver_city, receiver_state, receiver_pincode,
-      ),
-      pickupAddress: buildAddress(
-        sender_name, sender_phone, sender_address,
-        sender_city, sender_state, sender_pincode,
-      ),
-      returnAddress: buildAddress(
-        sender_name, sender_phone, sender_address,
-        sender_city, sender_state, sender_pincode,
-      ),
+      carrierId: SHREE_MARUTI_CARRIER_ID,
+      carrierName: SHREE_MARUTI_CARRIER_NAME,
+      payment: { type: "PREPAID", currency: "INR", paymentMethod: "ONLINE" },
     };
 
-    console.log("[shree-maruti-booking] payload:", JSON.stringify(payload));
+    console.log(`[shree-maruti-booking] creating reference=${referenceId} mode=${mode} weight_kg=${weightKg}`);
+    // No automatic 5xx retry here: repeating order creation could duplicate an accepted order.
+    const res = await shreeMarutiGatewayFetch(env, "/gateway/booking-service/orders", {
+      method: "POST", body: JSON.stringify(payload),
+    });
+    const parsed = await readGatewayError(res);
+    const inner = parsed.data?.data ?? parsed.data;
+    const partnerOrderId = inner?.orderId || null;
+    const shipment = Array.isArray(inner?.shipments) ? inner.shipments[0] : null;
+    const awb = shipment?.awbNumber || null;
 
-    const res = await shreeMarutiFetch(
-      env,
-      "/fulfillment/public/seller/order/ecomm/push-order",
-      { method: "POST", body: JSON.stringify(payload) },
-    );
-    const text = await res.text();
-    let result: any;
-    try { result = JSON.parse(text); } catch { result = { raw: text }; }
-    console.log("[shree-maruti-booking] response", res.status, text.slice(0, 1000));
-
-    const inner = result?.data ?? result;
-    const awbNumber: string | null =
-      inner?.awbNumber ?? inner?.awb ?? inner?.awb_number ?? null;
-    const cAwbNumber: string | null =
-      inner?.cAwbNumber ?? inner?.cawbNumber ?? inner?.courierAwb ?? null;
-    const trackId = awbNumber || cAwbNumber;
-
-    if (!res.ok || !trackId) {
-      const err =
-        inner?.error || inner?.message || result?.error || result?.message ||
-        `Shree Maruti booking failed (${res.status})`;
-      return new Response(JSON.stringify({
-        success: false, error: err, shree_maruti_response: result,
-      }), { status: res.status >= 400 ? res.status : 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!res.ok || !partnerOrderId || !awb) {
+      console.warn(`[shree-maruti-booking] failed status=${res.status} reference=${referenceId} trace=${parsed.traceId || "none"}`);
+      return json({
+        success: false,
+        error: parsed.message,
+        status: res.status,
+        trace_id: parsed.traceId,
+        partner_response: parsed.data,
+      }, res.status >= 400 ? res.status : 502);
     }
 
-    return new Response(JSON.stringify({
+    return json({
       success: true,
-      orderId: order_id,
-      awbNumber: String(trackId),
-      awb: awbNumber ? String(awbNumber) : null,
-      cAwbNumber: cAwbNumber ? String(cAwbNumber) : null,
-      label_url: null, // Label fetched separately via shree-maruti-label
-      status: "CREATED",
-      shree_maruti_response: result,
-    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      orderId: String(partnerOrderId),
+      referenceId,
+      awbNumber: String(awb),
+      awb: String(awb),
+      label_url: null,
+      status: inner?.orderStatus || shipment?.shipmentStatus || "PROCESSING",
+      trace_id: parsed.traceId,
+    }, 201);
   } catch (err) {
-    console.error("[shree-maruti-booking] error:", err);
-    return new Response(JSON.stringify({ success: false, error: "Internal server error", details: String(err) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("[shree-maruti-booking] error", String(err));
+    return json({ success: false, error: "Shree Maruti booking request failed", details: String(err) }, 500);
   }
 });
