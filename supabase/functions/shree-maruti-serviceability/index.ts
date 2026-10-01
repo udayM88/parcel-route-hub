@@ -1,4 +1,4 @@
-// Shree Maruti (Innofulfill / Delcaper) serviceability check.
+// Shree Maruti Innofulfill serviceability check.
 // Pricing: LIVE rate API first
 // (https://apis.innofulfill.com/gateway/ure/api/external/rate-calculation/calculate/v2),
 // with the embedded rate card (supabase/functions/_shared/rate-cards.ts,

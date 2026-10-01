@@ -1,9 +1,6 @@
 // Shree Maruti LIVE rate API (Innofulfill gateway, rate-calculation v2).
 //
-// Auth: the gateway uses its own login (username/password) that is separate
-// from the Delcaper seller login used for booking/label/tracking.
-// Credentials come from SHREE_MARUTI_INNO_USERNAME / SHREE_MARUTI_INNO_PASSWORD,
-// falling back to the existing Shree Maruti prod email/password.
+// Auth is centralized in shree-maruti-gateway.ts.
 //
 // If the API is unavailable (auth failure, downtime, unpriceable lane), callers
 // must fall back to the embedded contracted rate card.

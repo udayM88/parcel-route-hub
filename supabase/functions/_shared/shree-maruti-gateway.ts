@@ -3,7 +3,7 @@ import { getShreeMarutiConfig, type Environment } from "./environment.ts";
 export const SHREE_MARUTI_CARRIER_ID = "dee69b40-c0f3-4a44-879a-8b6f6849efaa";
 export const SHREE_MARUTI_CARRIER_NAME = "innofulfill_ecomm";
 
-interface GatewaySession {
+export interface GatewaySession {
   token: string;
   refreshToken: string | null;
   tenantId: string;
@@ -126,9 +126,9 @@ export async function shreeMarutiGatewayFetch(
     ...init,
     headers: {
       Accept: "application/json",
+      ...(init.headers || {}),
       ...(init.body ? { "Content-Type": "application/json" } : {}),
       ...authHeaders,
-      ...(init.headers || {}),
     },
   });
 

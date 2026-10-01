@@ -9,11 +9,6 @@ import { isPartnerEnabled } from "../_shared/partner-toggle.ts";
 
 async function pinInfo(pin: string) {
   try {
-    if (!(await isPartnerEnabled("shree_maruti"))) {
-      return new Response(JSON.stringify({ error: "Shree Maruti is currently disabled" }), {
-        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
     const r = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
     const j = await r.json();
     const po = j?.[0]?.PostOffice?.[0];
@@ -32,6 +27,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    if (!(await isPartnerEnabled("shree_maruti"))) {
+      return new Response(JSON.stringify({ error: "Shree Maruti is currently disabled" }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const env = getEnvironmentFromRequest(req);
     const body = await req.json();
     const {
