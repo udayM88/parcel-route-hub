@@ -62,9 +62,12 @@ async function checkLane(env: any, fromPin: number, toPin: number) {
       console.warn("[shree-maruti-serviceability] failed", res.status, text.slice(0, 300));
       return { ok: false, reason: data?.message || "Partner serviceability API unavailable", data };
     }
-    const entry = Array.isArray(data?.data) ? data.data[0] : null;
+    const entries = Array.isArray(data?.data) ? data.data : [];
+    const entry = entries.find((item: any) => Array.isArray(item?.carriers) && item.carriers.some(
+      (candidate: any) => String(candidate?.carrier || candidate?.carrierCode || candidate?.name || "").toUpperCase() === "SMILE",
+    )) || null;
     const carrier = Array.isArray(entry?.carriers)
-      ? entry.carriers.find((item: any) => String(item?.carrier || "").toUpperCase() === "SMILE")
+      ? entry.carriers.find((item: any) => String(item?.carrier || item?.carrierCode || item?.name || "").toUpperCase() === "SMILE")
       : null;
     return {
       ok: carrier?.serviceable === true,
