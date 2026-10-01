@@ -4,9 +4,16 @@
 
 import { quoteFromCard, resolvePrice } from "../_shared/rate-cards.ts";
 import { getEnvironmentFromRequest } from "../_shared/environment.ts";
+import { fetchShreeMarutiLiveRate } from "../_shared/shree-maruti-rate-api.ts";
+import { isPartnerEnabled } from "../_shared/partner-toggle.ts";
 
 async function pinInfo(pin: string) {
   try {
+    if (!(await isPartnerEnabled("shree_maruti"))) {
+      return new Response(JSON.stringify({ error: "Shree Maruti is currently disabled" }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const r = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
     const j = await r.json();
     const po = j?.[0]?.PostOffice?.[0];
@@ -35,9 +42,10 @@ Deno.serve(async (req) => {
       declared_value,
     } = body;
 
-    if (!pickup_pincode || !delivery_pincode) {
+    if (!/^\d{6}$/.test(String(pickup_pincode || "")) || !/^\d{6}$/.test(String(delivery_pincode || "")) ||
+        !(Number(weight_kg) > 0) || !(Number(length_cm) > 0) || !(Number(width_cm) > 0) || !(Number(height_cm) > 0)) {
       return new Response(
-        JSON.stringify({ error: "pickup_pincode and delivery_pincode are required" }),
+        JSON.stringify({ error: "Valid 6-digit pincodes and positive weight/dimensions are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -45,12 +53,15 @@ Deno.serve(async (req) => {
     const upperMode = String(mode).toUpperCase() === "AIR" ? "AIR" : "SURFACE";
     const dims = { l: Number(length_cm), w: Number(width_cm), h: Number(height_cm) };
 
-    // Shree Maruti: contracted rate card only — live API pricing is intentionally not used.
-    const [pInfo, dInfo] = await Promise.all([
+    const [pInfo, dInfo, live] = await Promise.all([
       pinInfo(String(pickup_pincode)),
       pinInfo(String(delivery_pincode)),
+      fetchShreeMarutiLiveRate(env, {
+        pickup_pincode, delivery_pincode, weight_kg: Number(weight_kg),
+        length_cm: Number(length_cm), width_cm: Number(width_cm), height_cm: Number(height_cm),
+        mode: upperMode, declared_value: Number(declared_value) || 0,
+      }),
     ]);
-    const live: { amount: number } | null = null;
 
     const card = quoteFromCard(
       "shree_maruti",
@@ -58,7 +69,7 @@ Deno.serve(async (req) => {
       pInfo, dInfo, Number(weight_kg), dims,
     );
 
-    const resolved = resolvePrice(null, card);
+    const resolved = resolvePrice(live?.amount ?? null, card);
 
     if (!resolved.price) {
       return new Response(
@@ -80,6 +91,9 @@ Deno.serve(async (req) => {
       card_delta_pct: resolved.verify?.delta_pct ?? null,
       chargeable_g: card?.chargeable_g ?? null,
       card_version: card?.card_version ?? null,
+      api_gst: live?.gstAmount ?? null,
+      api_total: live?.totalAmount ?? null,
+      api_trace_id: live?.traceId ?? null,
       final_price: resolved.price,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
