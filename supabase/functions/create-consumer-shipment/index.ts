@@ -13,6 +13,7 @@ import { dispatchEmail } from "../_shared/notify-email.ts";
 // Auth: internal only — caller must present the service role key in the
 // `x-internal-key` header (or an Authorization bearer with the same value).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { bookingFunctionFor, partnerIdFor, resolvePartnerKey } from "../_shared/partner-key.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,18 +29,13 @@ function json(body: unknown, status = 200) {
 }
 
 export function pickPartnerFn(row: { partner_id?: string | null; courier_name?: string | null; booking_source?: string | null }): string | null {
-  const s = `${row.partner_id || ""} ${row.booking_source || ""} ${row.courier_name || ""}`
-    .toLowerCase();
-  if (s.includes("shadowfax")) return "shadowfax-booking";
-  if (s.includes("delhivery")) return "delhivery-booking";
-  if (s.includes("urbanebolt") || s.includes("urbane bolt")) return "urbanebolt-booking";
-  if (s.includes("xpressbees") || s.includes("xpress bees")) return "xpressbees-booking";
-  if (s.includes("maruti") || s.includes("smile")) return "shree-maruti-booking";
-  return null;
+  const key = resolvePartnerKey(row.partner_id, row.booking_source, row.courier_name);
+  return key ? bookingFunctionFor(key) : null;
 }
 
 function partnerIdFromFn(fn: string): string {
-  return fn.replace(/-booking$/, "").replace(/-/g, "_") + "_direct";
+  const key = resolvePartnerKey(fn);
+  return key ? partnerIdFor(key) : fn.replace(/-booking$/, "").replace(/-/g, "_") + "_direct";
 }
 
 function genOrderId(): string {
@@ -165,6 +161,7 @@ Deno.serve(async (req) => {
         let ok = false;
         let awb: string | null = null;
         let labelUrl: string | null = null;
+        let upstreamOrderId: string | null = null;
         let errorMessage: string | null = null;
         try {
           const res = await fetch(`${supabaseUrl}/functions/v1/${partnerFn}`, {
@@ -173,6 +170,7 @@ Deno.serve(async (req) => {
               "Content-Type": "application/json",
               Authorization: `Bearer ${anonKey}`,
               "x-environment": env,
+              "x-internal-key": serviceKey,
             },
             body: JSON.stringify({
               ...partnerPayload,
@@ -188,6 +186,7 @@ Deno.serve(async (req) => {
           try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
           if (res.ok && payload?.success) {
             ok = true;
+            upstreamOrderId = payload?.orderId || null;
             awb = payload.awbNumber || payload.awb || payload.awb_number || payload.orderId || boxOrderId;
             labelUrl = payload.label_url || payload.labelUrl || null;
           } else {
@@ -200,7 +199,7 @@ Deno.serve(async (req) => {
         await admin.from("booking_boxes").update({
           status: ok ? "booked" : "failed",
           tracking_id: awb,
-          partner_order_id: boxOrderId,
+          partner_order_id: ok ? (upstreamOrderId || boxOrderId) : boxOrderId,
           label_url: labelUrl,
           error_message: errorMessage,
         }).eq("id", box.id);
@@ -324,7 +323,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`[create-consumer-shipment] ${bookingId} → ${partnerFn}`, JSON.stringify(partnerPayload));
+    console.log(`[create-consumer-shipment] ${bookingId} → ${partnerFn}`);
 
     let partnerJson: any = null;
     let partnerOk = false;
@@ -336,6 +335,7 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${anonKey}`,
           "x-environment": env,
+          "x-internal-key": serviceKey,
         },
         body: JSON.stringify(partnerPayload),
       });

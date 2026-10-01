@@ -968,7 +968,12 @@ const Booking = () => {
             width: width,
             height: height,
           },
-          headers: { 'x-environment': CURRENT_ENV },
+          headers: {
+            ...(localStorage.getItem('auth_session') || localStorage.getItem('prayog_auth')
+              ? { 'x-prayog-auth': localStorage.getItem('auth_session') || localStorage.getItem('prayog_auth') || '' }
+              : {}),
+            'x-environment': CURRENT_ENV,
+          },
         });
 
         if (sfxError || !sfxResult?.success) {
@@ -1037,7 +1042,12 @@ const Booking = () => {
             length, width, height,
             service_code: selectedService?.service_code || 'delhivery_express',
           },
-          headers: { 'x-environment': CURRENT_ENV },
+          headers: {
+            ...(localStorage.getItem('auth_session') || localStorage.getItem('prayog_auth')
+              ? { 'x-prayog-auth': localStorage.getItem('auth_session') || localStorage.getItem('prayog_auth') || '' }
+              : {}),
+            'x-environment': CURRENT_ENV,
+          },
         });
 
         if (dlvError || !dlvResult?.success) {

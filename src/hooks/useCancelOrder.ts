@@ -140,11 +140,16 @@ export const useCancelOrder = (options?: UseCancelOrderOptions) => {
       } else if (partnerKey === "shree_maruti") {
         const { data, error } = await supabase.functions.invoke("shree-maruti-cancel-order", {
           body: {
-            waybill: awb || undefined,
+            order_id: orderId,
             cancel_remarks: reason,
             booking_id: bookingId,
           },
-          headers: { "x-environment": CURRENT_ENV },
+          headers: {
+            ...(localStorage.getItem("auth_session") || localStorage.getItem("prayog_auth")
+              ? { "x-prayog-auth": localStorage.getItem("auth_session") || localStorage.getItem("prayog_auth") || "" }
+              : {}),
+            "x-environment": CURRENT_ENV,
+          },
         });
 
         if (error || !data?.success) {

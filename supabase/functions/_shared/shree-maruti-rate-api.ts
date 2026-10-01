@@ -1,76 +1,14 @@
 // Shree Maruti LIVE rate API (Innofulfill gateway, rate-calculation v2).
 //
-// Auth: the gateway uses its own login (username/password) that is separate
-// from the Delcaper seller login used for booking/label/tracking.
-// Credentials come from SHREE_MARUTI_INNO_USERNAME / SHREE_MARUTI_INNO_PASSWORD,
-// falling back to the existing Shree Maruti prod email/password.
+// Auth is centralized in shree-maruti-gateway.ts.
 //
 // If the API is unavailable (auth failure, downtime, unpriceable lane), callers
 // must fall back to the embedded contracted rate card.
 
-import { getShreeMarutiConfig, type Environment } from "./environment.ts";
+import type { Environment } from "./environment.ts";
+import { shreeMarutiGatewayFetch } from "./shree-maruti-gateway.ts";
 
-const GATEWAY_BASE = "https://apis.innofulfill.com";
 const RATE_V2_PATH = "/gateway/ure/api/external/rate-calculation/calculate/v2";
-const LOGIN_PATH = "/auth/login";
-
-interface CachedToken { token: string; expiresAt: number }
-const tokenCache = new Map<Environment, CachedToken>();
-
-// Auth option 1 (preferred when configured): static API key header.
-function apiKeyHeaders(): Record<string, string> | null {
-  const key = Deno.env.get("SHREE_MARUTI_INNO_API_KEY");
-  if (!key) return null;
-  // Docs: header name is lowercase `api-key`; tenantid optional alongside it.
-  const tid = tenantId();
-  return { "api-key": key, ...(tid ? { tenantid: tid } : {}) };
-}
-
-// Auth option 2: Bearer id_token + TenantId header.
-function tenantId(): string | undefined {
-  return Deno.env.get("SHREE_MARUTI_INNO_TENANT_ID");
-}
-
-function gatewayCreds(env: Environment) {
-  const fallback = getShreeMarutiConfig(env);
-  const username =
-    Deno.env.get("SHREE_MARUTI_INNO_USERNAME") || fallback.email;
-  const password =
-    Deno.env.get("SHREE_MARUTI_INNO_PASSWORD") || fallback.password;
-  return { username, password };
-}
-
-async function getGatewayToken(env: Environment, force = false): Promise<string> {
-  const now = Date.now();
-  const cached = tokenCache.get(env);
-  if (!force && cached && cached.expiresAt - 300_000 > now) return cached.token;
-
-  const { username, password } = gatewayCreds(env);
-  if (!username || !password) {
-    throw new Error("Shree Maruti gateway credentials not configured");
-  }
-
-  const res = await fetch(`${GATEWAY_BASE}${LOGIN_PATH}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ username, password }),
-  });
-  const text = await res.text();
-  let data: any;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
-
-  const token: string | undefined =
-    data?.data?.accessToken || data?.data?.access_token || data?.data?.token ||
-    data?.accessToken || data?.access_token || data?.token;
-
-  if (!res.ok || !token) {
-    console.error("[sm-rate-api] gateway login failed", res.status, text.slice(0, 400));
-    throw new Error(`Shree Maruti gateway auth failed: ${data?.message || res.status}`);
-  }
-
-  tokenCache.set(env, { token, expiresAt: now + 24 * 60 * 60 * 1000 });
-  return token;
-}
 
 function pickAmount(obj: any): number | null {
   if (obj == null) return null;
@@ -103,7 +41,7 @@ export async function fetchShreeMarutiLiveRate(
     mode: "SURFACE" | "AIR";
     declared_value?: number;
   },
-): Promise<{ amount: number; raw: unknown } | null> {
+): Promise<{ amount: number; gstAmount: number | null; totalAmount: number | null; traceId: string | null; raw: unknown } | null> {
   const payload = {
     fromPincode: Number(params.pickup_pincode),
     toPincode: Number(params.delivery_pincode),
@@ -121,38 +59,13 @@ export async function fetchShreeMarutiLiveRate(
     filters: { delivery_mode: params.mode },
   };
 
-  const call = async (headers: Record<string, string>) =>
-    fetch(`${GATEWAY_BASE}${RATE_V2_PATH}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...headers,
-      },
-      body: JSON.stringify(payload),
-    });
-
   try {
-    let res: Response;
-    const keyHeaders = apiKeyHeaders();
-    if (keyHeaders) {
-      // Method 1: Api-Key
-      res = await call(keyHeaders);
-    } else {
-      // Method 2: Bearer id_token (+ TenantId)
-      const tid = tenantId();
-      const bearer = (t: string) => ({
-        Authorization: `Bearer ${t}`,
-        ...(tid ? { tenantid: tid } : {}),
-      });
-      let token = await getGatewayToken(env);
-      res = await call(bearer(token));
-      if (res.status === 401 || res.status === 403) {
-        tokenCache.delete(env);
-        token = await getGatewayToken(env, true);
-        res = await call(bearer(token));
-      }
-    }
+    const res = await shreeMarutiGatewayFetch(
+      env,
+      RATE_V2_PATH,
+      { method: "POST", body: JSON.stringify(payload) },
+      { retryTemporary: true },
+    );
     const text = await res.text();
     if (!res.ok) {
       console.warn("[sm-rate-api] rate v2 failed", res.status, text.slice(0, 300));
@@ -166,14 +79,20 @@ export async function fetchShreeMarutiLiveRate(
     const d = data?.data ?? data;
     const baseRate = pickAmount({ amount: d?.pricing?.baseRate }) ??
       pickAmount({ amount: d?.calculation?.baseAmount });
-    if (baseRate != null) return { amount: baseRate, raw: d };
+    if (baseRate != null) return {
+      amount: baseRate,
+      gstAmount: Number.isFinite(Number(d?.taxSummary?.totalTax)) ? Number(d.taxSummary.totalTax) : null,
+      totalAmount: Number.isFinite(Number(d?.calculation?.totalAmount)) ? Number(d.calculation.totalAmount) : null,
+      traceId: data?.trace_id || data?.traceId || null,
+      raw: d,
+    };
 
     // Fallback: tolerant scan (object, {data:{...}}, or {data:[{...}]})
     const node = d;
     const candidates: any[] = Array.isArray(node) ? node : [node, ...(Array.isArray(node?.rates) ? node.rates : [])];
     for (const c of candidates) {
       const amount = pickAmount(c);
-      if (amount != null) return { amount, raw: c };
+      if (amount != null) return { amount, gstAmount: null, totalAmount: null, traceId: data?.trace_id || data?.traceId || null, raw: c };
     }
     console.warn("[sm-rate-api] no amount found in response", text.slice(0, 300));
     return null;

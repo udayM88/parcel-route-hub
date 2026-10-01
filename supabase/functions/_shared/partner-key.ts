@@ -21,3 +21,8 @@ export const resolvePartnerKey = (
   if (s.includes("maruti") || s.includes("smile")) return "shree_maruti";
   return null;
 };
+
+export const bookingFunctionFor = (key: PartnerKey): string =>
+  `${key.replace(/_/g, "-")}-booking`;
+
+export const partnerIdFor = (key: PartnerKey): string => `${key}_direct`;

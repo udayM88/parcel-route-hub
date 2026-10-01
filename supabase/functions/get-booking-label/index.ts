@@ -226,7 +226,11 @@ Deno.serve(async (req) => {
           "Authorization": `Bearer ${serviceKey}`,
           "x-environment": env,
         },
-        body: JSON.stringify({ waybill: awb, cAwb: awb, booking_id: b.id, box_id: box?.id }),
+        body: JSON.stringify({
+          order_id: box?.partner_order_id || b.prayog_order_id,
+          booking_id: b.id,
+          box_id: box?.id,
+        }),
       });
       const payload = await res.json().catch(() => ({}));
       const labelUrl = payload?.label_url || null;
