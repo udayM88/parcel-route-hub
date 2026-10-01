@@ -1,127 +1,77 @@
 import { dispatchEmail } from "../_shared/notify-email.ts";
-// Shree Maruti cancellation.
-// PUT /fulfillment/public/seller/order/cancel-order  { orderId, cancelReason }
-// Updates booking row + auto-refund via Razorpay if payment was collected.
-
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
-import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
-import { shreeMarutiFetch } from "../_shared/shree-maruti-auth.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { getEnvironmentFromRequest } from "../_shared/environment.ts";
+import { refundBookingIfPaid } from "../_shared/refund.ts";
+import { readGatewayError, shreeMarutiGatewayFetch } from "../_shared/shree-maruti-gateway.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-environment",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-environment, x-prayog-auth, x-internal-key",
 };
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+});
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-
   try {
     const env = getEnvironmentFromRequest(req);
-    const { waybill, awb, order_id, booking_id, cancel_remarks } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const bookingId = String(body?.booking_id || "").trim();
+    if (!bookingId) return json({ success: false, error: "booking_id is required" }, 400);
 
-    // Look up the upstream orderId (preferred per docs). Fall back to AWB.
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, serviceKey);
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const admin = createClient(supabaseUrl, serviceKey);
+    const { data: booking, error: bookingError } = await admin.from("bookings").select("*").eq("id", bookingId).maybeSingle();
+    if (bookingError || !booking) return json({ success: false, error: "Booking not found" }, 404);
 
-    let upstreamOrderId: string | null = order_id || null;
-    let bookingRow: any = null;
-    if (booking_id) {
-      const { data } = await supabase
-        .from("bookings")
-        .select("*")
-        .eq("id", booking_id)
-        .single();
-      bookingRow = data || null;
-      if (!upstreamOrderId) {
-        upstreamOrderId =
-          bookingRow?.prayog_order_id ||
-          bookingRow?.tracking_id ||
-          bookingRow?.prayog_awb ||
-          null;
-      }
+    const provided = req.headers.get("x-internal-key") || "";
+    let authorized = serviceKey !== "" && provided === serviceKey;
+    const prayog = req.headers.get("x-prayog-auth");
+    if (!authorized && prayog) {
+      try { authorized = JSON.parse(prayog)?.user_id === booking.user_id; } catch { authorized = false; }
     }
-    const trackId = upstreamOrderId || waybill || awb;
-    if (!trackId) {
-      return new Response(JSON.stringify({ success: false, error: "order_id or waybill is required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const payload = {
-      orderId: String(trackId),
-      cancelReason: cancel_remarks || "Cancelled By Customer",
-    };
-    console.log("[shree-maruti-cancel] payload:", JSON.stringify(payload));
-
-    const res = await shreeMarutiFetch(
-      env,
-      "/fulfillment/public/seller/order/cancel-order",
-      { method: "PUT", body: JSON.stringify(payload) },
-    );
-    const text = await res.text();
-    let result: any;
-    try { result = JSON.parse(text); } catch { result = { raw: text }; }
-    console.log("[shree-maruti-cancel] response:", res.status, text.slice(0, 800));
-
-    if (!res.ok || result?.success === false || result?.status === false) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: result?.error || result?.message || "Failed to cancel order",
-        details: result,
-      }), { status: res.status >= 400 ? res.status : 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
-    // Update booking + refund
-    if (booking_id) {
-      const paymentId = bookingRow?.payment_id;
-      const paymentStatus = bookingRow?.payment_status;
-
-      await supabase
-        .from("bookings")
-        .update({ status: "CANCELLED", updated_at: new Date().toISOString() })
-        .eq("id", booking_id);
-
-      dispatchEmail("order_cancelled", booking_id);
-
-      if (paymentId && paymentStatus === "paid") {
-        try {
-          const rz = getRazorpayConfig(env);
-          const auth = btoa(`${rz.keyId}:${rz.keySecret}`);
-          const refundResp = await fetch(
-            `https://api.razorpay.com/v1/payments/${paymentId}/refund`,
-            {
-              method: "POST",
-              headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ speed: "normal" }),
-            },
-          );
-          const refundResult = await refundResp.json();
-          if (refundResp.ok) {
-            await supabase
-              .from("bookings")
-              .update({ payment_status: "refunded", refund_id: refundResult.id || null })
-              .eq("id", booking_id);
-            console.log("[shree-maruti-cancel] refund initiated:", refundResult.id);
-          } else {
-            await supabase.from("bookings").update({ payment_status: "refund_failed" }).eq("id", booking_id);
-            console.error("[shree-maruti-cancel] refund failed:", refundResult);
-          }
-        } catch (refundErr) {
-          console.error("[shree-maruti-cancel] refund error:", refundErr);
-          await supabase.from("bookings").update({ payment_status: "refund_failed" }).eq("id", booking_id);
+    if (!authorized) {
+      const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+      if (token) {
+        const authClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: `Bearer ${token}` } } });
+        const { data } = await authClient.auth.getUser();
+        if (data?.user?.id === booking.user_id) authorized = true;
+        else if (data?.user?.id) {
+          const { data: adminRow } = await admin.from("admin_users").select("id").eq("user_id", data.user.id).eq("is_active", true).maybeSingle();
+          authorized = Boolean(adminRow);
         }
       }
     }
+    if (!authorized) return json({ success: false, error: "Unauthorized" }, 401);
 
-    return new Response(JSON.stringify({ success: true, message: "Order cancelled", details: result }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const upstreamOrderId = String(body?.order_id || booking.prayog_order_id || "").trim();
+    if (!upstreamOrderId) return json({ success: false, error: "Innofulfill order ID is missing; AWB cannot be used for cancellation" }, 400);
+    const reason = String(body?.cancel_remarks || "Cancelled By Customer").trim().slice(0, 255);
+
+    const res = await shreeMarutiGatewayFetch(env, "/gateway/booking-service/orders/cancel/bulk", {
+      method: "POST", body: JSON.stringify({ orders: [{ orderId: upstreamOrderId, reason }] }),
+    }, { retryTemporary: true });
+    const parsed = await readGatewayError(res);
+    const inner = parsed.data?.data ?? parsed.data;
+    const cancelledIds = Array.isArray(inner?.orderIds) ? inner.orderIds.map(String) : [];
+    const cancelled = Number(inner?.cancelledCount) > 0 || cancelledIds.includes(upstreamOrderId);
+    if (!res.ok || !cancelled) {
+      return json({ success: false, error: parsed.message, trace_id: parsed.traceId, partner_response: parsed.data }, res.status >= 400 ? res.status : 502);
+    }
+
+    const { error: updateError } = await admin.from("bookings").update({
+      status: "CANCELLED", refund_reason: reason, updated_at: new Date().toISOString(),
+    }).eq("id", bookingId);
+    if (updateError) return json({ success: false, error: "Courier cancelled the order, but ViaSetu could not save the status", details: updateError.message }, 500);
+
+    const refund = await refundBookingIfPaid(admin, bookingId, env, reason);
+    dispatchEmail("order_cancelled", bookingId);
+    return json({ success: true, message: "Order cancelled", order_id: upstreamOrderId, refund, trace_id: parsed.traceId });
   } catch (err) {
-    console.error("[shree-maruti-cancel] error:", err);
-    return new Response(JSON.stringify({ success: false, error: "Internal server error", details: String(err) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("[shree-maruti-cancel] error", String(err));
+    return json({ success: false, error: "Shree Maruti cancellation request failed", details: String(err) }, 500);
   }
 });
