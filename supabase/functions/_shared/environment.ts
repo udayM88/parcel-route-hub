@@ -214,12 +214,12 @@ interface ShreeMarutiConfig {
 // Login returns a JWT (1d access token, 30d refresh).
 export const SHREE_MARUTI_CONFIG: Record<Environment, ShreeMarutiConfig> = {
   sandbox: {
-    apiBaseUrl: 'https://qaapis.delcaper.com',
+    apiBaseUrl: 'https://sandbox.apis.innofulfill.com',
     emailEnvVar: 'SHREE_MARUTI_STAGING_EMAIL',
     passwordEnvVar: 'SHREE_MARUTI_STAGING_PASSWORD',
   },
   production: {
-    apiBaseUrl: 'https://apis.delcaper.com',
+    apiBaseUrl: 'https://apis.innofulfill.com',
     emailEnvVar: 'SHREE_MARUTI_PROD_EMAIL',
     passwordEnvVar: 'SHREE_MARUTI_PROD_PASSWORD',
   },
@@ -227,11 +227,9 @@ export const SHREE_MARUTI_CONFIG: Record<Environment, ShreeMarutiConfig> = {
 
 export function getShreeMarutiConfig(env: Environment) {
   const config = SHREE_MARUTI_CONFIG[env];
-  // Fall back to prod creds if env-specific ones are missing
-  const email =
-    Deno.env.get(config.emailEnvVar) || Deno.env.get('SHREE_MARUTI_PROD_EMAIL');
-  const password =
-    Deno.env.get(config.passwordEnvVar) || Deno.env.get('SHREE_MARUTI_PROD_PASSWORD');
+  // Never let sandbox traffic silently authenticate with production credentials.
+  const email = Deno.env.get(config.emailEnvVar);
+  const password = Deno.env.get(config.passwordEnvVar);
   const vendorType = Deno.env.get('SHREE_MARUTI_VENDOR_TYPE') || 'SELLER';
   return {
     apiBaseUrl: config.apiBaseUrl,
