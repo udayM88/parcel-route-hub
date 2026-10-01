@@ -213,6 +213,7 @@ Deno.serve(async (req) => {
       let ok = false;
       let awb: string | null = null;
       let labelUrl: string | null = null;
+      let upstreamOrderId: string | null = null;
       let errorMessage: string | null = null;
 
       try {
@@ -253,6 +254,7 @@ Deno.serve(async (req) => {
 
         if (res.ok && payload?.success) {
           ok = true;
+          upstreamOrderId = payload?.orderId || null;
           awb = payload.awbNumber || payload.awb_number || payload.orderId || orderId;
           labelUrl = payload.label_url || payload.labelUrl || null;
         } else {
@@ -265,7 +267,7 @@ Deno.serve(async (req) => {
       await admin.from("booking_boxes").update({
         status: ok ? "booked" : "failed",
         tracking_id: awb,
-        partner_order_id: ok ? (payload?.orderId || orderId) : orderId,
+        partner_order_id: ok ? (upstreamOrderId || orderId) : orderId,
         label_url: labelUrl,
         error_message: errorMessage,
       }).eq("id", boxRow?.id ?? "");

@@ -31,9 +31,6 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    const provided = req.headers.get("x-internal-key") || (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-    if (!serviceKey || provided !== serviceKey) return json({ success: false, error: "Unauthorized" }, 401);
-
     const env = getEnvironmentFromRequest(req);
     const body = await req.json().catch(() => ({}));
     const bookingId = String(body?.booking_id || "").trim();
@@ -44,21 +41,42 @@ Deno.serve(async (req) => {
     const admin = createClient(Deno.env.get("SUPABASE_URL") || "", serviceKey);
     let target: "bookings" | "booking_boxes";
     let targetId: string;
+    let ownerId: string | null = null;
     if (boxId) {
       const { data: box, error } = await admin.from("booking_boxes")
         .select("id,booking_id,partner_order_id").eq("id", boxId).maybeSingle();
       if (error || !box || (bookingId && box.booking_id !== bookingId)) return json({ success: false, error: "Parcel not found" }, 404);
+      const { data: parent } = await admin.from("bookings").select("user_id").eq("id", box.booking_id).maybeSingle();
+      ownerId = parent?.user_id || null;
       orderId = orderId || String(box.partner_order_id || "");
       target = "booking_boxes";
       targetId = box.id;
     } else {
       const { data: booking, error } = await admin.from("bookings")
-        .select("id,prayog_order_id").eq("id", bookingId).maybeSingle();
+        .select("id,prayog_order_id,user_id").eq("id", bookingId).maybeSingle();
       if (error || !booking) return json({ success: false, error: "Booking not found" }, 404);
+      ownerId = booking.user_id || null;
       orderId = orderId || String(booking.prayog_order_id || "");
       target = "bookings";
       targetId = booking.id;
     }
+    const provided = req.headers.get("x-internal-key") || "";
+    let authorized = serviceKey !== "" && provided === serviceKey;
+    if (!authorized) {
+      const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+      if (token) {
+        const authClient = createClient(Deno.env.get("SUPABASE_URL") || "", Deno.env.get("SUPABASE_ANON_KEY") || "", {
+          global: { headers: { Authorization: `Bearer ${token}` } },
+        });
+        const { data } = await authClient.auth.getUser();
+        if (data?.user?.id === ownerId) authorized = true;
+        else if (data?.user?.id) {
+          const { data: adminRow } = await admin.from("admin_users").select("id").eq("user_id", data.user.id).eq("is_active", true).maybeSingle();
+          authorized = Boolean(adminRow);
+        }
+      }
+    }
+    if (!authorized) return json({ success: false, error: "Unauthorized" }, 401);
     if (!orderId) return json({ success: false, error: "Innofulfill order ID is missing" }, 400);
 
     const session = await getShreeMarutiGatewaySession(env);

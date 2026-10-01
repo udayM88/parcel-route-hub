@@ -161,6 +161,7 @@ Deno.serve(async (req) => {
         let ok = false;
         let awb: string | null = null;
         let labelUrl: string | null = null;
+        let upstreamOrderId: string | null = null;
         let errorMessage: string | null = null;
         try {
           const res = await fetch(`${supabaseUrl}/functions/v1/${partnerFn}`, {
@@ -185,6 +186,7 @@ Deno.serve(async (req) => {
           try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
           if (res.ok && payload?.success) {
             ok = true;
+            upstreamOrderId = payload?.orderId || null;
             awb = payload.awbNumber || payload.awb || payload.awb_number || payload.orderId || boxOrderId;
             labelUrl = payload.label_url || payload.labelUrl || null;
           } else {
@@ -197,7 +199,7 @@ Deno.serve(async (req) => {
         await admin.from("booking_boxes").update({
           status: ok ? "booked" : "failed",
           tracking_id: awb,
-          partner_order_id: ok ? (payload?.orderId || boxOrderId) : boxOrderId,
+          partner_order_id: ok ? (upstreamOrderId || boxOrderId) : boxOrderId,
           label_url: labelUrl,
           error_message: errorMessage,
         }).eq("id", box.id);
