@@ -97,6 +97,12 @@ export default function Privacy() {
           <p>The Company may update this Privacy Policy from time to time. Updated versions shall be published on the Platform.</p>
         </Section>
 
+        <Section n="7A" title="Advertising and Measurement Technologies">
+          <p>Where permitted, the Platform uses Google Analytics, Google Ads, Google Tag Manager, and Meta Pixel to measure website activity, advertising performance, and conversions, and to support advertising optimisation.</p>
+          <p>These services may receive device and browser information, IP-derived location, page visits, referring pages, advertising identifiers, and interactions with the Platform. ViaSetu does not send shipment contact details through ordinary advertising event parameters.</p>
+          <p>Advertising tags are blocked for visitors in regions where advertising consent is required, and whenever the visitor’s region cannot be resolved. We also honour supported browser privacy signals. Visitors elsewhere can manage personalised advertising through <a href="https://adssettings.google.com/" className="text-[#00A8A8] font-medium" target="_blank" rel="noreferrer">Google Ads Settings</a> and <a href="https://www.facebook.com/adpreferences/" className="text-[#00A8A8] font-medium" target="_blank" rel="noreferrer">Meta Ad Preferences</a>.</p>
+        </Section>
+
         <Section n="8" title="Shipping Policy">
           <p className="font-semibold text-[#0B1220]">Shipping and Delivery Policy</p>
           <p>This Shipping Policy governs shipment bookings made through the Platform.</p>

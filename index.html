@@ -1,21 +1,68 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Google Tag Manager -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-MLBWNPG5');</script>
-    <!-- End Google Tag Manager -->
-
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-03HBZXBXQC"></script>
+    <!-- ViaSetu advertising consent gate: no tags in consent-required or unresolved regions. -->
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-03HBZXBXQC');
+      (function (w, d) {
+        var regulated = new Set([
+          'AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IS','IE','IT',
+          'LV','LI','LT','LU','MT','NL','NO','PL','PT','RO','SK','SI','ES','SE','GB','CH'
+        ]);
+        var controller = new AbortController();
+        var timeout = setTimeout(function () { controller.abort(); }, 2000);
+
+        function loadScript(src) {
+          var script = d.createElement('script');
+          script.async = true;
+          script.src = src;
+          d.head.appendChild(script);
+        }
+
+        function startTracking() {
+          w.dataLayer = w.dataLayer || [];
+          w.gtag = w.gtag || function () { w.dataLayer.push(arguments); };
+          w.gtag('js', new Date());
+          w.gtag('config', 'G-03HBZXBXQC');
+          w.gtag('config', 'AW-11474393418');
+          loadScript('https://www.googletagmanager.com/gtag/js?id=AW-11474393418');
+
+          w.dataLayer.push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
+          loadScript('https://www.googletagmanager.com/gtm.js?id=GTM-MLBWNPG5');
+
+          if (!w.fbq) {
+            var fbq = w.fbq = function () {
+              fbq.callMethod ? fbq.callMethod.apply(fbq, arguments) : fbq.queue.push(arguments);
+            };
+            if (!w._fbq) w._fbq = fbq;
+            fbq.push = fbq;
+            fbq.loaded = true;
+            fbq.version = '2.0';
+            fbq.queue = [];
+            loadScript('https://connect.facebook.net/en_US/fbevents.js');
+            fbq('init', '4737598799794649');
+            fbq('track', 'PageView');
+          }
+        }
+
+        var privacyOptOut = navigator.globalPrivacyControl === true ||
+          navigator.doNotTrack === '1' || w.doNotTrack === '1';
+        if (privacyOptOut) return;
+
+        fetch('/cdn-cgi/trace', { signal: controller.signal, credentials: 'same-origin' })
+          .then(function (response) {
+            if (!response.ok) throw new Error('Region lookup failed');
+            return response.text();
+          })
+          .then(function (trace) {
+            clearTimeout(timeout);
+            var match = trace.match(/(?:^|\n)loc=([^\n\r]+)/);
+            var country = match ? match[1].trim().toUpperCase() : '';
+            if (country && country !== 'XX' && country !== 'T1' && !regulated.has(country)) {
+              startTracking();
+            }
+          })
+          .catch(function () { clearTimeout(timeout); });
+      })(window, document);
     </script>
 
     <meta charset="UTF-8" />
@@ -94,29 +141,9 @@
 
     <style>html { scroll-behavior: smooth; } body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }</style>
 
-    <!-- Meta Pixel Code -->
-    <script>
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)}(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '4737598799794649');
-    fbq('track', 'PageView');
-    </script>
-    <!-- End Meta Pixel Code -->
   </head>
 
   <body>
-    <!-- Google Tag Manager (noscript) -->
-    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MLBWNPG5"
-    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-    <!-- End Google Tag Manager (noscript) -->
-
-    <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=4737598799794649&ev=PageView&noscript=1" /></noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
