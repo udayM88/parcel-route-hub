@@ -143,14 +143,9 @@ Deno.serve(async (req) => {
         pickupInfo, deliveryInfo,
         weight_kg, dims,
       );
-      const live = await fetchShreeMarutiLiveRate(env, {
-        pickup_pincode: fromPin, delivery_pincode: toPin,
-        weight_kg: Number(weight_kg), length_cm: Number(length_cm),
-        width_cm: Number(width_cm), height_cm: Number(height_cm), mode,
-      });
-      // An explicitly serviceable lane still needs a mode-specific live rate.
-      // The card remains a temporary price fallback only when the rate API is unavailable.
-      const resolved = resolvePrice(live?.amount ?? null, card);
+      // Pricing comes ONLY from the contracted rate card — live rate API is not called.
+      const live: any = null;
+      const resolved = resolvePrice(null, card);
       if (!resolved.price) return;
       services.push({
         service_code: isAir ? "shree_maruti_express" : "shree_maruti_surface",
