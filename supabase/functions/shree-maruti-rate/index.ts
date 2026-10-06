@@ -53,15 +53,13 @@ Deno.serve(async (req) => {
     const upperMode = String(mode).toUpperCase() === "AIR" ? "AIR" : "SURFACE";
     const dims = { l: Number(length_cm), w: Number(width_cm), h: Number(height_cm) };
 
-    const [pInfo, dInfo, live] = await Promise.all([
+    // Pricing comes ONLY from the contracted rate card — live rate API is not called.
+    const [pInfo, dInfo] = await Promise.all([
       pinInfo(String(pickup_pincode)),
       pinInfo(String(delivery_pincode)),
-      fetchShreeMarutiLiveRate(env, {
-        pickup_pincode, delivery_pincode, weight_kg: Number(weight_kg),
-        length_cm: Number(length_cm), width_cm: Number(width_cm), height_cm: Number(height_cm),
-        mode: upperMode, declared_value: Number(declared_value) || 0,
-      }),
     ]);
+    const live: any = null;
+    void env; void fetchShreeMarutiLiveRate;
 
     const card = quoteFromCard(
       "shree_maruti",
@@ -69,7 +67,7 @@ Deno.serve(async (req) => {
       pInfo, dInfo, Number(weight_kg), dims,
     );
 
-    const resolved = resolvePrice(live?.amount ?? null, card);
+    const resolved = resolvePrice(null, card);
 
     if (!resolved.price) {
       return new Response(
