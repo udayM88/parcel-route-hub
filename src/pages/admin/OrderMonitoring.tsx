@@ -906,6 +906,8 @@ const OrderMonitoring = () => {
                     const breakdown = calculatePriceBreakdown(selectedBooking);
                     return (
                       <div className="space-y-3">
+                        {breakdown.quoteOnly && <p className="text-sm text-muted-foreground">Outstanding partner payable: ₹0. Courier cost and revenue below are the original quote.</p>}
+                        {breakdown.needsReview && <Badge variant="outline">Accounting review required — saved courier rate missing or inconsistent</Badge>}
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">{breakdown.quoteOnly ? "Quoted Courier Cost" : "Partner Payable (Courier)"}</span>
                           <span className="font-medium">₹{breakdown.courierCost.toLocaleString()}</span>
