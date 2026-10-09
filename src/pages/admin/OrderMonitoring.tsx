@@ -23,6 +23,7 @@ import { useAdminAuth } from "@/contexts/useAdminAuth";
 import ParcelPhotoGallery from "@/components/admin/ParcelPhotoGallery";
 import { isBookedOrder } from "@/lib/revenue";
 import { bucketOfStatus } from "@/lib/booking-status";
+import { bookingFinancials } from "@/lib/booking-financials";
 import { cn } from "@/lib/utils";
 
 import { resolvePartnerKey, trackingFunctionFor, labelFunctionFor, trackingBody } from "@/lib/partner-functions";
@@ -69,6 +70,7 @@ interface Booking {
   length: string | null;
   width: string | null;
   height: string | null;
+  courier_rate?: number | null;
   base_fare?: number;
   platform_fee?: number;
   consumer_platform_fee?: number;
@@ -279,29 +281,8 @@ const OrderMonitoring = () => {
   ];
 
   const calculatePriceBreakdown = (booking: Booking) => {
-    const courierPrice = Number(booking.courier_price) || 0;
-    const platformFee = Number(booking.platform_fee) || 0;
-    const prayogCommission = Number(booking.prayog_commission) || 0;
-    const gst = Number(booking.gst) || 0;
-    const insurance = Number(booking.insurance_amount) || 0;
-    const packaging = Number(booking.packaging_amount) || 0;
-    const baseFareCol = Number(booking.base_fare) || 0;
-    // base_fare in DB embeds the platform markup (baseFare = round(card*3)+50).
-    // True partner payable = base_fare - platform_fee (the card price).
-    const partnerPayable = baseFareCol > 0
-      ? Math.max(0, baseFareCol - platformFee)
-      : Math.max(0, courierPrice - platformFee - gst - insurance - packaging);
-
-    return {
-      partnerPayable,
-      platformFee,
-      flatPlatformFee: Number(booking.consumer_platform_fee) || 0,
-      prayogCommission,
-      gst,
-      insurance,
-      packaging,
-      total: courierPrice,
-    };
+    const financials = bookingFinancials(booking);
+    return { ...financials, platformFee: financials.platformRevenue, prayogCommission: Number(booking.prayog_commission) || 0 };
   };
 
   const openDetails = (booking: Booking) => {
@@ -926,8 +907,8 @@ const OrderMonitoring = () => {
                     return (
                       <div className="space-y-3">
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Partner Payable (Courier)</span>
-                          <span className="font-medium">₹{breakdown.partnerPayable.toLocaleString()}</span>
+                          <span className="text-muted-foreground">{breakdown.quoteOnly ? "Quoted Courier Cost" : "Partner Payable (Courier)"}</span>
+                          <span className="font-medium">₹{breakdown.courierCost.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Platform Revenue</span>

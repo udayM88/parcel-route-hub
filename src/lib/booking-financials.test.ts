@@ -1,4 +1,6 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, it as test } from 'node:test';
+import { strict as assert } from 'node:assert';
+const expect = (actual: unknown) => ({ toBe: (expected: unknown) => assert.equal(actual, expected) });
 import { bookingFinancials } from './booking-financials';
 import { computePriceBreakdown } from './pricing';
 

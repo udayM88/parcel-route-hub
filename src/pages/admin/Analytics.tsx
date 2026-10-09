@@ -13,10 +13,17 @@ import { format, startOfDay, startOfWeek, startOfMonth, subMonths, subDays } fro
 import { isBookedOrder, isCollected } from "@/lib/revenue";
 import { bucketOfStatus } from "@/lib/booking-status";
 
+import { bookingFinancials } from "@/lib/booking-financials";
+
 interface Booking {
   id: string;
   courier_name: string;
   courier_price: number;
+  courier_rate?: number | null;
+  base_fare?: number | null;
+  gst?: number | null;
+  packaging_amount?: number | null;
+  insurance_amount?: number | null;
   platform_fee: number | null;
   payment_status: string | null;
   status: string | null;
@@ -44,7 +51,7 @@ const Analytics = () => {
     try {
       setLoading(true);
       // Narrow column projection — Analytics only uses these columns.
-      const cols = "id,courier_name,courier_price,platform_fee,payment_status,status,created_at,sender_city,receiver_city,delivery_time,urgency";
+      const cols = "id,courier_name,courier_price,platform_fee,courier_rate,base_fare,gst,packaging_amount,insurance_amount,payment_status,status,created_at,sender_city,receiver_city,delivery_time,urgency";
       const [bookingsRes, profilesRes] = await Promise.all([
         supabase.from("bookings").select(cols).order("created_at", { ascending: false }).limit(2000),
         supabase.from("profiles").select("id", { count: "exact", head: true }),
@@ -85,7 +92,7 @@ const Analytics = () => {
   const avgOrderValue = collected.length > 0 ? Math.round(totalRevenue / collected.length) : 0;
   // Real platform revenue from the platform_fee column (paid orders only) —
   // matches AdminDashboard "Platform Revenue" and RevenueManagement.
-  const platformCommission = collected.reduce((sum, b) => sum + (Number(b.platform_fee) || 0), 0);
+  const platformCommission = collected.reduce((sum, b) => sum + bookingFinancials(b).platformRevenue, 0);
   const pendingOrdersCount = filtered.filter(b => {
     const bucket = bucketOfStatus(b.status);
     return bucket === "created" || bucket === "confirmed";

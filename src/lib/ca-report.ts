@@ -1,3 +1,4 @@
+import { bookingFinancials } from "./booking-financials";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { bucketOfStatus } from "@/lib/booking-status";
@@ -98,14 +99,9 @@ function gstSplit(gst: number, senderState: string | null) {
 }
 
 function bookingAmounts(booking: CaBooking) {
-  const total = n(booking.courier_price);
-  const gst = n(booking.gst);
-  const packaging = n(booking.packaging_amount);
-  const insurance = n(booking.insurance_amount);
-  const taxable = Math.max(0, total - gst);
-  const platform = n(booking.platform_fee);
-  const partner = n(booking.courier_rate) || Math.max(0, n(booking.base_fare) - platform);
-  return { total, gst, packaging, insurance, taxable, platform, partner };
+  const values = bookingFinancials(booking);
+  return { ...values, taxable: Math.max(0, values.total - values.gst), platform: values.platformRevenue, partner: values.courierCost };
+
 }
 
 function isReliableBooking(payment: CaPayment, booking: CaBooking) {
@@ -155,7 +151,7 @@ export function buildCaWorkbook(data: CaReportData, generatedBy = "admin"): Blob
     "Payment Date (IST)", "Payment ID", "Razorpay Order ID", "Booking ID", "AWB", "Order Status",
     "Account Type", "Booking Source", "Customer", "Customer Phone", "Sender State", "Receiver State",
     "Courier", "Payment Method", "Captured Amount", "Stored Order Total", "Taxable Value", "CGST", "SGST",
-    "IGST", "GST Total", "Partner Cost", "ViaSetu Revenue", "Packaging", "Insurance", "Reconciliation Difference",
+    "IGST", "GST Total", "Partner Cost", "ViaSetu Revenue", "Packaging", "Insurance", "Reconciliation Difference", "Outstanding Partner Payable", "Accounting Review",
   ];
   const salesRows: (string | number | { f: string })[][] = [salesHeader];
   for (const payment of validSales) {
@@ -170,7 +166,7 @@ export function buildCaWorkbook(data: CaReportData, generatedBy = "admin"): Blob
       booking.sender_phone || payment.contact || "", booking.sender_state || "", booking.receiver_state || "",
       booking.courier_name || "", payment.method || "", captured, values.total, values.taxable, split.cgst, split.sgst,
       split.igst, values.gst, values.partner, values.platform, values.packaging, values.insurance,
-      Math.round((captured - values.total) * 100) / 100,
+      Math.round((captured - values.total) * 100) / 100, values.partnerPayable, values.needsReview ? "Review required" : "Verified saved rate",
     ]);
   }
   addSheet(workbook, "Sales Register", salesRows, [14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]);
@@ -249,7 +245,7 @@ export function buildCaWorkbook(data: CaReportData, generatedBy = "admin"): Blob
     ["Net collections", { f: "B4-B8" }],
     ["Net taxable value", { f: "B5-B9" }],
     ["Net GST payable", { f: "B6-B10" }],
-    ["Exceptions requiring review", data.exceptions.length],
+    ["Exceptions requiring review", data.exceptions.length + data.bookings.filter(b => bookingFinancials(b).needsReview).length],
   ];
   addSheet(workbook, "Executive Summary", summaryRows, [1]);
 
@@ -271,7 +267,7 @@ export function buildCaWorkbook(data: CaReportData, generatedBy = "admin"): Blob
     const current = courierMap.get(key) || { orders: 0, gross: 0, partner: 0, revenue: 0, refunds: 0 };
     current.orders += 1;
     current.gross += paymentAmount(payment);
-    current.partner += amounts.partner;
+    current.partner += amounts.partnerPayable;
     current.revenue += amounts.platform;
     courierMap.set(key, current);
   }
@@ -282,14 +278,18 @@ export function buildCaWorkbook(data: CaReportData, generatedBy = "admin"): Blob
     current.refunds += refundAmount(refund);
     courierMap.set(key, current);
   }
-  const courierRows: (string | number | { f: string })[][] = [["Courier", "Orders", "Gross Collections", "Partner Cost", "ViaSetu Revenue", "Refunds", "Net Collections"]];
+  const courierRows: (string | number | { f: string })[][] = [["Courier", "Orders", "Gross Collections", "Outstanding Partner Payable", "Gross ViaSetu Revenue", "Refunds", "Net Collections"]];
   for (const [courier, value] of courierMap) {
     courierRows.push([courier, value.orders, value.gross, value.partner, value.revenue, value.refunds, value.gross - value.refunds]);
   }
   addSheet(workbook, "Courier Summary", courierRows, [2, 3, 4, 5, 6]);
 
+  const financialExceptions: CaException[] = data.bookings.filter(b => bookingFinancials(b).needsReview).map(b => ({
+    type: "PRICING_EVIDENCE_REVIEW", payment_id: b.payment_id, booking_id: b.id,
+    detail: "Saved courier rate missing or split inconsistent. Historical stored values retained; no repricing applied.",
+  }));
   const exceptionRows: (string | number | { f: string })[][] = [["Exception Type", "Payment ID", "Booking ID", "Amount", "Review Detail"]];
-  for (const exception of data.exceptions) {
+  for (const exception of [...data.exceptions, ...financialExceptions]) {
     exceptionRows.push([exception.type, exception.payment_id || "", exception.booking_id || "", exception.amount || 0, exception.detail]);
   }
   addSheet(workbook, "Exceptions", exceptionRows, [3]);

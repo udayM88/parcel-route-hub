@@ -1,6 +1,7 @@
 // Accounts-ready Excel export for ViaSetu bookings.
 // Produces a multi-sheet .xlsx with line-item split of Partner Payable,
 // Platform Fee, CGST/SGST/IGST, packaging, insurance and grand total.
+import { bookingFinancials } from "./booking-financials";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 
@@ -37,6 +38,7 @@ export interface ExportBooking {
   width?: string | null;
   height?: string | null;
   shipment_value?: number | null;
+  courier_rate?: number | null;
   base_fare?: number | null;
   platform_fee?: number | null;
   gst?: number | null;
@@ -57,15 +59,7 @@ function splitGst(gst: number, senderState: string | null | undefined) {
 }
 
 function partnerPayableOf(b: ExportBooking) {
-  const total = n(b.courier_price);
-  const platform = n(b.platform_fee);
-  const gst = n(b.gst);
-  const pkg = n(b.packaging_amount);
-  const ins = n(b.insurance_amount);
-  const base = n(b.base_fare);
-  return base > 0
-    ? Math.max(0, base - platform)
-    : Math.max(0, total - platform - gst - pkg - ins);
+  return bookingFinancials(b).courierCost;
 }
 
 const HEADERS = [
@@ -95,8 +89,8 @@ const HEADERS = [
   "W (cm)",
   "H (cm)",
   "Shipment Value",
-  "Partner Payable",
-  "Platform Fee",
+  "Courier Cost (quoted)",
+  "Platform Revenue (excl. GST)",
   "Taxable Value",
   "CGST",
   "SGST",
@@ -106,6 +100,8 @@ const HEADERS = [
   "Insurance",
   "Grand Total",
   "Reconciliation Diff",
+  "Outstanding Partner Payable",
+  "Accounting Review",
 ];
 
 // Column letter helper (1-indexed)
@@ -139,14 +135,14 @@ export function buildAccountsWorkbook(
   rows.forEach((b) => {
     const d = new Date(b.created_at);
     const total = n(b.courier_price);
-    const platform = n(b.platform_fee);
+    const platform = bookingFinancials(b).platformRevenue;
     const gst = n(b.gst);
     const pkg = n(b.packaging_amount);
     const ins = n(b.insurance_amount);
     const partnerPayable = partnerPayableOf(b);
     const taxable = partnerPayable + platform;
     const { cgst, sgst, igst } = splitGst(gst, b.sender_state);
-    const grand = total + pkg + ins;
+    const grand = total;
     const recon =
       Math.round((partnerPayable + platform + gst + pkg + ins - total) * 100) / 100;
     aoa.push([
@@ -187,6 +183,8 @@ export function buildAccountsWorkbook(
       ins,
       grand,
       recon,
+      bookingFinancials(b).partnerPayable,
+      bookingFinancials(b).needsReview ? "Review required: saved rate missing or inconsistent" : "Verified saved courier rate",
     ]);
   });
 
@@ -256,7 +254,7 @@ export function buildAccountsWorkbook(
       m,
       { f: `COUNTIF(Orders!D2:D${lastDataRow},A${r})` },
       { f: sumifsCol(36, r) }, // Grand Total
-      { f: sumifsCol(27, r) },
+      { f: sumifsCol(38, r) },
       { f: sumifsCol(28, r) },
       { f: sumifsCol(30, r) },
       { f: sumifsCol(31, r) },
@@ -285,7 +283,7 @@ export function buildAccountsWorkbook(
       p,
       { f: `COUNTIF(Orders!I2:I${lastDataRow},A${r})` },
       { f: `SUMIFS(Orders!AJ2:AJ${lastDataRow},Orders!I2:I${lastDataRow},A${r})` },
-      { f: `SUMIFS(Orders!AA2:AA${lastDataRow},Orders!I2:I${lastDataRow},A${r})` },
+      { f: `SUMIFS(Orders!AL2:AL${lastDataRow},Orders!I2:I${lastDataRow},A${r})` },
       { f: `SUMIFS(Orders!AB2:AB${lastDataRow},Orders!I2:I${lastDataRow},A${r})` },
       { f: `IFERROR(C${r}/B${r},0)` },
     ]);
@@ -305,8 +303,8 @@ export function buildAccountsWorkbook(
   const inter = rows.filter((b) => (b.sender_state || "").trim().toLowerCase() !== PLACE_OF_SUPPLY_STATE.toLowerCase());
   const sumField = (list: ExportBooking[], pick: (b: ExportBooking) => number) =>
     list.reduce((a, b) => a + pick(b), 0);
-  const intraTaxable = sumField(intra, (b) => partnerPayableOf(b) + n(b.platform_fee));
-  const interTaxable = sumField(inter, (b) => partnerPayableOf(b) + n(b.platform_fee));
+  const intraTaxable = sumField(intra, (b) => partnerPayableOf(b) + bookingFinancials(b).platformRevenue);
+  const interTaxable = sumField(inter, (b) => partnerPayableOf(b) + bookingFinancials(b).platformRevenue);
   const intraGst = sumField(intra, (b) => n(b.gst));
   const interGst = sumField(inter, (b) => n(b.gst));
   const gstAoa: (string | number)[][] = [
@@ -336,12 +334,12 @@ export function buildAccountsWorkbook(
     ["Place of supply", PLACE_OF_SUPPLY_STATE],
     [],
     ["Definitions"],
-    ["Partner Payable", "Amount owed to courier partner = base_fare − platform_fee (fallback: total − platform_fee − gst − packaging − insurance)"],
+    ["Partner Payable", "Saved courier cost; failed/refunded quotes are not outstanding payables. Legacy missing-rate rows require review."],
     ["Platform Fee", "ViaSetu margin (hidden inside Base Fare in customer UI)"],
     ["Taxable Value", "Partner Payable + Platform Fee (== base_fare)"],
     ["CGST/SGST", "Each = GST/2 when sender state = place of supply (intra-state)"],
     ["IGST", "Full GST when sender state ≠ place of supply (inter-state)"],
-    ["Grand Total", "courier_price + packaging + insurance (amount charged to customer)"],
+    ["Grand Total", "Stored courier_price (amount charged; extras already included)"],
     ["Reconciliation Diff", "Should be 0 ± ₹1. Non-zero indicates pricing drift to investigate."],
   ];
   const wsMeta = XLSX.utils.aoa_to_sheet(meta);
