@@ -14,6 +14,8 @@ import { STATUS_BUCKETS, bucketCounts, type StatusBucket } from "@/lib/booking-s
 import { CURRENT_ENV } from "@/config/environment";
 import { isBookedOrder, isCollected } from "@/lib/revenue";
 
+import { bookingFinancials } from "@/lib/booking-financials";
+
 interface DashboardStats {
   totalOrders: number;
   todayOrders: number;
@@ -86,7 +88,7 @@ const AdminDashboard = () => {
       setLoading(true);
 
       // Stats only need numeric/status columns — skip wide address text fields.
-      const statsCols = "id,created_at,status,payment_status,courier_price,platform_fee";
+      const statsCols = "id,created_at,status,payment_status,courier_price,platform_fee,courier_rate,base_fare,gst,packaging_amount,insurance_amount";
       // Recent table needs route + courier display columns.
       const recentCols =
         "id,tracking_id,sender_name,receiver_name,sender_city,receiver_city,courier_name,courier_price,status,created_at,urgency";
@@ -127,7 +129,7 @@ const AdminDashboard = () => {
       const deliveredOrders = buckets.delivered;
 
       // Platform Revenue (Net to Viasetu) = platform_fee on paid orders only
-      const platformFees = collectedBookings.reduce((sum, b) => sum + (Number(b.platform_fee) || 0), 0);
+      const platformFees = collectedBookings.reduce((sum, b) => sum + bookingFinancials(b).platformRevenue, 0);
 
       const { count: openDisputes } = await (supabase as any)
         .from("cancellation_disputes")

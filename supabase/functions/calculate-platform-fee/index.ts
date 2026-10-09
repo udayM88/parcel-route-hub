@@ -3,7 +3,7 @@
 // Pricing model (single source of truth, mirrored in src/lib/pricing.ts):
 //   net    = cardPrice * 2.00 + ₹25 flat platform fee
 //   total  = round(net * 1.18)          (all-inclusive, GST added on top)
-//   platformFee (ViaSetu revenue) = total - cardPrice
+//   platformFee (ViaSetu revenue) = total - GST - cardPrice
 //
 // This endpoint is kept for backwards compatibility with `usePlatformFee`. It no
 // longer calls any AI service — the markup + ₹25 flat platform fee is applied
@@ -53,7 +53,8 @@ Deno.serve(async (req) => {
       : REPRESENTATIVE_CARD_PRICE;
 
     const baseFare = computeBaseFare(card);
-    const platformFee = Math.max(0, baseFare - card);
+    const gst = Math.round(baseFare - baseFare / (1 + GST_RATE));
+    const platformFee = Math.max(0, baseFare - gst - card);
 
     return new Response(
       JSON.stringify({
