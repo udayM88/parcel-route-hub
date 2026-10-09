@@ -137,13 +137,13 @@ export function computePriceBreakdown(
     total,
     netAmount,
     gst,
-    margin: total - rate,
+    margin: netAmount - rate,
     retailPrice,
     savingsPct: accountType === 'business' ? 0 : computeSavingsPct(retailPrice, total),
     flatPlatformFee: accountType === 'business' ? 0 : CONSUMER_PLATFORM_FEE,
     cardPrice: rate,
     baseFare: netAmount,
-    platformFee: total - rate,
+    platformFee: netAmount - rate,
   };
 }
 

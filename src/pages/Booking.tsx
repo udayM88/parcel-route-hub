@@ -1442,14 +1442,13 @@ const Booking = () => {
     }
   };
   const selectedCourierData = getSelectedServiceDetails();
-  // All-inclusive pricing: displayed price already contains GST (70% margin
-  // over the courier rate). We only split out the included GST for records.
+  // The charged price is unchanged; only the saved pre-tax revenue is split out.
   const totalAmount = Math.round(selectedCourierData ? selectedCourierData.basePrice : 0);
   const gstAmount = extractGst(totalAmount);
   const baseFare = totalAmount - gstAmount;
-  // ViaSetu revenue on this shipment (total - courier rate).
+  // GST is a tax liability, not ViaSetu revenue.
   const effectivePlatformFee = selectedCourierData?.cardPrice != null
-    ? Math.max(0, totalAmount - Math.round(selectedCourierData.cardPrice))
+    ? Math.max(0, baseFare - Math.round(selectedCourierData.cardPrice))
     : platformFee;
   const courierRateValue = selectedCourierData?.cardPrice != null ? Math.round(selectedCourierData.cardPrice) : null;
   const retailPriceValue = courierRateValue != null ? computeRetailPrice(courierRateValue) : null;
