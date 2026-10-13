@@ -6,6 +6,7 @@ import { dispatchEmail } from "../_shared/notify-email.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
 import { xpressbeesFetch } from "../_shared/xpressbees-auth.ts";
+import { isWalletPayment, refundWalletBooking } from "../_shared/wallet.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -68,7 +69,10 @@ Deno.serve(async (req) => {
       dispatchEmail("order_cancelled", booking_id);
       dispatchSms("ORDER_CANCELLED", booking_id);
 
-      if (bookingData?.payment_id && bookingData?.payment_status === "paid") {
+      if (isWalletPayment(bookingData?.payment_id) && bookingData?.payment_status === "paid") {
+        const wr = await refundWalletBooking(supabase, booking_id, undefined, "cancelled");
+        await supabase.from("bookings").update({ payment_status: wr.ok ? "refunded" : "refund_failed", refund_id: wr.ok ? "wallet" : null }).eq("id", booking_id);
+      } else if (bookingData?.payment_id && bookingData?.payment_status === "paid") {
         try {
           const rz = getRazorpayConfig(env);
           const auth = btoa(`${rz.keyId}:${rz.keySecret}`);

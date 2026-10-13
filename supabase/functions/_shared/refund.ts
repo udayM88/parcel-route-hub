@@ -1,6 +1,7 @@
 // Shared Razorpay refund helper for cancellation flows.
 // Idempotent: no-ops when the booking is not paid or a refund already exists.
 import { getRazorpayConfig, type Environment } from "./environment.ts";
+import { isWalletPayment, refundWalletBooking } from "./wallet.ts";
 
 export type RefundOutcome =
   | { status: "skipped"; reason: string }
@@ -26,6 +27,16 @@ export async function refundBookingIfPaid(
     return { status: "skipped", reason: `payment_status=${booking.payment_status ?? "none"}` };
   }
   if (!booking.payment_id) return { status: "skipped", reason: "no payment_id" };
+
+  if (isWalletPayment(booking.payment_id)) {
+    const wr = await refundWalletBooking(supabase, bookingId, undefined, reason || "cancelled");
+    if (!wr.ok) return { status: "failed", error: wr.error || "wallet refund failed" };
+    await supabase.from("bookings").update({
+      payment_status: "refunded", refund_id: "wallet", ...(reason ? { refund_reason: reason } : {}),
+      updated_at: new Date().toISOString(),
+    }).eq("id", bookingId);
+    return { status: "refunded", refundId: "wallet" };
+  }
 
   try {
     const cfg = getRazorpayConfig(env);
