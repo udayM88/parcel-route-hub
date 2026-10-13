@@ -18,6 +18,7 @@ import { CURRENT_ENV } from "@/config/environment";
 import { useCancelOrder, isCancellable } from "@/hooks/useCancelOrder";
 import CancelOrderDialog from "@/components/booking/CancelOrderDialog";
 import ManualAwbDialog from "@/components/admin/ManualAwbDialog";
+import UpdateStatusDialog, { canManuallyUpdateStatus } from "@/components/admin/UpdateStatusDialog";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 import { useAdminAuth } from "@/contexts/useAdminAuth";
 import ParcelPhotoGallery from "@/components/admin/ParcelPhotoGallery";
@@ -108,6 +109,8 @@ const OrderMonitoring = () => {
   const [tracking, setTracking] = useState<{ loading: boolean; data: any | null; error: string | null }>({ loading: false, data: null, error: null });
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [labelLoading, setLabelLoading] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const canChangeStatus = adminUser?.role === "super_admin" || adminUser?.role === "operations";
   // Multi-parcel orders: one AWB + one label per parcel.
   const [parcels, setParcels] = useState<any[]>([]);
   const [parcelLabelId, setParcelLabelId] = useState<string | null>(null);
@@ -1215,6 +1218,12 @@ const OrderMonitoring = () => {
                     Download Label
                   </Button>
                 )}
+                {canChangeStatus && canManuallyUpdateStatus(selectedBooking.status) && (
+                  <Button variant="outline" onClick={() => setStatusDialogOpen(true)}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Change Status
+                  </Button>
+                )}
                 {isCancellable(selectedBooking.status) && (
                   <Button variant="destructive" onClick={() => setCancelDialogOpen(true)} disabled={cancelling}>
                     <XCircle className="h-4 w-4 mr-2" />
@@ -1226,6 +1235,19 @@ const OrderMonitoring = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {selectedBooking && (
+        <UpdateStatusDialog
+          open={statusDialogOpen}
+          onOpenChange={setStatusDialogOpen}
+          bookingId={selectedBooking.id}
+          currentStatus={selectedBooking.status}
+          onUpdated={(s) => {
+            setSelectedBooking({ ...selectedBooking, status: s });
+            fetchBookings();
+          }}
+        />
+      )}
 
       <CancelOrderDialog
         open={cancelDialogOpen}
