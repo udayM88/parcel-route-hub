@@ -1,4 +1,6 @@
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isWalletPayment, refundWalletBooking, WALLET_PREFIX } from "../_shared/wallet.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,6 +28,21 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'payment_id is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Wallet-paid business bookings: credit the prepaid wallet instead of Razorpay.
+    if (isWalletPayment(payment_id)) {
+      const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      const bookingId = payment_id.slice(WALLET_PREFIX.length);
+      const r = await refundWalletBooking(admin, bookingId, amount, reason || 'refund');
+      if (!r.ok) {
+        return new Response(JSON.stringify({ error: r.error || 'Wallet refund failed' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({
+        refund_id: r.transaction_id ? `wallet_${r.transaction_id}` : `wallet_${bookingId}`,
+        payment_id, amount: r.refunded ?? 0, status: 'processed', speed_processed: 'instant',
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const env = getEnvironmentFromRequest(req);
