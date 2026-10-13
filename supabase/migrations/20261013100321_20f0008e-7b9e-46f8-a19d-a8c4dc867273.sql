@@ -1,0 +1,2 @@
+GRANT SELECT ON public.merchant_api_requests TO authenticated;
+CREATE POLICY "Admins read merchant api requests" ON public.merchant_api_requests FOR SELECT TO authenticated USING (public.is_admin(auth.uid()));
