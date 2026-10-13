@@ -12,6 +12,7 @@ import { dispatchEmail } from "../_shared/notify-email.ts";
 // Pricing: (courier rate + ₹15 internal margin) per box, plus 18% GST on top.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { bookingFunctionFor, resolvePartnerKey } from "../_shared/partner-key.ts";
+import { refundWalletBooking, walletApply, WALLET_PREFIX } from "../_shared/wallet.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -92,31 +93,45 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const env = req.headers.get("x-environment") || "production";
 
-    const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-    if (!token) return json({ error: "Unauthorized" }, 401);
-
-    const authClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-    const { data: userData, error: userErr } = await authClient.auth.getUser();
-    if (userErr || !userData?.user) return json({ error: "Invalid session" }, 401);
-    const userId = userData.user.id;
-
     const admin = createClient(supabaseUrl, serviceKey);
-    const { data: biz } = await admin
-      .from("business_accounts")
-      .select("id,company_name,status,is_active")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .maybeSingle();
+    const rawBody = await req.json();
+    // Internal mode: called by merchant-api with server-computed rates; charged from the wallet.
+    const internal = !!serviceKey && req.headers.get("x-internal-key") === serviceKey && !!rawBody?._business_account_id;
 
-    if (!biz || biz.status !== "approved") {
+    let userId: string;
+    let biz: any;
+    if (internal) {
+      const { data } = await admin.from("business_accounts")
+        .select("id,user_id,company_name,status,is_active")
+        .eq("id", rawBody._business_account_id).eq("is_active", true).maybeSingle();
+      biz = data;
+      userId = data?.user_id;
+    } else {
+      const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+      if (!token) return json({ error: "Unauthorized" }, 401);
+      const authClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+      });
+      const { data: userData, error: userErr } = await authClient.auth.getUser();
+      if (userErr || !userData?.user) return json({ error: "Invalid session" }, 401);
+      userId = userData.user.id;
+      const { data } = await admin
+        .from("business_accounts")
+        .select("id,company_name,status,is_active")
+        .eq("user_id", userId)
+        .eq("is_active", true)
+        .maybeSingle();
+      biz = data;
+    }
+
+    if (!biz || biz.status !== "approved" || !userId) {
       return json({ error: "Business account is not approved for booking yet." }, 403);
     }
 
-    const parsed = validate(await req.json());
+    const parsed = validate(rawBody);
     if (!parsed.ok) return json({ error: parsed.error }, 400);
     const b = parsed.data;
+    const payWithWallet = internal && rawBody._pay_with_wallet === true;
     const boxes: BoxInput[] = b.boxes;
 
     // ── Pricing: (rate + ₹15) per box, then 18% GST on top ────────
@@ -170,9 +185,9 @@ Deno.serve(async (req) => {
         service_code: b.service_code || null,
         box_count: boxes.length,
         status: "PAYMENT_RECEIVED",
-        payment_id: b.payment_id || null,
-        payment_status: b.payment_id ? "paid" : "pending",
-        booking_source: "business_portal",
+        payment_id: payWithWallet ? null : (b.payment_id || null),
+        payment_status: payWithWallet ? "wallet_pending" : (b.payment_id ? "paid" : "pending"),
+        booking_source: internal ? "merchant_api" : "business_portal",
       })
       .select()
       .single();
@@ -182,12 +197,35 @@ Deno.serve(async (req) => {
       return json({ error: insErr?.message || "Failed to create booking" }, 500);
     }
 
+    if (payWithWallet) {
+      const charge = await walletApply(admin, {
+        business_account_id: biz.id, amount: -totalPrice, type: "charge",
+        booking_id: booking.id, note: `Shipment ${booking.id} (${boxes.length} box)`,
+        idempotency_key: `charge:${booking.id}`,
+      });
+      if (!charge.ok) {
+        await admin.from("bookings").update({
+          status: "FAILED", payment_status: "unpaid", failure_step: "wallet",
+          failure_reason: charge.error === "insufficient_balance" ? "Insufficient wallet balance" : (charge.error || "Wallet charge failed"),
+        }).eq("id", booking.id);
+        return json({
+          error: charge.error === "insufficient_balance" ? "insufficient_balance" : (charge.error || "wallet_error"),
+          balance: charge.balance, required: totalPrice, booking_id: booking.id,
+        }, 402);
+      }
+      await admin.from("bookings").update({
+        payment_id: `${WALLET_PREFIX}${booking.id}`, payment_status: "paid",
+      }).eq("id", booking.id);
+      booking.payment_id = `${WALLET_PREFIX}${booking.id}`;
+    }
+
     const partnerFn = pickPartnerFn(b.partner_id || "", b.courier_name);
     if (!partnerFn) {
       await admin.from("bookings").update({
         status: "FAILED",
         failure_reason: `Unknown partner for courier '${b.courier_name}'`,
       }).eq("id", booking.id);
+      if (payWithWallet) await refundWalletBooking(admin, booking.id, undefined, "unknown_partner");
       return json({ error: `Unknown courier partner '${b.courier_name}'`, booking_id: booking.id }, 400);
     }
 
@@ -288,6 +326,23 @@ Deno.serve(async (req) => {
         : null,
     }).eq("id", booking.id).select().single();
 
+    // Wallet: refund whatever boxes failed, straight back to the wallet.
+    let walletRefunded = 0;
+    if (payWithWallet) {
+      const failedIdx = results.filter((r) => !r.success).map((r) => r.box_index - 1);
+      const failedAmount = booked.length === 0
+        ? totalPrice
+        : failedIdx.reduce((s, i) => s + perBox[i].price, 0);
+      if (failedAmount > 0) {
+        const r = await refundWalletBooking(admin, booking.id, failedAmount,
+          booked.length === 0 ? "booking_failed" : `boxes_failed:${failedIdx.map((i) => i + 1).join(",")}`);
+        walletRefunded = r.refunded ?? 0;
+        if (booked.length === 0) {
+          await admin.from("bookings").update({ payment_status: "refunded", refund_id: "wallet", refund_reason: "booking_failed" }).eq("id", booking.id);
+        }
+      }
+    }
+
     // Best-effort admin notification.
     try {
       fetch(`${supabaseUrl}/functions/v1/send-order-admin-email`, {
@@ -307,6 +362,7 @@ Deno.serve(async (req) => {
       boxes: results,
       booked_count: booked.length,
       failed_count: results.length - booked.length,
+      wallet_refunded: walletRefunded,
     });
   } catch (err) {
     console.error("[business-create-shipment] error:", err);

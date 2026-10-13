@@ -548,6 +548,53 @@ export type Database = {
         }
         Relationships: []
       }
+      business_api_keys: {
+        Row: {
+          business_account_id: string
+          created_at: string
+          created_by: string | null
+          environment: string
+          id: string
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string
+          revoked_at: string | null
+        }
+        Insert: {
+          business_account_id: string
+          created_at?: string
+          created_by?: string | null
+          environment?: string
+          id?: string
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name: string
+          revoked_at?: string | null
+        }
+        Update: {
+          business_account_id?: string
+          created_at?: string
+          created_by?: string | null
+          environment?: string
+          id?: string
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_api_keys_business_account_id_fkey"
+            columns: ["business_account_id"]
+            isOneToOne: false
+            referencedRelation: "business_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_inquiries: {
         Row: {
           business_type: string
@@ -592,6 +639,38 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      business_wallets: {
+        Row: {
+          balance: number
+          business_account_id: string
+          created_at: string
+          low_balance_threshold: number
+          updated_at: string
+        }
+        Insert: {
+          balance?: number
+          business_account_id: string
+          created_at?: string
+          low_balance_threshold?: number
+          updated_at?: string
+        }
+        Update: {
+          balance?: number
+          business_account_id?: string
+          created_at?: string
+          low_balance_threshold?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_wallets_business_account_id_fkey"
+            columns: ["business_account_id"]
+            isOneToOne: true
+            referencedRelation: "business_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cancellation_disputes: {
         Row: {
@@ -973,6 +1052,47 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      merchant_api_requests: {
+        Row: {
+          action: string
+          api_key_id: string
+          booking_id: string | null
+          created_at: string
+          id: string
+          idempotency_key: string
+          response: Json | null
+          status_code: number | null
+        }
+        Insert: {
+          action: string
+          api_key_id: string
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          response?: Json | null
+          status_code?: number | null
+        }
+        Update: {
+          action?: string
+          api_key_id?: string
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          response?: Json | null
+          status_code?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_api_requests_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "business_api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       otp_verifications: {
         Row: {
@@ -1573,6 +1693,69 @@ export type Database = {
           },
         ]
       }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          booking_id: string | null
+          business_account_id: string
+          created_at: string
+          created_by: string | null
+          created_by_email: string | null
+          id: string
+          idempotency_key: string | null
+          note: string | null
+          payment_id: string | null
+          razorpay_order_id: string | null
+          type: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          booking_id?: string | null
+          business_account_id: string
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          id?: string
+          idempotency_key?: string | null
+          note?: string | null
+          payment_id?: string | null
+          razorpay_order_id?: string | null
+          type: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          booking_id?: string | null
+          business_account_id?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          id?: string
+          idempotency_key?: string | null
+          note?: string | null
+          payment_id?: string | null
+          razorpay_order_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_transactions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_business_account_id_fkey"
+            columns: ["business_account_id"]
+            isOneToOne: false
+            referencedRelation: "business_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       xpressbees_pincodes: {
         Row: {
           city: string | null
@@ -1685,6 +1868,21 @@ export type Database = {
       is_operations: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       mask_doc_number: { Args: { doc: string }; Returns: string }
+      wallet_apply: {
+        Args: {
+          _actor?: string
+          _actor_email?: string
+          _amount: number
+          _booking_id?: string
+          _business_account_id: string
+          _idempotency_key?: string
+          _note?: string
+          _payment_id?: string
+          _razorpay_order_id?: string
+          _type: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       admin_role: "super_admin" | "support" | "cms_editor" | "operations"

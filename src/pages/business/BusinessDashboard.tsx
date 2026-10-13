@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Wallet, KeyRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -452,6 +453,12 @@ const BusinessDashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => navigate("/viasetuforbusinesses/wallet")} aria-label="Wallet">
+              <Wallet className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Wallet</span>
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => navigate("/viasetuforbusinesses/developers")} aria-label="API and integrations">
+              <KeyRound className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">API</span>
+            </Button>
             <Button size="sm" onClick={() => navigate("/viasetuforbusinesses/book")}>
               <Plus className="h-4 w-4 mr-1" /> New Shipment
             </Button>
