@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Building2, UserPlus, FileText, Trash2, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
+import AdminBusinessWalletDialog from "@/components/admin/AdminBusinessWalletDialog";
 
 // supabase.functions.invoke surfaces any non-2xx as a generic
 // "Edge Function returned a non-2xx status code" and leaves `data` null, so the
@@ -446,6 +447,7 @@ const BusinessManagement = () => {
                               <KeyRound className="h-3.5 w-3.5 mr-1" />
                               {resettingId === row.id ? "Sending..." : "Reset Password"}
                             </Button>
+                            <AdminBusinessWalletDialog businessId={row.id} companyName={row.company_name} />
 
                             <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
                               onClick={() => openDelete(row)}>
