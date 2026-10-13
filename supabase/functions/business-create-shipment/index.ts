@@ -92,31 +92,45 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const env = req.headers.get("x-environment") || "production";
 
-    const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-    if (!token) return json({ error: "Unauthorized" }, 401);
-
-    const authClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-    const { data: userData, error: userErr } = await authClient.auth.getUser();
-    if (userErr || !userData?.user) return json({ error: "Invalid session" }, 401);
-    const userId = userData.user.id;
-
     const admin = createClient(supabaseUrl, serviceKey);
-    const { data: biz } = await admin
-      .from("business_accounts")
-      .select("id,company_name,status,is_active")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .maybeSingle();
+    const rawBody = await req.json();
+    // Internal mode: called by merchant-api with server-computed rates; charged from the wallet.
+    const internal = !!serviceKey && req.headers.get("x-internal-key") === serviceKey && !!rawBody?._business_account_id;
 
-    if (!biz || biz.status !== "approved") {
+    let userId: string;
+    let biz: any;
+    if (internal) {
+      const { data } = await admin.from("business_accounts")
+        .select("id,user_id,company_name,status,is_active")
+        .eq("id", rawBody._business_account_id).eq("is_active", true).maybeSingle();
+      biz = data;
+      userId = data?.user_id;
+    } else {
+      const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+      if (!token) return json({ error: "Unauthorized" }, 401);
+      const authClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+      });
+      const { data: userData, error: userErr } = await authClient.auth.getUser();
+      if (userErr || !userData?.user) return json({ error: "Invalid session" }, 401);
+      userId = userData.user.id;
+      const { data } = await admin
+        .from("business_accounts")
+        .select("id,company_name,status,is_active")
+        .eq("user_id", userId)
+        .eq("is_active", true)
+        .maybeSingle();
+      biz = data;
+    }
+
+    if (!biz || biz.status !== "approved" || !userId) {
       return json({ error: "Business account is not approved for booking yet." }, 403);
     }
 
-    const parsed = validate(await req.json());
+    const parsed = validate(rawBody);
     if (!parsed.ok) return json({ error: parsed.error }, 400);
     const b = parsed.data;
+    const payWithWallet = internal && rawBody._pay_with_wallet === true;
     const boxes: BoxInput[] = b.boxes;
 
     // ── Pricing: (rate + ₹15) per box, then 18% GST on top ────────
