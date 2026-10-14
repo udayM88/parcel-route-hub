@@ -221,6 +221,7 @@ Deno.serve(async (req) => {
               headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${anonKey}`,
+                "x-internal-key": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
                 "x-environment": env,
                 "x-prayog-auth": JSON.stringify({ user_id: row.user_id }),
               },
