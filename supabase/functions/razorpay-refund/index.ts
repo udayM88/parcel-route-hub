@@ -20,6 +20,13 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Refunds are an internal settlement operation, never a public customer action.
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!serviceKey || req.headers.get('x-internal-key') !== serviceKey) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     const body: RefundRequest = await req.json();
     const { payment_id, amount, notes, reason } = body;
 
