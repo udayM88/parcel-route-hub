@@ -5,5 +5,5 @@
 - [x] Verify regression tests and preview build (9 tests pass; build OK).
 
 # Business wallet and merchant API
-- [ ] Finish safety checks, deployment and verification.
-- [ ] Diagnose Atulit login role mismatch and provide the correct login.
+- [ ] Finish wallet safety and authenticated verification — blocked by declined refund-safety migration and unavailable external Supabase test session; wallet shipment creation is paused.
+- [x] Diagnose Atulit login role mismatch: active Operations role; use /ops/login.

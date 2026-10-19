@@ -97,6 +97,9 @@ Deno.serve(async (req) => {
     const rawBody = await req.json();
     // Internal mode: called by merchant-api with server-computed rates; charged from the wallet.
     const internal = !!serviceKey && req.headers.get("x-internal-key") === serviceKey && !!rawBody?._business_account_id;
+    if (internal && rawBody._pay_with_wallet === true) {
+      return json({ error: "Wallet bookings are paused pending refund-safety verification" }, 503);
+    }
 
     let userId: string;
     let biz: any;

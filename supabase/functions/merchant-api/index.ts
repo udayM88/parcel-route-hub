@@ -163,6 +163,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create_shipment") {
+      return err("wallet_setup_pending", "Wallet shipment creation is paused pending refund-safety verification", 503);
+    }
+
+    if (action === "create_shipment_enabled_after_verification") {
       const idem = (req.headers.get("Idempotency-Key") || "").trim();
       if (idem.length < 8 || idem.length > 100) return err("idempotency_key_required", "Send a unique Idempotency-Key header (8-100 chars)");
       const { data: prior } = await admin.from("merchant_api_requests")
