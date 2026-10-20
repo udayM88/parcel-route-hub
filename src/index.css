@@ -323,6 +323,403 @@ All colors MUST be HSL.
   }
 }
 
+/* The merchant workspace has its own theme boundary so its five console themes
+   cannot change the consumer, admin, or public ViaSetu surfaces. */
+.merchant-console,
+.merchant-console button,
+.merchant-console input,
+.merchant-console textarea,
+.merchant-console select {
+  font-family: "Public Sans Variable", "Public Sans", "Segoe UI", sans-serif;
+}
+
+.merchant-console h1,
+.merchant-console h2,
+.merchant-console h3,
+.merchant-console h4,
+.merchant-console h5,
+.merchant-console h6 {
+  font-family: "Public Sans Variable", "Public Sans", "Segoe UI", sans-serif;
+}
+
+.merchant-console {
+  background: hsl(var(--background));
+  transition: background-color 280ms ease, color 280ms ease;
+}
+
+.merchant-sidebar {
+  background: linear-gradient(180deg, #081920 0%, #061319 100%);
+  color: #e8f8fa;
+  border-right: 1px solid #16343d;
+  box-shadow: inset -1px 0 rgba(255, 255, 255, 0.025), 8px 0 28px -26px rgba(3, 18, 24, 0.8);
+}
+
+.merchant-brand {
+  background: #ffffff;
+  border-color: #dbe7e9;
+}
+
+.merchant-brand-caption {
+  color: #536b74;
+}
+
+.merchant-nav-section {
+  color: #6e929d;
+}
+
+.merchant-sidebar-footer {
+  color: #7ea0aa;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.merchant-topbar {
+  border-color: #d8e5e8;
+  box-shadow: 0 10px 30px -28px hsl(var(--merchant-deep) / 0.72);
+}
+
+.merchant-nav-item,
+.merchant-nav-child {
+  position: relative;
+  overflow: hidden;
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease;
+}
+
+.merchant-nav-item:hover,
+.merchant-nav-child:hover {
+  transform: translateX(2px);
+}
+
+.merchant-sidebar .merchant-nav-item {
+  color: #c4d5da;
+}
+
+.merchant-sidebar .merchant-nav-item:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.merchant-nav-icon {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  place-items: center;
+  border: 1px solid rgba(150, 205, 215, 0.16);
+  border-radius: 0.62rem;
+  color: #83a5ae;
+  background: rgba(255, 255, 255, 0.045);
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.merchant-nav-item[data-active="true"] {
+  color: #ffffff;
+  background: linear-gradient(90deg, rgba(19, 204, 222, 0.23), rgba(19, 204, 222, 0.08));
+  box-shadow: inset 0 0 0 1px rgba(40, 220, 236, 0.16);
+}
+
+.merchant-nav-item[data-active="true"] .merchant-nav-icon {
+  color: #042127;
+  border-color: #36dbe9;
+  background: #24d3e2;
+  box-shadow: 0 8px 18px -10px rgba(36, 211, 226, 0.9);
+}
+
+.merchant-nav-item[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.72rem;
+  left: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, hsl(var(--merchant-highlight)), hsl(var(--primary)));
+  box-shadow: 0 0 12px rgba(36, 211, 226, 0.45);
+}
+
+.merchant-nav-child[data-active="true"] {
+  color: #66e9f3;
+  background: rgba(36, 211, 226, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(36, 211, 226, 0.10);
+}
+
+.merchant-sidebar .merchant-nav-child {
+  color: #bfd0d5;
+}
+
+.merchant-sidebar .merchant-nav-child:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.merchant-nav-child-icon {
+  color: #86a8b1;
+}
+
+.merchant-nav-child[data-active="true"] .merchant-nav-child-icon {
+  color: #66e9f3;
+}
+
+.merchant-nav-shortcut {
+  color: #7697a1;
+}
+
+.merchant-nav-item:focus-visible,
+.merchant-nav-child:focus-visible {
+  outline: 2px solid #36dbe9;
+  outline-offset: 2px;
+}
+
+.merchant-nav-children[data-state="open"] {
+  animation: merchant-nav-open 180ms ease-out;
+}
+
+.merchant-nav-children[data-state="closed"] {
+  animation: merchant-nav-close 150ms ease-in;
+}
+
+.merchant-environment {
+  box-shadow: 0 8px 20px -15px hsl(var(--primary) / 0.85);
+}
+
+.merchant-console button.bg-primary,
+.merchant-console a.bg-primary {
+  background: hsl(var(--primary));
+  box-shadow: 0 12px 24px -16px hsl(var(--primary) / 0.95);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms ease, filter 180ms ease;
+}
+
+.merchant-console button.bg-primary:hover,
+.merchant-console a.bg-primary:hover {
+  filter: brightness(1.04) saturate(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 28px -17px hsl(var(--primary) / 0.98);
+}
+
+.merchant-console input:focus-visible,
+.merchant-console textarea:focus-visible,
+.merchant-console select:focus-visible {
+  border-color: hsl(var(--primary) / 0.72);
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12);
+}
+
+.merchant-console input,
+.merchant-console textarea,
+.merchant-console select {
+  border-color: #cfdde1;
+}
+
+.merchant-bordered-card {
+  border-color: #d5e3e7;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 14px 34px -30px rgba(7, 37, 46, 0.48);
+}
+
+.merchant-bordered-card:hover {
+  border-color: #b9d8de;
+}
+
+.merchant-page-enter {
+  animation: merchant-page-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.merchant-surface {
+  border-color: hsl(var(--border) / 0.82);
+  background: linear-gradient(145deg, hsl(var(--card)) 65%, hsl(var(--primary) / 0.028));
+  box-shadow: 0 16px 35px -32px hsl(var(--merchant-deep) / 0.62);
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 220ms ease,
+    border-color 220ms ease;
+}
+
+.merchant-surface:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--primary) / 0.3);
+  box-shadow: 0 22px 42px -31px hsl(var(--merchant-deep) / 0.58);
+}
+
+.merchant-stat-card {
+  position: relative;
+  overflow: hidden;
+  animation: merchant-card-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--merchant-delay, 0ms);
+}
+
+.merchant-stat-card::after {
+  content: none;
+}
+
+.merchant-stat-card:hover::after {
+  transform: none;
+}
+
+.merchant-hero-card {
+  border-radius: 1.15rem;
+  border-color: #aee9ef;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.42),
+    0 24px 60px -42px hsl(var(--merchant-deep) / 0.8);
+  animation: merchant-hero-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.merchant-hero-visual::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, hsl(var(--merchant-highlight)), transparent 72%);
+}
+
+.merchant-setup-panel {
+  border-left: 1px solid #ccecf0;
+  background:
+    radial-gradient(circle at 100% 0%, hsl(var(--merchant-highlight) / 0.10), transparent 42%),
+    linear-gradient(145deg, #ffffff 0%, #f4fbfc 100%);
+}
+
+.merchant-stat-cyan,
+.merchant-stat-slate,
+.merchant-stat-amber {
+  border-width: 1px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 12px 28px -22px hsl(var(--merchant-deep) / 0.38);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.merchant-stat-cyan:hover,
+.merchant-stat-slate:hover,
+.merchant-stat-amber:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 18px 32px -22px hsl(var(--merchant-deep) / 0.42);
+}
+
+.merchant-stat-cyan {
+  border-color: #bcecf1;
+  background: linear-gradient(140deg, #e8fbfd 0%, #d8f6f9 100%);
+}
+
+.merchant-stat-slate {
+  border-color: #d6e0e5;
+  background: linear-gradient(140deg, #f2f6f8 0%, #e5edf1 100%);
+}
+
+.merchant-stat-amber {
+  border-color: #f1dfbd;
+  background: linear-gradient(140deg, #fff9ec 0%, #f8edcf 100%);
+}
+
+.merchant-hero-copy > * {
+  animation: merchant-copy-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.merchant-hero-copy > *:nth-child(2) { animation-delay: 70ms; }
+.merchant-hero-copy > *:nth-child(3) { animation-delay: 120ms; }
+.merchant-hero-copy > *:nth-child(4) { animation-delay: 170ms; }
+
+.merchant-integration-heading {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid hsl(var(--primary) / 0.16);
+  border-radius: 1rem;
+  padding: 1.1rem;
+  background:
+    linear-gradient(115deg, hsl(var(--card) / 0.96) 0%, hsl(var(--primary) / 0.09) 72%, hsl(var(--merchant-highlight) / 0.12) 100%);
+  box-shadow: 0 18px 42px -38px hsl(var(--merchant-deep) / 0.85);
+}
+
+.merchant-integration-heading::after {
+  content: "";
+  position: absolute;
+  width: 11rem;
+  height: 11rem;
+  right: -4rem;
+  top: -6rem;
+  border-radius: 999px;
+  background: hsl(var(--merchant-highlight) / 0.12);
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+.merchant-logo-tile {
+  background: linear-gradient(145deg, hsl(var(--card)), hsl(var(--primary) / 0.09));
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.08), 0 10px 24px -20px hsl(var(--merchant-deep) / 0.8);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.merchant-surface:hover .merchant-logo-tile {
+  transform: scale(1.04) rotate(-1.5deg);
+}
+
+@keyframes merchant-page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes merchant-card-enter {
+  from { opacity: 0; transform: translateY(12px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes merchant-hero-enter {
+  from { opacity: 0; transform: translateY(10px); box-shadow: none; }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes merchant-copy-enter {
+  from { opacity: 0; transform: translateY(9px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes merchant-nav-open {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes merchant-nav-close {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Existing working business pages remain intact and are presented inside the
+   console chrome without their former standalone headers. */
+.merchant-console-content > div > .min-h-screen {
+  min-height: auto;
+  background: transparent;
+}
+
+.merchant-console-content > div > .min-h-screen > header {
+  display: none;
+}
+
+.merchant-console-content > div > .min-h-screen > main {
+  max-width: none;
+  margin-inline: 0;
+  padding: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .merchant-page-enter,
+  .merchant-stat-card,
+  .merchant-hero-card,
+  .merchant-hero-copy > * {
+    animation: none !important;
+  }
+
+  .merchant-nav-item,
+  .merchant-nav-child,
+  .merchant-surface,
+  .merchant-logo-tile {
+    transition: none !important;
+  }
+}
+
 
 
 /* ============================================================

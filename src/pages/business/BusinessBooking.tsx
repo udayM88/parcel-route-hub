@@ -18,6 +18,7 @@ import DisclaimerStep from "@/components/booking/DisclaimerStep";
 import { CURRENT_ENV } from "@/config/environment";
 import { computeBusinessBreakdown, computeChargeableKg } from "@/lib/pricing";
 import { filterEnabledPartners } from "@/lib/partnerSettings";
+import { isBusinessDemoSession } from "@/lib/business-demo";
 
 const DIRECT_PARTNERS = [
   { code: "shadowfax", name: "Shadowfax", fn: "shadowfax-serviceability" },
@@ -252,6 +253,13 @@ const BusinessBooking = () => {
     details?: { razorpay_payment_id: string; razorpay_order_id: string },
   ) => {
     if (!selected) return;
+    if (isBusinessDemoSession()) {
+      toast({
+        title: "Sample mode",
+        description: "Booking is disabled in the local sample account. No Supabase data was changed.",
+      });
+      return;
+    }
     setSubmitting(true);
     try {
       const { data, error } = await supabase.functions.invoke("business-create-shipment", {

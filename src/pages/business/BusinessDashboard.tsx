@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Wallet, KeyRound } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,9 +9,10 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Building2, Package, IndianRupee, Boxes, LogOut, Plus, Truck, CheckCircle2,
-  XCircle, Search, MapPin, Loader2, FileDown, Navigation, LifeBuoy, Mail, Phone,
+  Package, Plus, Truck,
+  Search, Loader2, FileDown, Navigation, LifeBuoy, Mail, Phone,
   Ban, Copy, FileText, AlertTriangle, MessageCircle,
+  ArrowRight, CircleCheckBig, WalletCards, ArrowUp,
 } from "lucide-react";
 import { openCrispChat } from "@/components/CrispChat";
 import { useBusinessAuth } from "@/contexts/useBusinessAuth";
@@ -26,6 +26,8 @@ import {
   resolvePartnerKey, trackingFunctionFor, labelFunctionFor, trackingBody, labelBody,
 } from "@/lib/partner-functions";
 import { isFreshLabelUrl } from "@/lib/label-url";
+import viasetuLogisticsHero from "@/assets/merchant-console/viasetu-logistics-hero.png";
+import { isBusinessDemoSession } from "@/lib/business-demo";
 
 
 
@@ -91,8 +93,10 @@ const bucketLabel = (b: StatusBucket) =>
 
 const BusinessDashboard = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { business } = useBusinessAuth();
   const { toast } = useToast();
+  const isDemo = isBusinessDemoSession();
   const [bookings, setBookings] = useState<BusinessBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -106,6 +110,12 @@ const BusinessDashboard = () => {
   const [labelLoading, setLabelLoading] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelBlocked, setCancelBlocked] = useState<string | null>(null);
+  const [walletBalance, setWalletBalance] = useState(0);
+
+  useEffect(() => {
+    const requestedSearch = searchParams.get("search");
+    if (requestedSearch) setSearch(requestedSearch);
+  }, [searchParams]);
 
   const BOOKING_COLUMNS =
     "id,created_at,sender_name,sender_phone,sender_address,sender_city,sender_state,sender_pincode,receiver_name,receiver_phone,receiver_address,receiver_city,receiver_state,receiver_pincode,courier_name,courier_price,delivery_time,box_count,status,tracking_id,goods_type,partner_id,prayog_order_id,booking_source,prayog_awb,payment_status,payment_id,refund_id,shipment_value";
@@ -113,23 +123,43 @@ const BusinessDashboard = () => {
   useEffect(() => {
     const load = async () => {
       if (!business) return;
+      if (isDemo) {
+        setBookings([]);
+        setWalletBalance(5000);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
-      const { data } = await supabase
-        .from("bookings")
-        .select(BOOKING_COLUMNS)
-
-        .eq("business_account_id", business.id)
-        .order("created_at", { ascending: false })
-        .limit(500);
-      setBookings((data ?? []) as BusinessBooking[]);
+      const [ordersResult, walletResult] = await Promise.all([
+        supabase
+          .from("bookings")
+          .select(BOOKING_COLUMNS)
+          .eq("business_account_id", business.id)
+          .order("created_at", { ascending: false })
+          .limit(500),
+        supabase
+          .from("business_wallets")
+          .select("balance")
+          .eq("business_account_id", business.id)
+          .maybeSingle(),
+      ]);
+      if (ordersResult.error || walletResult.error) {
+        toast({
+          title: "Could not refresh merchant overview",
+          description: ordersResult.error?.message || walletResult.error?.message,
+          variant: "destructive",
+        });
+      }
+      setBookings((ordersResult.data ?? []) as BusinessBooking[]);
+      setWalletBalance(Number(walletResult.data?.balance ?? 0));
       setLoading(false);
     };
     load();
-  }, [business]);
+  }, [business, isDemo, toast]);
 
   // Live updates for this business's bookings.
   useEffect(() => {
-    if (!business) return;
+    if (!business || isDemo) return;
     const channel = supabase
       .channel("business-bookings")
       .on(
@@ -151,7 +181,7 @@ const BusinessDashboard = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [business]);
+  }, [business, isDemo]);
 
   const counts = useMemo(() => {
     const acc: Record<string, number> = {};
@@ -413,19 +443,36 @@ const BusinessDashboard = () => {
     w.document.close();
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/viasetuforbusinesses");
-  };
+  const setupSteps = useMemo(() => {
+    const approved = business?.status === "approved" && business.is_active;
+    const hasPickupAddress = Boolean(business?.address && business?.pincode);
+    const hasWalletFunds = walletBalance > 0;
+    return [
+      { label: "Business KYC", detail: approved ? "Verified" : "Pending verification", complete: approved },
+      { label: "Pickup address", detail: hasPickupAddress ? `${business?.city || "Address"} · ${business?.pincode}` : "Address required", complete: hasPickupAddress },
+      { label: "Shipping access", detail: approved ? "Enabled" : "Approval required", complete: approved },
+      { label: "Prepaid wallet", detail: hasWalletFunds ? `₹${walletBalance.toLocaleString("en-IN")} available` : "Funding required", complete: hasWalletFunds },
+    ];
+  }, [business, walletBalance]);
+  const completedSetupSteps = setupSteps.filter((item) => item.complete).length;
+  const setupProgress = Math.round((completedSetupSteps / setupSteps.length) * 100);
 
+  const recentEvents = useMemo(() => {
+    if (isDemo) {
+      return [
+        ["VS-DEMO-1042", "Sample Online Store", "Ready for dispatch", "Today, 10:28 AM"],
+        ["VS-DEMO-1041", "Manual order", "In transit", "Today, 09:16 AM"],
+        ["VS-DEMO-1040", "Sample Online Store", "Delivered", "Yesterday, 06:44 PM"],
+      ];
+    }
 
-  const tiles: { key: FilterKey; label: string; value: number | string; icon: typeof Package }[] = [
-    { key: "all", label: "Total Shipments", value: stats.shipments, icon: Package },
-    { key: "in_transit", label: "In Transit", value: stats.inTransit, icon: Truck },
-    { key: "out_for_delivery", label: "Out for Delivery", value: stats.outForDelivery, icon: MapPin },
-    { key: "delivered", label: "Delivered", value: stats.delivered, icon: CheckCircle2 },
-    { key: "cancelled", label: "Cancelled / RTO", value: stats.cancelled, icon: XCircle },
-  ];
+    return bookings.slice(0, 3).map((booking) => [
+      booking.tracking_id || booking.id.slice(0, 12),
+      booking.booking_source || booking.courier_name || "Merchant console",
+      bucketLabel(bucketOfStatus(booking.status)),
+      new Date(booking.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }),
+    ]);
+  }, [bookings, isDemo]);
 
   const selectedBreakdown = useMemo(() => {
     if (!selected) return null;
@@ -435,77 +482,151 @@ const BusinessDashboard = () => {
   }, [selected]);
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-transparent">
       <PageSeo
         title="Business Dashboard | ViaSetu for Businesses"
         description="Track your business shipments, boxes and spend on ViaSetu."
         path="/viasetuforbusinesses/dashboard"
       />
-      <header className="bg-background border-b sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto flex items-center justify-between p-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 rounded-lg bg-primary/10 shrink-0">
-              <Building2 className="h-5 w-5 text-primary" />
+      <main className="space-y-[18px]">
+        <section className="flex min-w-0 flex-col items-stretch justify-between gap-4 md:flex-row md:items-center">
+          <div className="min-w-0">
+            <h1 className="text-[2rem] font-extrabold leading-[1.2] tracking-[-0.025em] text-foreground">
+              Good afternoon, {business?.company_name || "Sample Merchant"}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">Here is a safe preview of your shipping operations workspace.</p>
+          </div>
+          <Button className="h-9 shrink-0 px-4" onClick={() => navigate("/viasetuforbusinesses/create-order")}>
+            <Plus className="mr-1 size-5" /> {isDemo ? "Create sample order" : "Create order"}
+          </Button>
+        </section>
+        <Card className="merchant-hero-card merchant-bordered-card overflow-hidden border-cyan-200/60">
+          <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)]">
+            <div
+              className="merchant-hero-visual relative flex min-h-[310px] items-center overflow-hidden bg-[#071217] p-[22px] text-white md:min-h-[324px] md:p-7"
+              style={{
+                backgroundImage: `linear-gradient(90deg, rgba(4, 14, 19, .98) 0%, rgba(4, 14, 19, .88) 45%, rgba(4, 14, 19, .12) 100%), url(${viasetuLogisticsHero})`,
+                backgroundPosition: "center right",
+                backgroundSize: "cover",
+              }}
+            >
+              <div className="merchant-hero-copy relative z-10 max-w-[570px]">
+                <Badge className="border-cyan-300/20 bg-cyan-300/15 text-cyan-100 shadow-none backdrop-blur-md hover:bg-cyan-300/15">ViaSetu Merchant Console</Badge>
+                <h2 className="mt-[18px] max-w-[520px] text-[1.45rem] font-extrabold leading-[1.25] tracking-[-0.025em] md:text-[1.7rem]">Every shipment. One clear route.</h2>
+                <p className="mt-2 max-w-[530px] text-sm leading-[1.55] text-slate-300">Create orders, connect your store and follow every delivery from one simple workspace.</p>
+                <Button variant="secondary" className="mt-[22px] h-11 bg-white px-[18px] text-[#087f8d] hover:bg-cyan-50 hover:text-[#076c78]" onClick={() => navigate("/viasetuforbusinesses/integrations")}>Explore integrations <ArrowRight className="ml-1 size-5" /></Button>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h1 className="font-bold truncate">{business?.company_name}</h1>
-              <p className="text-xs text-muted-foreground truncate">ViaSetu for Businesses</p>
+            <div className="merchant-setup-panel flex flex-col justify-center p-[22px] md:p-[21px] lg:justify-start lg:pt-8">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-[1.05rem] font-extrabold leading-[1.4]">Merchant setup</h2>
+                  <p className="mt-1 text-xs leading-[1.5] text-muted-foreground">{completedSetupSteps} of {setupSteps.length} steps completed</p>
+                </div>
+                <p className="text-xs font-extrabold text-primary">{setupProgress}%</p>
+              </div>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#dce4f1]" role="progressbar" aria-label="Merchant setup progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={setupProgress}>
+                <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${setupProgress}%` }} />
+              </div>
+              <div className="mt-3 divide-y divide-[#e2e8f2]">
+                {setupSteps.map((step) => (
+                  <div key={step.label} className="flex min-h-[47px] items-center gap-[11px] py-1">
+                    <span className={`grid shrink-0 place-items-center ${step.complete ? "text-[#0a8f5b]" : "text-[#718096]"}`}>
+                      {step.complete ? <CircleCheckBig className="size-5" /> : <WalletCards className="size-5" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold leading-[1.5] text-foreground">{step.label}</p>
+                      <p className="text-[11px] leading-[1.45] text-[#5b6b87]">{step.detail}</p>
+                    </div>
+                    {step.complete ? (
+                      <span className="text-[11px] font-bold text-[#0a8f5b]">Complete</span>
+                    ) : (
+                      <Button size="sm" variant="outline" className="h-[30px] min-h-0 border border-cyan-200 bg-white px-3 text-[#087f8d] hover:bg-cyan-50 hover:text-[#076c78]" onClick={() => navigate("/viasetuforbusinesses/wallet")}>Add funds</Button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => navigate("/viasetuforbusinesses/wallet")} aria-label="Wallet">
-              <Wallet className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Wallet</span>
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => navigate("/viasetuforbusinesses/developers")} aria-label="API and integrations">
-              <KeyRound className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">API</span>
-            </Button>
-            <Button size="sm" onClick={() => navigate("/viasetuforbusinesses/book")}>
-              <Plus className="h-4 w-4 mr-1" /> New Shipment
-            </Button>
-            <Button size="sm" variant="ghost" onClick={handleLogout}>
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
+        </Card>
 
-      <main className="max-w-6xl mx-auto p-4 space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-          {tiles.map((t) => {
-            const Icon = t.icon;
-            const active = filter === t.key;
-            return (
-              <button key={t.key} type="button" onClick={() => setFilter(t.key)} className="text-left">
-                <Card className={`transition-colors h-full ${active ? "border-primary ring-1 ring-primary" : "hover:border-primary/40"}`}>
-                  <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-xs sm:text-sm font-medium">{t.label}</CardTitle>
-                    <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-                  </CardHeader>
-                  <CardContent><p className="text-2xl font-bold">{t.value}</p></CardContent>
-                </Card>
-              </button>
-            );
-          })}
-        </div>
+        <section className="grid gap-4 md:grid-cols-3">
+          <button type="button" onClick={() => setFilter("all")} className="text-left">
+            <Card className={`merchant-stat-card merchant-stat-cyan min-h-[126px] ${filter === "all" ? "ring-1 ring-cyan-500/35" : ""}`} style={{ animationDelay: "90ms" }}>
+              <CardContent className="p-[18px]">
+                <div className="flex items-start justify-between">
+                  <div><p className="text-xs font-bold text-[#40516b]">{isDemo ? "Sample orders" : "Total orders"}</p><p className="mt-1 text-[1.7rem] font-extrabold leading-[1.2] tracking-[-0.03em] text-[#10213e]">{isDemo ? 24 : stats.shipments}</p></div>
+                  <span className="grid size-[42px] place-items-center rounded-xl border border-white/80 bg-white/75 text-[#078b9b]"><Package className="size-[22px]" /></span>
+                </div>
+                <div className="mt-3 flex items-center gap-1"><ArrowUp className="size-3.5 text-[#078b9b]" /><span className="text-[11px] font-medium text-[#50617a]">{isDemo ? "+8 this week" : `${stats.totalBoxes} boxes booked`}</span></div>
+              </CardContent>
+            </Card>
+          </button>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Card>
-            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium">Boxes Shipped</CardTitle>
-              <Boxes className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><p className="text-2xl font-bold">{stats.totalBoxes}</p></CardContent>
+          <button type="button" onClick={() => setFilter("in_transit")} className="text-left">
+            <Card className={`merchant-stat-card merchant-stat-slate min-h-[126px] ${filter === "in_transit" ? "ring-1 ring-slate-500/35" : ""}`} style={{ animationDelay: "145ms" }}>
+              <CardContent className="p-[18px]">
+                <div className="flex items-start justify-between">
+                  <div><p className="text-xs font-bold text-[#40516b]">In transit</p><p className="mt-1 text-[1.7rem] font-extrabold leading-[1.2] tracking-[-0.03em] text-[#10213e]">{isDemo ? 8 : stats.inTransit}</p></div>
+                  <span className="grid size-[42px] place-items-center rounded-xl border border-white/80 bg-white/75 text-[#243b4a]"><Truck className="size-[22px]" /></span>
+                </div>
+                <div className="mt-3 flex items-center gap-1"><ArrowUp className="size-3.5 text-[#243b4a]" /><span className="text-[11px] font-medium text-[#50617a]">{isDemo ? "2 due today" : `${stats.outForDelivery} out for delivery`}</span></div>
+              </CardContent>
+            </Card>
+          </button>
+
+          <button type="button" onClick={() => navigate("/viasetuforbusinesses/wallet")} className="text-left">
+            <Card className="merchant-stat-card merchant-stat-amber min-h-[126px]" style={{ animationDelay: "200ms" }}>
+              <CardContent className="p-[18px]">
+                <div className="flex items-start justify-between">
+                  <div><p className="text-xs font-bold text-[#40516b]">{isDemo ? "Demo wallet" : "Wallet balance"}</p><p className="mt-1 text-[1.7rem] font-extrabold leading-[1.2] tracking-[-0.03em] text-[#10213e]">₹{Math.round(walletBalance).toLocaleString("en-IN")}</p></div>
+                  <span className="grid size-[42px] place-items-center rounded-xl border border-white/80 bg-white/75 text-[#a96511]"><WalletCards className="size-[22px]" /></span>
+                </div>
+                <div className="mt-3 flex items-center gap-1"><ArrowUp className="size-3.5 text-[#a96511]" /><span className="text-[11px] font-medium text-[#50617a]">{isDemo ? "Non-financial mock balance" : walletBalance > 0 ? "Available for merchant shipments" : "Add funds to create prepaid shipments"}</span></div>
+              </CardContent>
+            </Card>
+          </button>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <Card className="merchant-bordered-card border-[#d9e3f2] bg-[linear-gradient(180deg,#fff_0%,#f7faff_100%)] shadow-[0_10px_28px_rgba(35,55,95,.055)]">
+            <CardContent className="p-[23px]">
+              <div className="flex items-center justify-between gap-3">
+                <div><h2 className="text-base font-extrabold">Recent shipment activity</h2><p className="mt-1 text-xs text-muted-foreground">{isDemo ? "Sample events used for UI evaluation." : "Latest activity for this merchant account."}</p></div>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/viasetuforbusinesses/orders")}>View all</Button>
+              </div>
+              <div className="mt-4 divide-y divide-border">
+                {recentEvents.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">No shipment activity yet.</div>
+                ) : recentEvents.map(([id, source, status, time]) => (
+                  <div key={id} className="grid items-center gap-2 py-3 sm:grid-cols-[145px_1fr_145px_150px]">
+                    <span className="text-xs font-extrabold">{id}</span>
+                    <span className="hidden text-xs text-muted-foreground sm:block">{source}</span>
+                    <Badge variant="outline" className="w-fit bg-white/70 text-[10px]">{status}</Badge>
+                    <span className="hidden text-[11px] text-muted-foreground sm:block">{time}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium">Total Spend</CardTitle>
-              <IndianRupee className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><p className="text-2xl font-bold">₹{Math.round(stats.totalSpend)}</p></CardContent>
+          <Card className="merchant-bordered-card border-[#d4e0fa] bg-[linear-gradient(155deg,#eefbfd_0%,#f8fcfd_100%)] shadow-[0_10px_28px_rgba(35,55,95,.06)]">
+            <CardContent className="p-[23px]">
+              <h2 className="text-base font-extrabold">Quick actions</h2>
+              <div className="mt-4 space-y-2">
+                {[
+                  ["Create an order", "/viasetuforbusinesses/create-order"],
+                  ["Calculate shipping rate", "/viasetuforbusinesses/module/rate-calculator"],
+                  ["Track a shipment", "/viasetuforbusinesses/module/tracking"],
+                  ["Connect a sales channel", "/viasetuforbusinesses/integrations"],
+                ].map(([label, route], index) => (
+                  <Button key={label} variant={index === 0 ? "default" : "outline"} className={`w-full justify-between ${index === 0 ? "" : "bg-white/70"}`} onClick={() => navigate(route)}>{label}<ArrowRight className="size-4" /></Button>
+                ))}
+              </div>
+            </CardContent>
           </Card>
-        </div>
+        </section>
 
-        <Card>
+        <Card className="merchant-bordered-card">
           <CardHeader className="gap-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>

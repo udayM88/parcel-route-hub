@@ -10,6 +10,11 @@ import { toast } from "sonner";
 import { z } from "zod";
 import PageSeo from "@/components/PageSeo";
 import { useBusinessAuth } from "@/contexts/useBusinessAuth";
+import {
+  BUSINESS_DEMO_EMAIL,
+  BUSINESS_DEMO_PASSWORD,
+  startBusinessDemoSession,
+} from "@/lib/business-demo";
 
 
 const emailSchema = z.string().email("Invalid email address");
@@ -33,6 +38,18 @@ const BusinessLogin = () => {
 
     setLoading(true);
     try {
+      if (
+        import.meta.env.DEV &&
+        email.trim().toLowerCase() === BUSINESS_DEMO_EMAIL &&
+        password === BUSINESS_DEMO_PASSWORD
+      ) {
+        startBusinessDemoSession();
+        await refresh(false);
+        toast.success("Sample merchant workspace opened");
+        navigate("/viasetuforbusinesses/dashboard");
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
@@ -121,6 +138,26 @@ const BusinessLogin = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {import.meta.env.DEV ? (
+            <div className="mb-4 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+              <p className="font-semibold">Local sample access</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Use {BUSINESS_DEMO_EMAIL} / {BUSINESS_DEMO_PASSWORD}
+              </p>
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto px-0 pt-2 text-xs"
+                onClick={() => {
+                  setEmail(BUSINESS_DEMO_EMAIL);
+                  setPassword(BUSINESS_DEMO_PASSWORD);
+                  setIsResetMode(false);
+                }}
+              >
+                Fill sample credentials
+              </Button>
+            </div>
+          ) : null}
           <form onSubmit={isResetMode ? handleForgotPassword : handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="business-email">Work Email</Label>

@@ -58,10 +58,14 @@ const BusinessInquiries = lazy(() => import("./pages/admin/BusinessInquiries"));
 const BusinessLogin = lazy(() => import("./pages/business/BusinessLogin"));
 const BusinessResetPassword = lazy(() => import("./pages/business/BusinessResetPassword"));
 const BusinessDashboard = lazy(() => import("./pages/business/BusinessDashboard"));
+const BusinessOrders = lazy(() => import("./pages/business/BusinessOrders"));
 const BusinessBooking = lazy(() => import("./pages/business/BusinessBooking"));
 const BusinessWallet = lazy(() => import("./pages/business/BusinessWallet"));
 const BusinessDevelopers = lazy(() => import("./pages/business/BusinessDevelopers"));
+const BusinessIntegrations = lazy(() => import("./pages/business/BusinessIntegrations"));
+const BusinessModulePage = lazy(() => import("./pages/business/BusinessModulePage"));
 const BusinessPortalLayout = lazy(() => import("./components/business/BusinessPortalLayout"));
+const BusinessConsoleLayout = lazy(() => import("./components/business/BusinessConsoleLayout"));
 const OrderMonitoring = lazy(() => import("./pages/admin/OrderMonitoring"));
 const RevenueManagement = lazy(() => import("./pages/admin/RevenueManagement"));
 const Reconciliation = lazy(() => import("./pages/admin/Reconciliation"));
@@ -141,10 +145,16 @@ const App = () => (
           <Route path="/viasetuforbusinesses" element={<BusinessPortalLayout />}>
             <Route index element={<BusinessLogin />} />
             <Route path="reset-password" element={<BusinessResetPassword />} />
-            <Route path="dashboard" element={<ProtectedBusinessRoute><BusinessDashboard /></ProtectedBusinessRoute>} />
-            <Route path="book" element={<ProtectedBusinessRoute><BusinessBooking /></ProtectedBusinessRoute>} />
-            <Route path="wallet" element={<ProtectedBusinessRoute><BusinessWallet /></ProtectedBusinessRoute>} />
-            <Route path="developers" element={<ProtectedBusinessRoute><BusinessDevelopers /></ProtectedBusinessRoute>} />
+            <Route element={<ProtectedBusinessRoute><BusinessConsoleLayout /></ProtectedBusinessRoute>}>
+              <Route path="dashboard" element={<BusinessDashboard />} />
+              <Route path="orders" element={<BusinessOrders />} />
+              <Route path="book" element={<BusinessBooking />} />
+              <Route path="create-order" element={<BusinessBooking />} />
+              <Route path="wallet" element={<BusinessWallet />} />
+              <Route path="developers" element={<BusinessDevelopers />} />
+              <Route path="integrations" element={<BusinessIntegrations />} />
+              <Route path="module/:module" element={<BusinessModulePage />} />
+            </Route>
           </Route>
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/reset-password" element={<ResetPassword />} />

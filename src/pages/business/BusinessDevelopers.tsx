@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Copy, KeyRound, Loader2, Trash2 } from "lucide-react";
+import { Copy, KeyRound, Loader2, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,10 +12,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useBusinessAuth } from "@/contexts/useBusinessAuth";
 import { useToast } from "@/hooks/use-toast";
 import PageSeo from "@/components/PageSeo";
+import { isBusinessDemoSession } from "@/lib/business-demo";
 
 const ENDPOINT = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID || "tksfdvnogzsweteetjjw"}.supabase.co/functions/v1/merchant-api`;
 
 type ApiKey = { id: string; name: string; key_prefix: string; environment: string; last_used_at: string | null; revoked_at: string | null; created_at: string };
+
+const DEMO_KEYS: ApiKey[] = [
+  { id: "demo-key-1", name: "Sample WooCommerce store", key_prefix: "vs_test_demo", environment: "sandbox", last_used_at: "2026-10-20T08:42:00.000Z", revoked_at: null, created_at: "2026-10-18T06:30:00.000Z" },
+];
 
 const fmt = (d: string | null) => (d ? new Date(d).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "Never");
 
@@ -32,29 +36,45 @@ const EXAMPLES: { title: string; desc: string; body: string; idem?: boolean }[] 
 ];
 
 const BusinessDevelopers = () => {
-  const navigate = useNavigate();
   const { business } = useBusinessAuth();
   const { toast } = useToast();
+  const isDemo = isBusinessDemoSession();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
-  const [env, setEnv] = useState("live");
+  const [env, setEnv] = useState(isDemo ? "sandbox" : "live");
   const [creating, setCreating] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!business) return;
-    const { data } = await supabase.from("business_api_keys")
+    if (isDemo) {
+      setKeys((current) => current.length ? current : DEMO_KEYS);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error } = await supabase.from("business_api_keys")
       .select("id,name,key_prefix,environment,last_used_at,revoked_at,created_at")
       .eq("business_account_id", business.id).order("created_at", { ascending: false });
+    if (error) toast({ title: "Could not load API keys", description: error.message, variant: "destructive" });
     setKeys((data ?? []) as ApiKey[]);
     setLoading(false);
-  }, [business]);
+  }, [business, isDemo, toast]);
   useEffect(() => { load(); }, [load]);
 
   const copy = (s: string) => { navigator.clipboard.writeText(s); toast({ title: "Copied" }); };
 
   const create = async () => {
+    if (isDemo) {
+      const createdAt = new Date().toISOString();
+      const sampleKey = `vs_test_sample_only_${crypto.randomUUID().replace(/-/g, "")}`;
+      setKeys((current) => [{ id: crypto.randomUUID(), name: name.trim(), key_prefix: sampleKey.slice(0, 12), environment: "sandbox", last_used_at: null, revoked_at: null, created_at: createdAt }, ...current]);
+      setNewKey(sampleKey);
+      setName("");
+      setEnv("sandbox");
+      return;
+    }
     setCreating(true);
     const { data, error } = await supabase.functions.invoke("business-api-keys", { body: { action: "create", name, environment: env } });
     setCreating(false);
@@ -64,6 +84,11 @@ const BusinessDevelopers = () => {
 
   const revoke = async (id: string) => {
     if (!confirm("Revoke this key? Websites using it will stop working immediately.")) return;
+    if (isDemo) {
+      setKeys((current) => current.map((key) => key.id === id ? { ...key, revoked_at: new Date().toISOString() } : key));
+      toast({ title: "Sample key revoked", description: "Only local demo state changed." });
+      return;
+    }
     const { data, error } = await supabase.functions.invoke("business-api-keys", { body: { action: "revoke", id } });
     if (error || !data?.success) toast({ title: "Could not revoke", description: data?.error || error?.message, variant: "destructive" });
     else { toast({ title: "Key revoked" }); load(); }
@@ -73,31 +98,36 @@ const BusinessDevelopers = () => {
     `curl -X POST '${ENDPOINT}' \\\n  -H 'Authorization: Bearer YOUR_API_KEY' \\\n  -H 'Content-Type: application/json' \\\n${idem ? "  -H 'Idempotency-Key: ORDER-12345' \\\n" : ""}  -d '${body}'`;
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-transparent">
       <PageSeo title="API & Integrations | ViaSetu for Businesses" description="API keys and shipping API docs." path="/viasetuforbusinesses/developers" />
-      <header className="bg-background border-b">
-        <div className="max-w-5xl mx-auto flex items-center gap-3 p-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/viasetuforbusinesses/dashboard")}><ArrowLeft className="h-4 w-4" /></Button>
-          <h1 className="font-bold">API & Integrations</h1>
+      <main className="space-y-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-extrabold tracking-tight md:text-3xl">API & Webhooks</h1>{isDemo ? <Badge variant="secondary">Sandbox preview</Badge> : null}</div>
+            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Create account-scoped server keys and connect a trusted website, WooCommerce plugin or backend service.</p>
+          </div>
+          <Button variant="outline" onClick={load} disabled={loading}><RefreshCw className={loading ? "animate-spin" : ""} />Refresh</Button>
         </div>
-      </header>
-      <main className="max-w-5xl mx-auto p-4">
+        <div className="flex items-start gap-3 rounded-xl border border-cyan-200/70 bg-cyan-50/70 p-4 text-sm text-cyan-950">
+          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
+          <div><p className="font-bold">Server-side credentials only</p><p className="mt-0.5 text-xs leading-5 text-cyan-900/75">Keys are stored as hashes and the full value is shown once. Never expose a key in React browser code or a public repository.</p></div>
+        </div>
         <Tabs defaultValue="keys" className="space-y-4">
           <TabsList><TabsTrigger value="keys">API Keys</TabsTrigger><TabsTrigger value="docs">Documentation</TabsTrigger></TabsList>
 
           <TabsContent value="keys" className="space-y-4">
-            <Card>
+            <Card className="merchant-surface merchant-bordered-card">
               <CardHeader><CardTitle className="text-base flex items-center gap-2"><KeyRound className="h-4 w-4" />Create a key</CardTitle>
                 <CardDescription>Give one key to each website or system. Live keys charge your wallet and book real shipments; sandbox keys use courier test systems.</CardDescription></CardHeader>
               <CardContent className="flex flex-col sm:flex-row gap-3 sm:items-end">
                 <div className="flex-1 space-y-1"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Shopify store" maxLength={60} /></div>
                 <div className="space-y-1 sm:w-40"><Label>Environment</Label>
                   <Select value={env} onValueChange={setEnv}><SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="live">Live</SelectItem><SelectItem value="sandbox">Sandbox</SelectItem></SelectContent></Select></div>
+                    <SelectContent>{!isDemo ? <SelectItem value="live">Live</SelectItem> : null}<SelectItem value="sandbox">Sandbox</SelectItem></SelectContent></Select></div>
                 <Button onClick={create} disabled={creating || name.trim().length < 2}>{creating && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Create key</Button>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="merchant-bordered-card">
               <CardHeader><CardTitle className="text-base">Your keys</CardTitle></CardHeader>
               <CardContent className="space-y-2">
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : keys.length === 0 ? <p className="text-sm text-muted-foreground">No keys yet.</p> :
@@ -118,7 +148,7 @@ const BusinessDevelopers = () => {
           </TabsContent>
 
           <TabsContent value="docs" className="space-y-4">
-            <Card>
+            <Card className="merchant-bordered-card">
               <CardHeader><CardTitle className="text-base">Getting started</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p>All requests are <b>POST</b> to one address, with your key in the <code>Authorization</code> header and an <code>action</code> in the JSON body.</p>
@@ -129,7 +159,7 @@ const BusinessDevelopers = () => {
               </CardContent>
             </Card>
             {EXAMPLES.map((ex) => (
-              <Card key={ex.title}>
+              <Card key={ex.title} className="merchant-bordered-card">
                 <CardHeader className="pb-2"><CardTitle className="text-base">{ex.title}</CardTitle>{ex.desc && <CardDescription>{ex.desc}</CardDescription>}</CardHeader>
                 <CardContent>
                   <div className="relative">
@@ -146,7 +176,7 @@ const BusinessDevelopers = () => {
       <Dialog open={!!newKey} onOpenChange={(o) => !o && setNewKey(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Copy your new key now</DialogTitle>
-            <DialogDescription>For security it won't be shown again. Store it safely and never put it in browser code.</DialogDescription></DialogHeader>
+            <DialogDescription>{isDemo ? "This is a local sample token and cannot call the ViaSetu API." : "For security it won't be shown again. Store it safely and never put it in browser code."}</DialogDescription></DialogHeader>
           <code className="text-xs bg-muted p-3 rounded break-all">{newKey}</code>
           <Button onClick={() => newKey && copy(newKey)}><Copy className="h-4 w-4 mr-1" />Copy key</Button>
         </DialogContent>

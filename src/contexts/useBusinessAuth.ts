@@ -6,6 +6,15 @@ export type BusinessAccount = {
   contact_person: string;
   email: string;
   phone: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  pan_number: string | null;
+  gst_number: string | null;
+  documents: unknown;
+  monthly_shipments: number;
+  approved_at: string | null;
   status: string;
   is_active: boolean;
 };

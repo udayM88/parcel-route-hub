@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { BusinessAuthContext } from "@/contexts/useBusinessAuth";
 import type { BusinessAccount } from "@/contexts/useBusinessAuth";
+import { BUSINESS_DEMO_ACCOUNT, isBusinessDemoSession } from "@/lib/business-demo";
 
 const BusinessAuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
@@ -11,6 +12,11 @@ const BusinessAuthProvider = ({ children }: { children: ReactNode }) => {
   const refresh = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
+      if (isBusinessDemoSession()) {
+        setBusiness(BUSINESS_DEMO_ACCOUNT);
+        return BUSINESS_DEMO_ACCOUNT;
+      }
+
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) {
         setBusiness(null);
@@ -18,7 +24,7 @@ const BusinessAuthProvider = ({ children }: { children: ReactNode }) => {
       }
       const { data, error } = await supabase
         .from("business_accounts")
-        .select("id,company_name,contact_person,email,phone,status,is_active")
+        .select("id,company_name,contact_person,email,phone,address,city,state,pincode,pan_number,gst_number,documents,monthly_shipments,approved_at,status,is_active")
         .eq("user_id", user.id)
         .eq("is_active", true)
         .maybeSingle();
@@ -40,6 +46,12 @@ const BusinessAuthProvider = ({ children }: { children: ReactNode }) => {
     refresh(true).catch(() => undefined).finally(() => { hasLoadedOnce = true; });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (isBusinessDemoSession()) {
+        setBusiness(BUSINESS_DEMO_ACCOUNT);
+        setLoading(false);
+        return;
+      }
+
       if (event === "SIGNED_OUT") {
         setBusiness(null);
         setLoading(false);
