@@ -17,7 +17,7 @@ import AddressAutocomplete from "@/components/booking/AddressAutocomplete";
 import DisclaimerStep from "@/components/booking/DisclaimerStep";
 import { CURRENT_ENV } from "@/config/environment";
 import { computeBusinessBreakdown, computeChargeableKg } from "@/lib/pricing";
-import { filterEnabledPartners } from "@/lib/partnerSettings";
+import { fetchBusinessCarrierRules, filterEnabledBusinessPartners } from "@/lib/partnerSettings";
 import { isBusinessDemoSession } from "@/lib/business-demo";
 
 const DIRECT_PARTNERS = [
@@ -189,7 +189,7 @@ const BusinessBooking = () => {
             width_cm: parseFloat(b.width) || 10,
             height_cm: parseFloat(b.height) || 10,
           };
-          const activePartners = await filterEnabledPartners(DIRECT_PARTNERS);
+          const activePartners = await filterEnabledBusinessPartners(DIRECT_PARTNERS, business?.id);
           const settled = await Promise.allSettled(
             activePartners.map((p) =>
               supabase.functions
@@ -234,7 +234,20 @@ const BusinessBooking = () => {
         });
       });
 
-      combos.sort((a, b) => a.totalPrice - b.totalPrice);
+      const rules = await fetchBusinessCarrierRules(business?.id);
+      const preferred = rules.preferred_partner && rules.preferred_partner !== "none" ? rules.preferred_partner : "";
+      combos.sort((a, b) => {
+        if (preferred) {
+          if (a.partnerCode === preferred && b.partnerCode !== preferred) return -1;
+          if (b.partnerCode === preferred && a.partnerCode !== preferred) return 1;
+        }
+        if (rules.sort_by === "fastest_delivery") {
+          const aDays = Number(a.deliveryTime.match(/\d+/)?.[0] || 999);
+          const bDays = Number(b.deliveryTime.match(/\d+/)?.[0] || 999);
+          if (aDays !== bDays) return aDays - bDays;
+        }
+        return a.totalPrice - b.totalPrice;
+      });
       setQuotes(combos);
       if (combos.length === 0) {
         toast({ title: "No courier available", description: "No partner serves all boxes on this route.", variant: "destructive" });

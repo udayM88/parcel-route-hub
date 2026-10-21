@@ -8,6 +8,7 @@ import {
 } from "./courier-status.ts";
 import { toUtcIso } from "./ist-time.ts";
 import { dispatchSms } from "./notify-sms.ts";
+import { dispatchMerchantWebhooks } from "./notify-merchant-webhooks.ts";
 
 /** Canonical status -> configured SMS template event key. */
 export const STATUS_EVENT_KEY: Record<string, string> = {
@@ -91,6 +92,10 @@ export async function recordCourierStatus(
   const sameAsPrevious = previous === n.normalized;
   const stale = previous ? statusRank(n.normalized) < statusRank(previous as ViaSetuStatus) : false;
   const notifiable = NOTIFIABLE_STATUSES.includes(n.normalized);
+
+  if (!sameAsPrevious && !stale && eventId) {
+    dispatchMerchantWebhooks(admin, booking, eventId, previous, n.normalized);
+  }
 
   let reason = "";
   let notified = false;

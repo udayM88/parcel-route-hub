@@ -1,7 +1,6 @@
-import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { ArrowRight, Building2, Calculator, Database, Info, Loader2, Mail, MapPin, Phone, Search, ShieldCheck, Truck } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useState } from "react";
+import { useParams } from "react-router-dom";
+import { Building2, Calculator, Database, Loader2, Mail, MapPin, Phone, Search, ShieldCheck, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,12 +11,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { moduleMeta } from "@/components/business/console/merchant-navigation";
 import { CURRENT_ENV } from "@/config/environment";
 import { computeBusinessBreakdown, computeChargeableKg } from "@/lib/pricing";
-import { filterEnabledPartners } from "@/lib/partnerSettings";
+import { fetchBusinessCarrierRules, filterEnabledBusinessPartners } from "@/lib/partnerSettings";
 import { isBusinessDemoSession } from "@/lib/business-demo";
 import BusinessSupportPanel from "@/pages/business/BusinessSupportPanel";
 import BusinessFinanceReport from "@/pages/business/BusinessFinanceReport";
 import BusinessAnalyticsPanel from "@/pages/business/BusinessAnalyticsPanel";
 import BusinessAddressesPanel from "@/pages/business/BusinessAddressesPanel";
+import BusinessActivatedModule from "@/pages/business/BusinessActivatedModule";
 
 type TrackingResult = {
   id: string;
@@ -53,6 +53,7 @@ const RATE_PARTNERS = [
 ];
 
 function RateCalculatorPanel() {
+  const { business } = useBusinessAuth();
   const isDemo = isBusinessDemoSession();
   const [pickup, setPickup] = useState("");
   const [delivery, setDelivery] = useState("");
@@ -81,7 +82,7 @@ function RateCalculatorPanel() {
         ]);
         return;
       }
-      const activePartners = await filterEnabledPartners(RATE_PARTNERS);
+      const activePartners = await filterEnabledBusinessPartners(RATE_PARTNERS, business?.id);
       const settled = await Promise.allSettled(activePartners.map(async (partner) => {
         const { data, error } = await supabase.functions.invoke<ServiceabilityResponse>(partner.fn, {
           body: {
@@ -105,7 +106,21 @@ function RateCalculatorPanel() {
           };
         });
       }));
-      const available = settled.flatMap((result) => result.status === "fulfilled" ? result.value : []).filter((quote) => quote.amount > 0).sort((a, b) => a.amount - b.amount);
+      const available = settled.flatMap((result) => result.status === "fulfilled" ? result.value : []).filter((quote) => quote.amount > 0);
+      const rules = await fetchBusinessCarrierRules(business?.id);
+      const preferred = rules.preferred_partner && rules.preferred_partner !== "none" ? rules.preferred_partner.toLowerCase() : "";
+      available.sort((a, b) => {
+        if (preferred) {
+          if (a.partner.toLowerCase().includes(preferred) && !b.partner.toLowerCase().includes(preferred)) return -1;
+          if (b.partner.toLowerCase().includes(preferred) && !a.partner.toLowerCase().includes(preferred)) return 1;
+        }
+        if (rules.sort_by === "fastest_delivery") {
+          const aDays = Number(a.delivery.match(/\d+/)?.[0] || 999);
+          const bDays = Number(b.delivery.match(/\d+/)?.[0] || 999);
+          if (aDays !== bDays) return aDays - bDays;
+        }
+        return a.amount - b.amount;
+      });
       setQuotes(available);
       if (!available.length) setMessage("No courier service is currently available for this route.");
     } catch (error: unknown) {
@@ -142,7 +157,6 @@ function RateCalculatorPanel() {
 
 export default function BusinessModulePage() {
   const { module = "" } = useParams();
-  const navigate = useNavigate();
   const { business } = useBusinessAuth();
   const isDemo = isBusinessDemoSession();
   const meta = moduleMeta[module] || { title: "Merchant Module", description: "This merchant workspace is being connected safely.", icon: Database };
@@ -150,8 +164,6 @@ export default function BusinessModulePage() {
   const [tracking, setTracking] = useState("");
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [trackingResult, setTrackingResult] = useState<TrackingResult | null | undefined>(undefined);
-
-  const availableNow = useMemo(() => ["profile", "support"].includes(module), [module]);
 
   const findShipment = async () => {
     const value = tracking.trim();
@@ -243,33 +255,7 @@ export default function BusinessModulePage() {
             <CardFooter className="border-t pt-4"><Badge variant={business?.status === "approved" ? "default" : "secondary"}>{business?.status === "approved" ? "KYC approved" : business?.status || "Pending"}</Badge></CardFooter>
           </Card>
         </div>
-      ) : (
-        <>
-          <Alert>
-            <Info />
-            <AlertTitle>{availableNow ? "Account data remains protected" : "UI ready; backend activation is gated"}</AlertTitle>
-            <AlertDescription>
-              {availableNow
-                ? "This screen is inside the existing authenticated merchant scope and does not expose another merchant's data."
-                : "The screen is available in the merchant console, but write actions stay disabled until its schema, RLS and server-side workflow are reviewed and migrated safely."}
-            </AlertDescription>
-          </Alert>
-          <Card>
-            <CardHeader>
-              <CardTitle>Safe rollout status</CardTitle>
-              <CardDescription>No production table, policy or Edge Function was changed to display this module.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-3">
-              {["Existing merchant login reused", "Business-scoped routes", "No mock records written"].map((label) => (
-                <div key={label} className="rounded-xl border bg-muted/30 p-4 text-sm font-semibold">{label}</div>
-              ))}
-            </CardContent>
-            <CardFooter className="justify-end border-t pt-4">
-              <Button variant="outline" onClick={() => navigate("/viasetuforbusinesses/dashboard")}>Back to dashboard <ArrowRight data-icon="inline-end" /></Button>
-            </CardFooter>
-          </Card>
-        </>
-      )}
+      ) : <BusinessActivatedModule module={module} />}
     </div>
   );
 }

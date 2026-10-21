@@ -170,3 +170,6 @@ verify_jwt = false
 
 [functions.merchant-api]
 verify_jwt = false
+
+[functions.business-webhook-test]
+verify_jwt = false

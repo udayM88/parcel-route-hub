@@ -76,13 +76,14 @@ export function priceFor(rates: number[]) {
   return { net, gst: total - net, total };
 }
 
-async function quote(url: string, anonKey: string, env: string, pickup: string, delivery: string, boxes: Box[]) {
+async function quote(url: string, anonKey: string, env: string, pickup: string, delivery: string, boxes: Box[], enabledPartnerCodes?: Set<string>) {
+  const availablePartners = enabledPartnerCodes ? PARTNERS.filter((partner) => enabledPartnerCodes.has(partner.code)) : PARTNERS;
   const perBox = await Promise.all(boxes.map(async (b) => {
     const payload = {
       pickup_pincode: pickup, delivery_pincode: delivery, weight_kg: b.weight_kg,
       length_cm: b.length_cm || 10, width_cm: b.width_cm || 10, height_cm: b.height_cm || 10,
     };
-    const settled = await Promise.allSettled(PARTNERS.map(async (p) => {
+    const settled = await Promise.allSettled(availablePartners.map(async (p) => {
       const r = await fetch(`${url}/functions/v1/${p.fn}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}`, apikey: anonKey, "x-environment": env },
@@ -160,6 +161,28 @@ Deno.serve(async (req) => {
     if (!biz || !biz.is_active || biz.status !== "approved") return err("forbidden", "Business account is not active", 403);
     admin.from("business_api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", apiKey.id).then(() => {});
     const env = apiKey.environment === "live" ? "production" : "sandbox";
+    const { data: carrierSetting } = await admin.from("merchant_console_settings").select("settings")
+      .eq("business_account_id", biz.id).eq("category", "carrier_selection").maybeSingle();
+    const carrierMap = (carrierSetting?.settings || {}) as Record<string, boolean>;
+    const enabledPartnerCodes = new Set(PARTNERS.filter((partner) => carrierMap[partner.code] !== false).map((partner) => partner.code));
+    const { data: carrierRulesRow } = await admin.from("merchant_console_settings").select("settings")
+      .eq("business_account_id", biz.id).eq("category", "carrier_rules").maybeSingle();
+    const carrierRules = (carrierRulesRow?.settings || {}) as Record<string, string>;
+    const applyCarrierRules = (quotes: any[]) => {
+      const preferred = carrierRules.preferred_partner && carrierRules.preferred_partner !== "none" ? carrierRules.preferred_partner : "";
+      return quotes.sort((a, b) => {
+        if (preferred) {
+          if (a.partner_code === preferred && b.partner_code !== preferred) return -1;
+          if (b.partner_code === preferred && a.partner_code !== preferred) return 1;
+        }
+        if (carrierRules.sort_by === "fastest_delivery") {
+          const aDays = Number(String(a.delivery_time || "").match(/\d+/)?.[0] || 999);
+          const bDays = Number(String(b.delivery_time || "").match(/\d+/)?.[0] || 999);
+          if (aDays !== bDays) return aDays - bDays;
+        }
+        return a.total_amount - b.total_amount;
+      });
+    };
 
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") return err("invalid_json", "Body must be a JSON object");
@@ -200,7 +223,7 @@ Deno.serve(async (req) => {
       if (!/^\d{6}$/.test(String(body.pickup_pincode)) || !/^\d{6}$/.test(String(body.delivery_pincode))) {
         return err("validation_error", "pickup_pincode and delivery_pincode must be 6 digits");
       }
-      const q = await quote(url, anonKey, env, String(body.pickup_pincode), String(body.delivery_pincode), boxes);
+      const q = applyCarrierRules(await quote(url, anonKey, env, String(body.pickup_pincode), String(body.delivery_pincode), boxes, enabledPartnerCodes));
       return json({ success: true, quotes: q.map(pub) });
     }
 
@@ -234,7 +257,7 @@ Deno.serve(async (req) => {
         return json(payload, status);
       };
 
-      const quotes = await quote(url, anonKey, env, pickup.pincode, delivery.pincode, boxes);
+      const quotes = applyCarrierRules(await quote(url, anonKey, env, pickup.pincode, delivery.pincode, boxes, enabledPartnerCodes));
       const chosen = body.partner_code
         ? quotes.find((q) => q.partner_code === body.partner_code && (!body.service_code || q.service_code === body.service_code))
         : quotes[0];

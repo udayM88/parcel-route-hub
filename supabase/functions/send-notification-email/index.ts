@@ -132,9 +132,26 @@ Deno.serve(async (req) => {
     }
 
     let booking: Record<string, any> | null = null;
+    let merchantEmail: string | null = null;
     if (bookingId) {
       const { data } = await supabase.from("bookings").select("*").eq("id", bookingId).maybeSingle();
       booking = data || null;
+      if (!isTest && booking?.business_account_id) {
+        const [{ data: preference }, { data: account }] = await Promise.all([
+          supabase.from("merchant_console_settings").select("settings")
+            .eq("business_account_id", booking.business_account_id).eq("category", "notifications").maybeSingle(),
+          supabase.from("business_accounts").select("email").eq("id", booking.business_account_id).maybeSingle(),
+        ]);
+        const settings = (preference?.settings || {}) as Record<string, unknown>;
+        const eventPreference: Record<string, string> = {
+          ORDER_PLACED: "order_created", ORDER_CREATED: "order_created", BOOKING_SUCCESS: "order_created",
+          READY_FOR_DISPATCH: "ready_for_dispatch", IN_TRANSIT: "in_transit", DELIVERED: "delivered",
+          FAILED: "failed_attempt", ORDER_FAILED: "failed_attempt", UNDELIVERED: "failed_attempt",
+        };
+        const preferenceKey = eventPreference[String(event).toUpperCase()];
+        if (preferenceKey && settings[preferenceKey] === false) return json({ skipped: "merchant_preference" });
+        merchantEmail = String(settings.email_destination || account?.email || "").trim() || null;
+      }
     }
 
     const vars = buildVars(booking, extraVars) as Record<string, string>;
@@ -146,16 +163,18 @@ Deno.serve(async (req) => {
       : [
           ...(tpl.to_recipients || []),
           ...(tpl.send_to_customer && booking?.sender_email ? [booking.sender_email] : []),
+          ...(merchantEmail ? [merchantEmail] : []),
         ].filter(Boolean);
+    const uniqueTo = [...new Set(to)];
 
     const cc: string[] = overrideTo ? [] : (tpl.cc_recipients || []).filter(Boolean);
 
-    if (!to.length) return json({ skipped: "no_recipient" });
+    if (!uniqueTo.length) return json({ skipped: "no_recipient" });
 
     logRow = {
       event_key: event,
       booking_id: isTest ? null : bookingId,
-      to_email: to.join(", "),
+      to_email: uniqueTo.join(", "),
       cc_emails: cc,
       reply_to: tpl.reply_to || null,
       subject,
@@ -172,7 +191,7 @@ Deno.serve(async (req) => {
     const sendOverSmtpPort = async (port: number) => {
       const message = {
         from: `${fromName} <${fromEmail}>`,
-        to,
+        to: uniqueTo,
         ...(cc.length ? { cc } : {}),
         ...(tpl.reply_to ? { replyTo: tpl.reply_to } : {}),
         subject,

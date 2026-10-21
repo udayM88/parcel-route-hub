@@ -97,6 +97,19 @@ The additive merchant API-key hardening release was applied to production Supaba
 - The existing `create_shipment` safety pause remains in place. Do not remove it until refund-safety verification is complete.
 - A non-destructive production smoke request returned the expected HTTP 401 for a missing/malformed API key; no shipment, wallet, or merchant data was created.
 
+## Merchant console module activation release
+
+An additive merchant-console activation release was prepared and applied on 2026-10-22:
+
+- Remote/local migration version: `20261022141000_activate_merchant_console_modules`.
+- Adds tenant-scoped settings, bulk-import audit records, webhook subscriptions, and merchant activity logs through `merchant_console_settings`, `merchant_bulk_imports`, `merchant_webhook_subscriptions`, and `merchant_console_activity_logs`.
+- Adds owner-scoped RLS policies and activity triggers without deleting or rewriting existing merchant, booking, wallet, or authentication data.
+- Replaces the generic backend-gated placeholder screen with live-backed merchant views for bulk booking staging, COD summaries, weight reconciliation, rate cards, invoices/statements, webhook subscriptions, pincode serviceability, activity/session visibility, carrier preferences/rules, notifications, and document settings.
+- Carrier selection and merchant carrier rules are applied by both the merchant UI booking/rate flows and the `merchant-api` server flow.
+- Production Edge Functions deployed for this release are `business-webhook-test` v1, `merchant-api` v8, `send-notification-email` v66, and `admin-update-booking-status` v6.
+- Public courier webhook receivers (`urbanebolt-webhook` and `xpressbees-webhook`) and `admin-refresh-order-statuses` were deliberately left at their prior versions. Do not redeploy those public receivers until their inbound authentication and replay protections have a separate security review.
+- Bulk booking currently validates and stages merchant files with an auditable import record; it does not silently create live shipments from spreadsheet rows.
+
 ## Functional versus planned modules
 
 Functional/live-backed:
@@ -111,16 +124,23 @@ Functional/live-backed:
 - Address CRUD with owner-only RLS
 - Support tickets/replies
 - Read-only finance and analytics views
+- Merchant carrier selection and routing preferences
+- Merchant notification preferences
+- Webhook subscription CRUD and authenticated test delivery
+- Pincode serviceability lookup
+- Merchant activity-log and current-session views
+- Merchant label/invoice settings
+- COD, rate-card, invoice, and weight-reconciliation operational summaries derived from authoritative tenant data
+- Bulk-booking file validation and staging audit
 
 UI/planned or schema-gated (do not claim fully functional yet):
 
-- COD management and settlement dashboard
-- Audited weight reconciliation
 - Full merchant team users/roles/permissions
-- Notification settings
-- Webhook subscription management and delivery logs
-- Full rate-card/invoice workflows
-- Carrier selection/rules administration
+- Final COD remittance/settlement operations with courier reconciliation
+- Carrier-audited weight dispute/settlement workflow
+- Automatic row-by-row shipment creation from uploaded bulk-booking files
+- Tax invoice generation/payment collection beyond the current ledger-derived statement/export views
+- Durable webhook attempt history, retry queue, and production delivery monitoring
 - Master login and role-persona management
 - Production WooCommerce plugin package and complete external developer SDK/documentation
 
