@@ -1,6 +1,6 @@
 // Business API key management. Only a SHA-256 hash of each key is stored;
 // the full key is returned exactly once, at creation.
-// Actions: create { name, environment: "live"|"sandbox" }, revoke { id }.
+// Actions: create { name, environment, scopes?, expires_in_days?, rate_limit_per_minute? }, revoke { id }.
 // Admins (super_admin/operations) may revoke any key with { id }.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -17,6 +17,8 @@ export async function sha256Hex(s: string) {
 }
 
 const MAX_ACTIVE_KEYS = 10;
+const ALL_SCOPES = ["rates:read", "shipments:read", "shipments:write", "shipments:cancel", "wallet:read"] as const;
+const ALLOWED_EXPIRY_DAYS = new Set([30, 90, 365]);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -54,6 +56,24 @@ Deno.serve(async (req) => {
       const name = String(body.name || "").trim().slice(0, 60);
       const environment = body.environment === "sandbox" ? "sandbox" : "live";
       if (name.length < 2) return json({ error: "Give the key a name" }, 400);
+      const requestedScopes = body.scopes == null ? [...ALL_SCOPES] : body.scopes;
+      if (!Array.isArray(requestedScopes) || requestedScopes.length === 0) {
+        return json({ error: "Select at least one API scope" }, 400);
+      }
+      const scopes = [...new Set(requestedScopes.map(String))];
+      if (scopes.some((scope) => !ALL_SCOPES.includes(scope as typeof ALL_SCOPES[number]))) {
+        return json({ error: "One or more API scopes are invalid" }, 400);
+      }
+      const expiryDays = body.expires_in_days == null || body.expires_in_days === "never"
+        ? null
+        : Number(body.expires_in_days);
+      if (expiryDays !== null && !ALLOWED_EXPIRY_DAYS.has(expiryDays)) {
+        return json({ error: "Expiry must be 30, 90, 365 days, or never" }, 400);
+      }
+      const rateLimit = body.rate_limit_per_minute == null ? 120 : Number(body.rate_limit_per_minute);
+      if (!Number.isInteger(rateLimit) || rateLimit < 1 || rateLimit > 1000) {
+        return json({ error: "Rate limit must be between 1 and 1000 requests per minute" }, 400);
+      }
       const { count } = await admin.from("business_api_keys").select("id", { count: "exact", head: true })
         .eq("business_account_id", biz.id).is("revoked_at", null);
       if ((count ?? 0) >= MAX_ACTIVE_KEYS) return json({ error: `Maximum ${MAX_ACTIVE_KEYS} active keys` }, 400);
@@ -65,7 +85,10 @@ Deno.serve(async (req) => {
       const { data, error } = await admin.from("business_api_keys").insert({
         business_account_id: biz.id, name, environment,
         key_prefix: key.slice(0, 12), key_hash: await sha256Hex(key), created_by: u.user.id,
-      }).select("id,name,key_prefix,environment,created_at").single();
+        scopes,
+        expires_at: expiryDays === null ? null : new Date(Date.now() + expiryDays * 86_400_000).toISOString(),
+        rate_limit_per_minute: rateLimit,
+      }).select("id,name,key_prefix,environment,scopes,expires_at,rate_limit_per_minute,created_at").single();
       if (error) return json({ error: error.message }, 500);
       return json({ success: true, key, record: data });
     }

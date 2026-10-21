@@ -16,10 +16,24 @@ import { isBusinessDemoSession } from "@/lib/business-demo";
 
 const ENDPOINT = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID || "tksfdvnogzsweteetjjw"}.supabase.co/functions/v1/merchant-api`;
 
-type ApiKey = { id: string; name: string; key_prefix: string; environment: string; last_used_at: string | null; revoked_at: string | null; created_at: string };
+type ApiKey = {
+  id: string;
+  name: string;
+  key_prefix: string;
+  environment: string;
+  scopes: string[];
+  expires_at: string | null;
+  rate_limit_per_minute: number;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+};
+
+const FULL_SCOPES = ["rates:read", "shipments:read", "shipments:write", "shipments:cancel", "wallet:read"];
+const READ_SCOPES = ["rates:read", "shipments:read", "wallet:read"];
 
 const DEMO_KEYS: ApiKey[] = [
-  { id: "demo-key-1", name: "Sample WooCommerce store", key_prefix: "vs_test_demo", environment: "sandbox", last_used_at: "2026-10-20T08:42:00.000Z", revoked_at: null, created_at: "2026-10-18T06:30:00.000Z" },
+  { id: "demo-key-1", name: "Sample WooCommerce store", key_prefix: "vs_test_demo", environment: "sandbox", scopes: FULL_SCOPES, expires_at: "2027-01-18T06:30:00.000Z", rate_limit_per_minute: 120, last_used_at: "2026-10-20T08:42:00.000Z", revoked_at: null, created_at: "2026-10-18T06:30:00.000Z" },
 ];
 
 const fmt = (d: string | null) => (d ? new Date(d).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "Never");
@@ -43,6 +57,8 @@ const BusinessDevelopers = () => {
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [env, setEnv] = useState(isDemo ? "sandbox" : "live");
+  const [access, setAccess] = useState("full");
+  const [expiry, setExpiry] = useState("90");
   const [creating, setCreating] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
 
@@ -55,7 +71,7 @@ const BusinessDevelopers = () => {
     }
     setLoading(true);
     const { data, error } = await supabase.from("business_api_keys")
-      .select("id,name,key_prefix,environment,last_used_at,revoked_at,created_at")
+      .select("id,name,key_prefix,environment,scopes,expires_at,rate_limit_per_minute,last_used_at,revoked_at,created_at")
       .eq("business_account_id", business.id).order("created_at", { ascending: false });
     if (error) toast({ title: "Could not load API keys", description: error.message, variant: "destructive" });
     setKeys((data ?? []) as ApiKey[]);
@@ -69,14 +85,24 @@ const BusinessDevelopers = () => {
     if (isDemo) {
       const createdAt = new Date().toISOString();
       const sampleKey = `vs_test_sample_only_${crypto.randomUUID().replace(/-/g, "")}`;
-      setKeys((current) => [{ id: crypto.randomUUID(), name: name.trim(), key_prefix: sampleKey.slice(0, 12), environment: "sandbox", last_used_at: null, revoked_at: null, created_at: createdAt }, ...current]);
+      const expiresAt = expiry === "never" ? null : new Date(Date.now() + Number(expiry) * 86_400_000).toISOString();
+      setKeys((current) => [{ id: crypto.randomUUID(), name: name.trim(), key_prefix: sampleKey.slice(0, 12), environment: "sandbox", scopes: access === "read" ? READ_SCOPES : FULL_SCOPES, expires_at: expiresAt, rate_limit_per_minute: 120, last_used_at: null, revoked_at: null, created_at: createdAt }, ...current]);
       setNewKey(sampleKey);
       setName("");
       setEnv("sandbox");
       return;
     }
     setCreating(true);
-    const { data, error } = await supabase.functions.invoke("business-api-keys", { body: { action: "create", name, environment: env } });
+    const { data, error } = await supabase.functions.invoke("business-api-keys", {
+      body: {
+        action: "create",
+        name,
+        environment: env,
+        scopes: access === "read" ? READ_SCOPES : FULL_SCOPES,
+        expires_in_days: expiry === "never" ? "never" : Number(expiry),
+        rate_limit_per_minute: 120,
+      },
+    });
     setCreating(false);
     if (error || !data?.key) { toast({ title: "Could not create key", description: data?.error || error?.message, variant: "destructive" }); return; }
     setNewKey(data.key); setName(""); load();
@@ -118,12 +144,18 @@ const BusinessDevelopers = () => {
           <TabsContent value="keys" className="space-y-4">
             <Card className="merchant-surface merchant-bordered-card">
               <CardHeader><CardTitle className="text-base flex items-center gap-2"><KeyRound className="h-4 w-4" />Create a key</CardTitle>
-                <CardDescription>Give one key to each website or system. Live keys charge your wallet and book real shipments; sandbox keys use courier test systems.</CardDescription></CardHeader>
-              <CardContent className="flex flex-col sm:flex-row gap-3 sm:items-end">
-                <div className="flex-1 space-y-1"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Shopify store" maxLength={60} /></div>
-                <div className="space-y-1 sm:w-40"><Label>Environment</Label>
-                  <Select value={env} onValueChange={setEnv}><SelectTrigger><SelectValue /></SelectTrigger>
+                <CardDescription>Use a separate, limited key for each website or backend. Shipment creation remains in controlled rollout until wallet refund verification is approved.</CardDescription></CardHeader>
+              <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_160px_180px_150px_auto] xl:items-end">
+                <div className="space-y-1"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Shopify store" maxLength={60} /></div>
+                <div className="space-y-1"><Label htmlFor="api-key-environment">Environment</Label>
+                  <Select value={env} onValueChange={setEnv}><SelectTrigger id="api-key-environment"><SelectValue /></SelectTrigger>
                     <SelectContent>{!isDemo ? <SelectItem value="live">Live</SelectItem> : null}<SelectItem value="sandbox">Sandbox</SelectItem></SelectContent></Select></div>
+                <div className="space-y-1"><Label htmlFor="api-key-access">Access</Label>
+                  <Select value={access} onValueChange={setAccess}><SelectTrigger id="api-key-access"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="full">Shipping + read</SelectItem><SelectItem value="read">Read only</SelectItem></SelectContent></Select></div>
+                <div className="space-y-1"><Label htmlFor="api-key-expiry">Expires</Label>
+                  <Select value={expiry} onValueChange={setExpiry}><SelectTrigger id="api-key-expiry"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="30">30 days</SelectItem><SelectItem value="90">90 days</SelectItem><SelectItem value="365">1 year</SelectItem><SelectItem value="never">Never</SelectItem></SelectContent></Select></div>
                 <Button onClick={create} disabled={creating || name.trim().length < 2}>{creating && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Create key</Button>
               </CardContent>
             </Card>
@@ -138,6 +170,7 @@ const BusinessDevelopers = () => {
                           <Badge variant={k.environment === "live" ? "default" : "secondary"}>{k.environment}</Badge>
                           {k.revoked_at && <Badge variant="destructive">Revoked</Badge>}</p>
                         <p className="text-xs text-muted-foreground font-mono">{k.key_prefix}••••••••</p>
+                        <p className="text-xs text-muted-foreground">{k.scopes?.length ?? 0} scopes · {k.rate_limit_per_minute ?? 120} requests/min · Expires {k.expires_at ? fmt(k.expires_at) : "never"}</p>
                         <p className="text-xs text-muted-foreground">Created {fmt(k.created_at)} · Last used {fmt(k.last_used_at)}</p>
                       </div>
                       {!k.revoked_at && <Button size="sm" variant="outline" onClick={() => revoke(k.id)}><Trash2 className="h-4 w-4 mr-1" />Revoke</Button>}
@@ -154,7 +187,8 @@ const BusinessDevelopers = () => {
                 <p>All requests are <b>POST</b> to one address, with your key in the <code>Authorization</code> header and an <code>action</code> in the JSON body.</p>
                 <div className="flex gap-2 items-center"><code className="text-xs bg-muted p-2 rounded break-all flex-1">{ENDPOINT}</code>
                   <Button size="sm" variant="outline" onClick={() => copy(ENDPOINT)}><Copy className="h-4 w-4" /></Button></div>
-                <p className="text-muted-foreground">Keep your wallet topped up — shipments are refused with error <code>insufficient_balance</code> (HTTP 402) when the balance can't cover the price. Failed or cancelled shipments are refunded to the wallet automatically.</p>
+                <p className="text-muted-foreground">Keys are limited to 120 requests per minute. HTTP 429 responses include a <code>Retry-After</code> header. Rotate expiring keys before their deadline.</p>
+                <p className="text-muted-foreground">Shipment creation is currently a controlled rollout. When enabled for your account, keep your wallet topped up; insufficient balances return HTTP 402 and failed or cancelled shipments are refunded automatically.</p>
                 <p className="text-muted-foreground">Errors look like <code>{`{"success":false,"error":{"code":"...","message":"..."}}`}</code>.</p>
               </CardContent>
             </Card>

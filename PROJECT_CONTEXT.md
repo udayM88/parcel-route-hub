@@ -1,6 +1,6 @@
 # ViaSetu Project Context and Handoff
 
-Last updated: 2026-10-21 (Asia/Kolkata)
+Last updated: 2026-10-22 (Asia/Kolkata)
 
 This file is the persistent project handoff. Read it before making changes and update it after any material feature, database, architecture, deployment, or operational change. Do not store passwords, service-role keys, OAuth tokens, customer PII, or other secrets here.
 
@@ -84,6 +84,18 @@ One additive migration was applied:
 - No table, column, function, or existing row was deleted or rewritten.
 
 Supabase security advisors still reported pre-existing warnings around several `SECURITY DEFINER` functions, OTP expiry, leaked-password protection, and the Postgres patch level. They were not changed in this merchant-console release because blind permission changes could break existing flows. Audit them as a separate security task.
+
+## Merchant API-key hardening release
+
+The additive merchant API-key hardening release was applied to production Supabase on 2026-10-22 and coordinated with the frontend/schema changes in this repository:
+
+- Remote/local migration version: `20261021192356_merchant_api_key_controls`
+- Adds backward-compatible key scopes, optional expiry, and a per-key requests-per-minute limit. Existing keys retain all current scopes, never expire, and use a 120 requests/minute limit.
+- Adds the private `merchant_api_rate_limits` table and service-role-only `merchant_api_consume_rate_limit` atomic RPC. `anon` and `authenticated` cannot execute it.
+- Production Edge Functions after deployment: `business-api-keys` v5 and `merchant-api` v6, both ACTIVE.
+- The merchant developer UI supports full or read-only keys and 30-day, 90-day, one-year, or non-expiring credentials.
+- The existing `create_shipment` safety pause remains in place. Do not remove it until refund-safety verification is complete.
+- A non-destructive production smoke request returned the expected HTTP 401 for a missing/malformed API key; no shipment, wallet, or merchant data was created.
 
 ## Functional versus planned modules
 

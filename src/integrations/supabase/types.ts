@@ -554,36 +554,45 @@ export type Database = {
           created_at: string
           created_by: string | null
           environment: string
+          expires_at: string | null
           id: string
           key_hash: string
           key_prefix: string
           last_used_at: string | null
           name: string
+          rate_limit_per_minute: number
           revoked_at: string | null
+          scopes: string[]
         }
         Insert: {
           business_account_id: string
           created_at?: string
           created_by?: string | null
           environment?: string
+          expires_at?: string | null
           id?: string
           key_hash: string
           key_prefix: string
           last_used_at?: string | null
           name: string
+          rate_limit_per_minute?: number
           revoked_at?: string | null
+          scopes?: string[]
         }
         Update: {
           business_account_id?: string
           created_at?: string
           created_by?: string | null
           environment?: string
+          expires_at?: string | null
           id?: string
           key_hash?: string
           key_prefix?: string
           last_used_at?: string | null
           name?: string
+          rate_limit_per_minute?: number
           revoked_at?: string | null
+          scopes?: string[]
         }
         Relationships: [
           {
@@ -1087,6 +1096,32 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "merchant_api_requests_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "business_api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      merchant_api_rate_limits: {
+        Row: {
+          api_key_id: string
+          request_count: number
+          window_start: string
+        }
+        Insert: {
+          api_key_id: string
+          request_count?: number
+          window_start: string
+        }
+        Update: {
+          api_key_id?: string
+          request_count?: number
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_api_rate_limits_api_key_id_fkey"
             columns: ["api_key_id"]
             isOneToOne: false
             referencedRelation: "business_api_keys"
@@ -1868,6 +1903,10 @@ export type Database = {
       is_operations: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       mask_doc_number: { Args: { doc: string }; Returns: string }
+      merchant_api_consume_rate_limit: {
+        Args: { _api_key_id: string; _limit: number }
+        Returns: Json
+      }
       wallet_apply: {
         Args: {
           _actor?: string

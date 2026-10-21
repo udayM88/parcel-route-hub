@@ -17,13 +17,27 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, content-type, idempotency-key, x-client-info, apikey",
 };
-const json = (b: unknown, status = 200) =>
-  new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-const err = (code: string, message: string, status = 400, extra: Record<string, unknown> = {}) =>
-  json({ success: false, error: { code, message, ...extra } }, status);
+const json = (b: unknown, status = 200, headers: Record<string, string> = {}) =>
+  new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, ...headers, "Content-Type": "application/json" } });
+const err = (
+  code: string,
+  message: string,
+  status = 400,
+  extra: Record<string, unknown> = {},
+  headers: Record<string, string> = {},
+) => json({ success: false, error: { code, message, ...extra } }, status, headers);
 
 const BUSINESS_FLAT_MARGIN = 15;
 const GST_RATE = 0.18;
+const ACTION_SCOPES: Record<string, string> = {
+  rates: "rates:read",
+  create_shipment: "shipments:write",
+  create_shipment_enabled_after_verification: "shipments:write",
+  track: "shipments:read",
+  label: "shipments:read",
+  cancel: "shipments:cancel",
+  wallet: "wallet:read",
+};
 const PARTNERS = [
   { code: "shadowfax", fn: "shadowfax-serviceability" },
   { code: "delhivery", fn: "delhivery-serviceability" },
@@ -135,8 +149,12 @@ Deno.serve(async (req) => {
     const key = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
     if (!/^vs_(live|test)_[0-9a-f]{48}$/.test(key)) return err("unauthorized", "Missing or malformed API key", 401);
     const { data: apiKey } = await admin.from("business_api_keys")
-      .select("id,business_account_id,environment,revoked_at").eq("key_hash", await sha256Hex(key)).maybeSingle();
+      .select("id,business_account_id,environment,revoked_at,scopes,expires_at,rate_limit_per_minute")
+      .eq("key_hash", await sha256Hex(key)).maybeSingle();
     if (!apiKey || apiKey.revoked_at) return err("unauthorized", "Invalid or revoked API key", 401);
+    if (apiKey.expires_at && new Date(apiKey.expires_at).getTime() <= Date.now()) {
+      return err("api_key_expired", "This API key has expired", 401);
+    }
     const { data: biz } = await admin.from("business_accounts")
       .select("id,user_id,status,is_active").eq("id", apiKey.business_account_id).maybeSingle();
     if (!biz || !biz.is_active || biz.status !== "approved") return err("forbidden", "Business account is not active", 403);
@@ -146,6 +164,30 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") return err("invalid_json", "Body must be a JSON object");
     const action = String(body.action || "");
+    const requiredScope = ACTION_SCOPES[action];
+    if (requiredScope && !(apiKey.scopes || []).includes(requiredScope)) {
+      return err("insufficient_scope", `This API key requires the ${requiredScope} scope`, 403, { required_scope: requiredScope });
+    }
+
+    const rateLimit = Math.max(1, Math.min(Number(apiKey.rate_limit_per_minute) || 120, 1000));
+    const { data: rateState, error: rateError } = await admin.rpc("merchant_api_consume_rate_limit", {
+      _api_key_id: apiKey.id,
+      _limit: rateLimit,
+    });
+    if (rateError) {
+      console.error("[merchant-api] rate limit check failed", rateError.message);
+      return err("temporarily_unavailable", "API request control is temporarily unavailable", 503);
+    }
+    if (!rateState?.allowed) {
+      const retryAfter = String(rateState?.retry_after || 60);
+      return err(
+        "rate_limit_exceeded",
+        "Too many requests for this API key",
+        429,
+        { limit: rateState?.limit || rateLimit, retry_after: Number(retryAfter) },
+        { "Retry-After": retryAfter, "X-RateLimit-Limit": String(rateState?.limit || rateLimit), "X-RateLimit-Remaining": "0" },
+      );
+    }
 
     if (action === "wallet") {
       const { data } = await admin.from("business_wallets").select("balance").eq("business_account_id", biz.id).maybeSingle();

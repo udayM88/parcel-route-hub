@@ -24,9 +24,14 @@ test("local merchant sample keeps writes isolated and core screens usable", asyn
   await page.goto(`${base}/developers`);
   await expect(page.getByRole("heading", { name: "API & Webhooks" })).toBeVisible();
   await page.getByPlaceholder("e.g. Shopify store").fill("Local test key");
+  await page.getByLabel("Access").click();
+  await page.getByRole("option", { name: "Read only" }).click();
+  await page.getByLabel("Expires").click();
+  await page.getByRole("option", { name: "30 days" }).click();
   await page.getByRole("button", { name: "Create key" }).click();
   await expect(page.getByText("This is a local sample token and cannot call the ViaSetu API.")).toBeVisible();
   await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByText(/3 scopes · 120 requests\/min/)).toBeVisible();
 
   await page.goto(`${base}/module/rate-calculator`);
   await page.getByPlaceholder("Pickup pincode").fill("411001");
