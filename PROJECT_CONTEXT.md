@@ -127,6 +127,13 @@ The first additive developer-distribution beta was implemented on 2026-10-22 wit
 - The WordPress distribution is built as a portable archive with forward-slash entry paths. Prefer the versioned `/downloads/viasetu-woocommerce-0.2.0.zip` URL to avoid stale copies of the earlier Windows-generated beta archive; `/downloads/viasetu-woocommerce.zip` remains the latest alias.
 - The plugin does not collect a merchant password. Its assisted connection opens the official merchant console so the merchant can create a dedicated store-scoped key; a seamless one-click OAuth handshake remains a future backend-authentication phase.
 
+### WooCommerce distribution sync verification
+
+- The SDK/plugin commits were rebased without file conflicts onto Lovable/GitHub `main` at `0a27daf` on 2026-10-22.
+- This distribution update contains no Supabase migration or Edge Function change; production database data and functions were intentionally left untouched.
+- Post-rebase verification passed: TypeScript, targeted ESLint, Vite production build, JavaScript SDK tests (3/3), PHP syntax checks (9 files), and merchant/docs Playwright tests (2/2).
+- The install archive was verified to contain `viasetu-woocommerce/viasetu-woocommerce.php` using portable forward-slash paths, fixing the earlier WordPress “Plugin file does not exist” activation failure.
+
 ## Functional versus planned modules
 
 Functional/live-backed:
