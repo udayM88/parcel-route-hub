@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, CheckCircle2, Code2, ExternalLink, Plug, ShieldCheck, Store, Webhook } from "lucide-react";
+import { ArrowRight, BookOpen, CheckCircle2, Code2, Download, ExternalLink, Plug, ShieldCheck, Store, Webhook } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,8 @@ const integrationCards = [
     description: "Import orders, create shipments and return tracking updates to your WordPress store.",
     logo: wooCommerceLogo,
     logoAlt: "WooCommerce",
-    status: "Plugin planned",
+    status: "Beta available",
+    download: "/downloads/viasetu-woocommerce.zip",
   },
   {
     title: "Shopify",
@@ -27,6 +28,7 @@ const integrationCards = [
     logo: shopifyLogo,
     logoAlt: "Shopify",
     status: "Roadmap",
+    download: "",
   },
 ];
 
@@ -86,7 +88,7 @@ export default function BusinessIntegrations() {
                 </CardHeader>
                 <CardFooter className="justify-between border-t pt-4">
                   <span className="text-xs text-muted-foreground">Account-scoped integration</span>
-                  <Button variant="outline" disabled>Configure <ArrowRight data-icon="inline-end" /></Button>
+                  {item.download ? <Button asChild variant="outline"><a href={item.download} download>Download beta <Download data-icon="inline-end" /></a></Button> : <Button variant="outline" disabled>Configure <ArrowRight data-icon="inline-end" /></Button>}
                 </CardFooter>
               </Card>
             ))}
@@ -115,9 +117,9 @@ export default function BusinessIntegrations() {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <CardTitle>ViaSetu for WooCommerce</CardTitle>
-                    <Badge>Planned</Badge>
+                    <Badge>Beta available</Badge>
                   </div>
-                  <CardDescription className="mt-2">The approved plugin will sync orders server-to-server, create labels and push shipment status back to WooCommerce.</CardDescription>
+                  <CardDescription className="mt-2">Install the beta package for live checkout rates, server-side order sync, labels, tracking and signed status updates.</CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -127,19 +129,20 @@ export default function BusinessIntegrations() {
                   </div>
                 ))}
               </CardContent>
-              <CardFooter className="border-t pt-4">
-                <Button disabled>Plugin package not released</Button>
+              <CardFooter className="flex-wrap gap-2 border-t pt-4">
+                <Button asChild><a href="/downloads/viasetu-woocommerce.zip" download><Download />Download plugin beta</a></Button>
+                <Button asChild variant="outline"><a href="/developers/merchant-api"><BookOpen />Setup guide</a></Button>
               </CardFooter>
             </Card>
             <Card className="merchant-surface">
               <CardHeader>
-                <CardTitle className="text-base">Release gate</CardTitle>
-                <CardDescription>The plugin remains disabled until the live shipment API passes refund, rate-verification and replay tests.</CardDescription>
+                <CardTitle className="text-base">Safe beta rollout</CardTitle>
+                <CardDescription>Rates, tracking, labels and signed webhooks are available. Shipment creation activates only after ViaSetu enables it for the merchant account.</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3 text-sm">
                 <div className="flex items-center gap-2"><ShieldCheck className="size-4 text-primary" />Server-side credentials only</div>
-                <div className="flex items-center gap-2"><ShieldCheck className="size-4 text-primary" />Signed package and update channel</div>
-                <div className="flex items-center gap-2"><ShieldCheck className="size-4 text-primary" />Rollback-tested release</div>
+                <div className="flex items-center gap-2"><ShieldCheck className="size-4 text-primary" />Signed webhook verification</div>
+                <div className="flex items-center gap-2"><ShieldCheck className="size-4 text-primary" />Idempotent shipment requests</div>
               </CardContent>
             </Card>
           </div>
@@ -156,8 +159,10 @@ export default function BusinessIntegrations() {
               <CardTitle>Merchant API workspace</CardTitle>
               <CardDescription>Create or revoke scoped keys and review request examples in the existing developer screen.</CardDescription>
             </CardHeader>
-            <CardFooter>
+            <CardFooter className="flex-wrap gap-2">
               <Button onClick={() => navigate("/viasetuforbusinesses/developers")}>Manage API keys <ArrowRight data-icon="inline-end" /></Button>
+              <Button asChild variant="outline"><a href="/developers/merchant-api"><BookOpen />Public API docs</a></Button>
+              <Button asChild variant="outline"><a href="/downloads/viasetu-js-sdk.zip" download><Download />JS SDK</a></Button>
             </CardFooter>
           </Card>
         </TabsContent>

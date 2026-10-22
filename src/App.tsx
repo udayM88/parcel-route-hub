@@ -33,6 +33,7 @@ const HowItWorks = lazy(() => import("./pages/HowItWorks"));
 const CourierPartners = lazy(() => import("./pages/CourierPartners"));
 const Careers = lazy(() => import("./pages/Careers"));
 const ForBusiness = lazy(() => import("./pages/ForBusiness"));
+const MerchantApiDocs = lazy(() => import("./pages/MerchantApiDocs"));
 const ServicePage = lazy(() => import("./pages/ServicePage"));
 const ParcelTrackingPage = lazy(() => import("./pages/ParcelTrackingPage"));
 const CityPage = lazy(() => import("./pages/CityPage"));
@@ -122,6 +123,7 @@ const App = () => (
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/careers" element={<Careers />} />
           <Route path="/for-business" element={<ForBusiness />} />
+          <Route path="/developers/merchant-api" element={<MerchantApiDocs />} />
           <Route path="/business" element={<Navigate to="/for-business" replace />} />
           <Route path="/courier-partners" element={<CourierPartners />} />
           <Route path="/services/parcel-tracking" element={<ParcelTrackingPage />} />

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Copy, KeyRound, Loader2, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { BookOpen, Copy, Download, KeyRound, Loader2, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -132,7 +132,7 @@ const BusinessDevelopers = () => {
             <div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-extrabold tracking-tight md:text-3xl">API & Webhooks</h1>{isDemo ? <Badge variant="secondary">Sandbox preview</Badge> : null}</div>
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Create account-scoped server keys and connect a trusted website, WooCommerce plugin or backend service.</p>
           </div>
-          <Button variant="outline" onClick={load} disabled={loading}><RefreshCw className={loading ? "animate-spin" : ""} />Refresh</Button>
+          <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><a href="/developers/merchant-api"><BookOpen />Public docs</a></Button><Button asChild variant="outline"><a href="/downloads/viasetu-js-sdk.zip" download><Download />JS SDK</a></Button><Button variant="outline" onClick={load} disabled={loading}><RefreshCw className={loading ? "animate-spin" : ""} />Refresh</Button></div>
         </div>
         <div className="flex items-start gap-3 rounded-xl border border-cyan-200/70 bg-cyan-50/70 p-4 text-sm text-cyan-950">
           <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
@@ -190,6 +190,7 @@ const BusinessDevelopers = () => {
                 <p className="text-muted-foreground">Keys are limited to 120 requests per minute. HTTP 429 responses include a <code>Retry-After</code> header. Rotate expiring keys before their deadline.</p>
                 <p className="text-muted-foreground">Shipment creation is currently a controlled rollout. When enabled for your account, keep your wallet topped up; insufficient balances return HTTP 402 and failed or cancelled shipments are refunded automatically.</p>
                 <p className="text-muted-foreground">Errors look like <code>{`{"success":false,"error":{"code":"...","message":"..."}}`}</code>.</p>
+                <div className="flex flex-wrap gap-2 pt-2"><Button asChild size="sm"><a href="/developers/merchant-api"><BookOpen />Open complete documentation</a></Button><Button asChild size="sm" variant="outline"><a href="/docs/merchant-api/openapi.yaml">OpenAPI YAML</a></Button><Button asChild size="sm" variant="outline"><a href="/downloads/viasetu-woocommerce.zip" download><Download />WooCommerce plugin</a></Button></div>
               </CardContent>
             </Card>
             {EXAMPLES.map((ex) => (

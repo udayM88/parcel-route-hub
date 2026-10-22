@@ -110,6 +110,20 @@ An additive merchant-console activation release was prepared and applied on 2026
 - Public courier webhook receivers (`urbanebolt-webhook` and `xpressbees-webhook`) and `admin-refresh-order-statuses` were deliberately left at their prior versions. Do not redeploy those public receivers until their inbound authentication and replay protections have a separate security review.
 - Bulk booking currently validates and stages merchant files with an auditable import record; it does not silently create live shipments from spreadsheet rows.
 
+## Public developer and WooCommerce beta
+
+The first additive developer-distribution beta was implemented on 2026-10-22 without a new database migration or production Edge Function change:
+
+- Public documentation route: `/developers/merchant-api`.
+- Raw quickstart and OpenAPI 3.1 specification: `/docs/merchant-api/quickstart.md` and `/docs/merchant-api/openapi.yaml`.
+- Dependency-free server-side JavaScript/TypeScript SDK source: `integrations/viasetu-js-sdk`.
+- Installable WooCommerce plugin source: `integrations/woocommerce/viasetu-woocommerce`.
+- Public download artifacts: `/downloads/viasetu-js-sdk.zip` and `/downloads/viasetu-woocommerce.zip`.
+- The WooCommerce beta supports live checkout rates, encrypted server-side merchant credentials, idempotent order shipment requests, tracking refresh, hourly open-shipment sync, label retrieval, cancellation, signed webhook verification, delivery deduplication, and HPOS declaration.
+- The plugin uses only the public merchant API. It never embeds the Supabase anon or service-role key.
+- Shipment creation still respects the server-side `create_shipment` safety gate. Do not alter the plugin to call the private `create_shipment_enabled_after_verification` action. Enable the public server action only after the existing refund-safety review is complete.
+- The SDK is a downloadable beta package and is not yet published to the npm registry. The WooCommerce plugin is a downloadable beta and is not yet submitted to WordPress.org or connected to an automatic update channel.
+
 ## Functional versus planned modules
 
 Functional/live-backed:
@@ -142,7 +156,8 @@ UI/planned or schema-gated (do not claim fully functional yet):
 - Tax invoice generation/payment collection beyond the current ledger-derived statement/export views
 - Durable webhook attempt history, retry queue, and production delivery monitoring
 - Master login and role-persona management
-- Production WooCommerce plugin package and complete external developer SDK/documentation
+- WooCommerce production release signing, automatic update channel, marketplace submission, and compatibility matrix
+- npm publication/versioning automation for the JavaScript SDK and hosted interactive API reference
 
 ## Merchant creation and login
 

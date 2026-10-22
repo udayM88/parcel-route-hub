@@ -1,0 +1,24 @@
+{
+  "name": "@viasetu/merchant-sdk",
+  "version": "0.1.0",
+  "description": "Server-side JavaScript client for the ViaSetu Merchant Shipping API",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "sideEffects": false,
+  "license": "UNLICENSED"
+}
