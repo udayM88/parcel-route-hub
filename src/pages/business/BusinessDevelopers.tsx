@@ -190,7 +190,7 @@ const BusinessDevelopers = () => {
                 <p className="text-muted-foreground">Keys are limited to 120 requests per minute. HTTP 429 responses include a <code>Retry-After</code> header. Rotate expiring keys before their deadline.</p>
                 <p className="text-muted-foreground">Shipment creation is currently a controlled rollout. When enabled for your account, keep your wallet topped up; insufficient balances return HTTP 402 and failed or cancelled shipments are refunded automatically.</p>
                 <p className="text-muted-foreground">Errors look like <code>{`{"success":false,"error":{"code":"...","message":"..."}}`}</code>.</p>
-                <div className="flex flex-wrap gap-2 pt-2"><Button asChild size="sm"><a href="/developers/merchant-api"><BookOpen />Open complete documentation</a></Button><Button asChild size="sm" variant="outline"><a href="/docs/merchant-api/openapi.yaml">OpenAPI YAML</a></Button><Button asChild size="sm" variant="outline"><a href="/downloads/viasetu-woocommerce.zip" download><Download />WooCommerce plugin</a></Button></div>
+                <div className="flex flex-wrap gap-2 pt-2"><Button asChild size="sm"><a href="/developers/merchant-api"><BookOpen />Open complete documentation</a></Button><Button asChild size="sm" variant="outline"><a href="/docs/merchant-api/openapi.yaml">OpenAPI YAML</a></Button><Button asChild size="sm" variant="outline"><a href="/downloads/viasetu-woocommerce-0.2.0.zip" download><Download />WooCommerce plugin</a></Button></div>
               </CardContent>
             </Card>
             {EXAMPLES.map((ex) => (

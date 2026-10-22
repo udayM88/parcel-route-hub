@@ -123,6 +123,9 @@ The first additive developer-distribution beta was implemented on 2026-10-22 wit
 - The plugin uses only the public merchant API. It never embeds the Supabase anon or service-role key.
 - Shipment creation still respects the server-side `create_shipment` safety gate. Do not alter the plugin to call the private `create_shipment_enabled_after_verification` action. Enable the public server action only after the existing refund-safety review is complete.
 - The SDK is a downloadable beta package and is not yet published to the npm registry. The WooCommerce plugin is a downloadable beta and is not yet submitted to WordPress.org or connected to an automatic update channel.
+- WooCommerce beta `0.2.0` adds a dedicated WordPress admin dashboard, guided connection setup, connection testing, multiple checkout quotes, carrier-priority rules, product-level shipping controls, configurable automation, manual tracking sync, webhook diagnostics, and redacted local logs.
+- The WordPress distribution is built as a portable archive with forward-slash entry paths. Prefer the versioned `/downloads/viasetu-woocommerce-0.2.0.zip` URL to avoid stale copies of the earlier Windows-generated beta archive; `/downloads/viasetu-woocommerce.zip` remains the latest alias.
+- The plugin does not collect a merchant password. Its assisted connection opens the official merchant console so the merchant can create a dedicated store-scoped key; a seamless one-click OAuth handshake remains a future backend-authentication phase.
 
 ## Functional versus planned modules
 

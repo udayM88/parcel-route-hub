@@ -5,28 +5,42 @@ final class ViaSetu_Settings {
     const OPTION = 'viasetu_wc_settings';
 
     public static function init() {
-        add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
         add_action( 'admin_init', array( __CLASS__, 'register' ) );
         add_filter( 'plugin_action_links_' . plugin_basename( VIASETU_WC_FILE ), array( __CLASS__, 'action_links' ) );
     }
 
     public static function defaults() {
         return array(
-            'enabled'          => 'yes',
-            'api_endpoint'     => 'https://tksfdvnogzsweteetjjw.supabase.co/functions/v1/merchant-api',
-            'api_key'          => '',
-            'webhook_secret'   => '',
-            'pickup_name'      => '',
-            'pickup_phone'     => '',
-            'pickup_address'   => '',
-            'pickup_city'      => '',
-            'pickup_state'     => '',
-            'pickup_pincode'   => '',
-            'shipping_title'   => 'ViaSetu Shipping',
-            'default_length'   => '20',
-            'default_width'    => '15',
-            'default_height'   => '10',
-            'auto_create'      => 'no',
+            'enabled'                 => 'yes',
+            'connection_mode'         => 'api_key',
+            'api_endpoint'            => 'https://tksfdvnogzsweteetjjw.supabase.co/functions/v1/merchant-api',
+            'api_key'                 => '',
+            'webhook_secret'          => '',
+            'pickup_name'             => '',
+            'pickup_phone'            => '',
+            'pickup_address'          => '',
+            'pickup_city'             => '',
+            'pickup_state'            => '',
+            'pickup_pincode'          => '',
+            'shipping_title'          => 'ViaSetu Shipping',
+            'default_goods_type'      => 'Package',
+            'default_length'          => '20',
+            'default_width'           => '15',
+            'default_height'          => '10',
+            'quote_sort'              => 'price',
+            'preferred_partners'      => '',
+            'max_quotes'              => '3',
+            'show_courier'            => 'yes',
+            'show_eta'                => 'yes',
+            'fallback_enabled'        => 'no',
+            'fallback_cost'           => '99',
+            'enable_cod'              => 'yes',
+            'auto_create'             => 'no',
+            'auto_create_statuses'    => array( 'processing' ),
+            'sync_interval'           => 'hourly',
+            'sync_batch_size'         => '50',
+            'complete_when_delivered' => 'yes',
+            'debug_logging'           => 'no',
         );
     }
 
@@ -47,19 +61,8 @@ final class ViaSetu_Settings {
         return self::decrypt( self::get( 'webhook_secret' ) );
     }
 
-    public static function menu() {
-        add_submenu_page(
-            'woocommerce',
-            __( 'ViaSetu', 'viasetu-woocommerce' ),
-            __( 'ViaSetu', 'viasetu-woocommerce' ),
-            'manage_woocommerce',
-            'viasetu-settings',
-            array( __CLASS__, 'render' )
-        );
-    }
-
     public static function action_links( $links ) {
-        array_unshift( $links, '<a href="' . esc_url( admin_url( 'admin.php?page=viasetu-settings' ) ) . '">' . esc_html__( 'Settings', 'viasetu-woocommerce' ) . '</a>' );
+        array_unshift( $links, '<a href="' . esc_url( admin_url( 'admin.php?page=viasetu' ) ) . '">' . esc_html__( 'Setup', 'viasetu-woocommerce' ) . '</a>' );
         return $links;
     }
 
@@ -68,40 +71,56 @@ final class ViaSetu_Settings {
     }
 
     public static function sanitize( $input ) {
+        $input   = is_array( $input ) ? $input : array();
         $current = self::get_all();
-        $output  = self::defaults();
+        $output  = $current;
+        $section = sanitize_key( $input['_section'] ?? '' );
 
-        $output['enabled']        = isset( $input['enabled'] ) ? 'yes' : 'no';
-        $output['auto_create']    = isset( $input['auto_create'] ) ? 'yes' : 'no';
-        $output['shipping_title'] = sanitize_text_field( $input['shipping_title'] ?? $current['shipping_title'] );
-        $output['api_endpoint']   = esc_url_raw( $input['api_endpoint'] ?? $current['api_endpoint'] );
+        if ( 'connection' === $section ) {
+            $output['enabled']         = isset( $input['enabled'] ) ? 'yes' : 'no';
+            $output['connection_mode'] = in_array( $input['connection_mode'] ?? '', array( 'api_key', 'portal' ), true ) ? $input['connection_mode'] : 'api_key';
+            $endpoint                  = esc_url_raw( $input['api_endpoint'] ?? $current['api_endpoint'] );
+            if ( 0 === strpos( $endpoint, 'https://' ) ) $output['api_endpoint'] = $endpoint;
+            else add_settings_error( self::OPTION, 'endpoint', __( 'The API endpoint must use HTTPS.', 'viasetu-woocommerce' ) );
 
-        if ( 0 !== strpos( $output['api_endpoint'], 'https://' ) ) {
-            add_settings_error( self::OPTION, 'endpoint', __( 'The API endpoint must use HTTPS.', 'viasetu-woocommerce' ) );
-            $output['api_endpoint'] = $current['api_endpoint'];
-        }
-
-        foreach ( array( 'pickup_name', 'pickup_phone', 'pickup_address', 'pickup_city', 'pickup_state', 'pickup_pincode' ) as $field ) {
-            $output[ $field ] = sanitize_text_field( $input[ $field ] ?? '' );
-        }
-        foreach ( array( 'default_length', 'default_width', 'default_height' ) as $field ) {
-            $output[ $field ] = (string) max( 1, min( 300, (float) ( $input[ $field ] ?? 10 ) ) );
-        }
-
-        foreach ( array( 'api_key', 'webhook_secret' ) as $secret_field ) {
-            $new_value = trim( (string) ( $input[ $secret_field ] ?? '' ) );
-            if ( '' === $new_value ) {
-                $output[ $secret_field ] = $current[ $secret_field ];
-                continue;
+            foreach ( array( 'api_key', 'webhook_secret' ) as $secret_field ) {
+                $new_value = trim( (string) ( $input[ $secret_field ] ?? '' ) );
+                if ( '' === $new_value ) continue;
+                $encrypted = self::encrypt( $new_value );
+                if ( '' === $encrypted ) {
+                    add_settings_error( self::OPTION, 'encryption', __( 'Credentials were not changed because this server does not provide Sodium or OpenSSL encryption.', 'viasetu-woocommerce' ) );
+                    continue;
+                }
+                $output[ $secret_field ] = $encrypted;
             }
-            $encrypted = self::encrypt( $new_value );
-            if ( '' === $encrypted ) {
-                add_settings_error( self::OPTION, 'encryption', __( 'ViaSetu credentials were not changed because this server does not provide Sodium or OpenSSL encryption.', 'viasetu-woocommerce' ) );
-                $output[ $secret_field ] = $current[ $secret_field ];
-                continue;
-            }
-            $output[ $secret_field ] = $encrypted;
         }
+
+        if ( 'shipping' === $section ) {
+            foreach ( array( 'pickup_name', 'pickup_phone', 'pickup_address', 'pickup_city', 'pickup_state', 'pickup_pincode', 'shipping_title', 'default_goods_type' ) as $field ) {
+                $output[ $field ] = sanitize_text_field( wp_unslash( $input[ $field ] ?? '' ) );
+            }
+            foreach ( array( 'default_length', 'default_width', 'default_height' ) as $field ) {
+                $output[ $field ] = (string) max( 1, min( 300, (float) ( $input[ $field ] ?? 10 ) ) );
+            }
+            $output['quote_sort']         = in_array( $input['quote_sort'] ?? '', array( 'price', 'fastest', 'preferred' ), true ) ? $input['quote_sort'] : 'price';
+            $output['preferred_partners'] = sanitize_text_field( wp_unslash( $input['preferred_partners'] ?? '' ) );
+            $output['max_quotes']         = (string) max( 1, min( 5, absint( $input['max_quotes'] ?? 3 ) ) );
+            $output['fallback_cost']      = (string) max( 0, (float) ( $input['fallback_cost'] ?? 0 ) );
+            foreach ( array( 'show_courier', 'show_eta', 'fallback_enabled', 'enable_cod' ) as $field ) $output[ $field ] = isset( $input[ $field ] ) ? 'yes' : 'no';
+        }
+
+        if ( 'sync' === $section ) {
+            $allowed_statuses = array( 'pending', 'on-hold', 'processing', 'completed' );
+            $statuses = array_map( 'sanitize_key', (array) ( $input['auto_create_statuses'] ?? array() ) );
+            $output['auto_create_statuses']    = array_values( array_intersect( $statuses, $allowed_statuses ) );
+            $output['auto_create']             = isset( $input['auto_create'] ) ? 'yes' : 'no';
+            $output['complete_when_delivered'] = isset( $input['complete_when_delivered'] ) ? 'yes' : 'no';
+            $output['debug_logging']           = isset( $input['debug_logging'] ) ? 'yes' : 'no';
+            $output['sync_interval']           = in_array( $input['sync_interval'] ?? '', array( 'viasetu_15_minutes', 'hourly', 'twicedaily' ), true ) ? $input['sync_interval'] : 'hourly';
+            $output['sync_batch_size']         = (string) max( 10, min( 200, absint( $input['sync_batch_size'] ?? 50 ) ) );
+            if ( function_exists( 'viasetu_wc_reschedule_sync' ) ) viasetu_wc_reschedule_sync( $output['sync_interval'] );
+        }
+
         return $output;
     }
 
@@ -137,41 +156,9 @@ final class ViaSetu_Settings {
         if ( 0 === strpos( $value, 'openssl:' ) && function_exists( 'openssl_decrypt' ) ) {
             $decoded = base64_decode( substr( $value, 8 ), true );
             if ( false === $decoded || strlen( $decoded ) <= 28 ) return '';
-            $iv  = substr( $decoded, 0, 12 );
-            $tag = substr( $decoded, 12, 16 );
-            $plain = openssl_decrypt( substr( $decoded, 28 ), 'aes-256-gcm', self::key(), OPENSSL_RAW_DATA, $iv, $tag );
+            $plain = openssl_decrypt( substr( $decoded, 28 ), 'aes-256-gcm', self::key(), OPENSSL_RAW_DATA, substr( $decoded, 0, 12 ), substr( $decoded, 12, 16 ) );
             return false === $plain ? '' : $plain;
         }
         return '';
-    }
-
-    public static function render() {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) return;
-        $s = self::get_all();
-        ?>
-        <div class="wrap">
-            <h1><?php esc_html_e( 'ViaSetu for WooCommerce', 'viasetu-woocommerce' ); ?></h1>
-            <p><?php esc_html_e( 'Use a separate ViaSetu merchant API key for this store. The key is encrypted before it is saved.', 'viasetu-woocommerce' ); ?></p>
-            <?php settings_errors( self::OPTION ); ?>
-            <form method="post" action="options.php">
-                <?php settings_fields( 'viasetu_wc' ); ?>
-                <table class="form-table" role="presentation">
-                    <tr><th><?php esc_html_e( 'Enabled', 'viasetu-woocommerce' ); ?></th><td><label><input type="checkbox" name="<?php echo esc_attr( self::OPTION ); ?>[enabled]" <?php checked( $s['enabled'], 'yes' ); ?>> <?php esc_html_e( 'Enable ViaSetu integration', 'viasetu-woocommerce' ); ?></label></td></tr>
-                    <tr><th><label for="viasetu-api-key"><?php esc_html_e( 'Merchant API key', 'viasetu-woocommerce' ); ?></label></th><td><input id="viasetu-api-key" class="regular-text" type="password" autocomplete="new-password" name="<?php echo esc_attr( self::OPTION ); ?>[api_key]" placeholder="<?php echo self::api_key() ? esc_attr__( 'Configured — enter a new key to replace', 'viasetu-woocommerce' ) : 'vs_live_…'; ?>"><p class="description"><?php esc_html_e( 'Never use this key in browser JavaScript.', 'viasetu-woocommerce' ); ?></p></td></tr>
-                    <tr><th><label for="viasetu-endpoint"><?php esc_html_e( 'API endpoint', 'viasetu-woocommerce' ); ?></label></th><td><input id="viasetu-endpoint" class="large-text code" type="url" name="<?php echo esc_attr( self::OPTION ); ?>[api_endpoint]" value="<?php echo esc_attr( $s['api_endpoint'] ); ?>"></td></tr>
-                    <tr><th><label for="viasetu-webhook-secret"><?php esc_html_e( 'Webhook signing secret', 'viasetu-woocommerce' ); ?></label></th><td><input id="viasetu-webhook-secret" class="regular-text" type="password" autocomplete="new-password" name="<?php echo esc_attr( self::OPTION ); ?>[webhook_secret]" placeholder="<?php echo self::webhook_secret() ? esc_attr__( 'Configured — enter a new secret to replace', 'viasetu-woocommerce' ) : ''; ?>"><p class="description"><?php echo esc_html( rest_url( 'viasetu/v1/webhook' ) ); ?></p></td></tr>
-                    <tr><th><?php esc_html_e( 'Pickup address', 'viasetu-woocommerce' ); ?></th><td>
-                        <?php foreach ( array( 'pickup_name' => 'Name', 'pickup_phone' => 'Phone', 'pickup_address' => 'Address', 'pickup_city' => 'City', 'pickup_state' => 'State', 'pickup_pincode' => 'Pincode' ) as $field => $label ) : ?>
-                            <p><label><?php echo esc_html( $label ); ?><br><input class="regular-text" type="text" name="<?php echo esc_attr( self::OPTION . '[' . $field . ']' ); ?>" value="<?php echo esc_attr( $s[ $field ] ); ?>"></label></p>
-                        <?php endforeach; ?>
-                    </td></tr>
-                    <tr><th><label for="viasetu-title"><?php esc_html_e( 'Checkout title', 'viasetu-woocommerce' ); ?></label></th><td><input id="viasetu-title" class="regular-text" type="text" name="<?php echo esc_attr( self::OPTION ); ?>[shipping_title]" value="<?php echo esc_attr( $s['shipping_title'] ); ?>"></td></tr>
-                    <tr><th><?php esc_html_e( 'Default parcel size (cm)', 'viasetu-woocommerce' ); ?></th><td><?php foreach ( array( 'default_length' => 'L', 'default_width' => 'W', 'default_height' => 'H' ) as $field => $label ) : ?><label><?php echo esc_html( $label ); ?> <input class="small-text" type="number" min="1" max="300" name="<?php echo esc_attr( self::OPTION . '[' . $field . ']' ); ?>" value="<?php echo esc_attr( $s[ $field ] ); ?>"></label>&nbsp;<?php endforeach; ?></td></tr>
-                    <tr><th><?php esc_html_e( 'Automatic booking', 'viasetu-woocommerce' ); ?></th><td><label><input type="checkbox" name="<?php echo esc_attr( self::OPTION ); ?>[auto_create]" <?php checked( $s['auto_create'], 'yes' ); ?>> <?php esc_html_e( 'Create a shipment when an order enters Processing (only works after ViaSetu enables shipment creation for this account)', 'viasetu-woocommerce' ); ?></label></td></tr>
-                </table>
-                <?php submit_button(); ?>
-            </form>
-        </div>
-        <?php
     }
 }

@@ -34,14 +34,21 @@ final class ViaSetu_Api_Client {
                 'timeout' => 20,
             )
         );
-        if ( is_wp_error( $response ) ) return $response;
+        if ( is_wp_error( $response ) ) {
+            ViaSetu_Logger::log( 'error', 'Merchant API network request failed', array( 'action' => $action, 'error' => $response->get_error_message() ) );
+            return $response;
+        }
 
         $status = (int) wp_remote_retrieve_response_code( $response );
         $data   = json_decode( wp_remote_retrieve_body( $response ), true );
-        if ( $status >= 200 && $status < 300 && is_array( $data ) && false !== ( $data['success'] ?? true ) ) return $data;
+        if ( $status >= 200 && $status < 300 && is_array( $data ) && false !== ( $data['success'] ?? true ) ) {
+            ViaSetu_Logger::log( 'debug', 'Merchant API request completed', array( 'action' => $action, 'status' => $status ) );
+            return $data;
+        }
 
         $code    = sanitize_key( $data['error']['code'] ?? 'request_failed' );
         $message = sanitize_text_field( $data['error']['message'] ?? sprintf( __( 'ViaSetu returned HTTP %d.', 'viasetu-woocommerce' ), $status ) );
+        ViaSetu_Logger::log( 'error', 'Merchant API request rejected', array( 'action' => $action, 'status' => $status, 'code' => $code ) );
         return new WP_Error( 'viasetu_' . $code, $message, array( 'status' => $status, 'response' => $data ) );
     }
 
@@ -63,5 +70,9 @@ final class ViaSetu_Api_Client {
 
     public function cancel( $booking_id, $reason = '' ) {
         return $this->request( 'cancel', array( 'booking_id' => $booking_id, 'reason' => $reason ) );
+    }
+
+    public function wallet() {
+        return $this->request( 'wallet' );
     }
 }

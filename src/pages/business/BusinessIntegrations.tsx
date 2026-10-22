@@ -20,7 +20,7 @@ const integrationCards = [
     logo: wooCommerceLogo,
     logoAlt: "WooCommerce",
     status: "Beta available",
-    download: "/downloads/viasetu-woocommerce.zip",
+    download: "/downloads/viasetu-woocommerce-0.2.0.zip",
   },
   {
     title: "Shopify",
@@ -130,7 +130,7 @@ export default function BusinessIntegrations() {
                 ))}
               </CardContent>
               <CardFooter className="flex-wrap gap-2 border-t pt-4">
-                <Button asChild><a href="/downloads/viasetu-woocommerce.zip" download><Download />Download plugin beta</a></Button>
+                <Button asChild><a href="/downloads/viasetu-woocommerce-0.2.0.zip" download><Download />Download plugin beta</a></Button>
                 <Button asChild variant="outline"><a href="/developers/merchant-api"><BookOpen />Setup guide</a></Button>
               </CardFooter>
             </Card>

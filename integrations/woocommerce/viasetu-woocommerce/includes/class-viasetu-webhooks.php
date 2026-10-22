@@ -26,10 +26,12 @@ final class ViaSetu_Webhooks {
         $raw       = $request->get_body();
 
         if ( '' === $secret || ! ctype_digit( $timestamp ) || abs( time() - (int) $timestamp ) > 300 ) {
+            ViaSetu_Logger::log( 'error', 'Rejected an expired or unsigned webhook' );
             return new WP_REST_Response( array( 'success' => false, 'error' => 'Invalid or expired webhook.' ), 401 );
         }
         $expected = 'sha256=' . hash_hmac( 'sha256', $timestamp . '.' . $raw, $secret );
         if ( ! hash_equals( $expected, $signature ) ) {
+            ViaSetu_Logger::log( 'error', 'Rejected a webhook with an invalid signature' );
             return new WP_REST_Response( array( 'success' => false, 'error' => 'Invalid signature.' ), 401 );
         }
 
@@ -56,6 +58,7 @@ final class ViaSetu_Webhooks {
             $order->save();
         }
         ViaSetu_Order_Actions::apply_status( $order, $object['status'] ?? '', $object['awb'] ?? '', 'signed webhook' );
+        ViaSetu_Logger::log( 'debug', 'Signed webhook processed', array( 'order_id' => $order->get_id(), 'delivery_id' => $delivery ) );
         return new WP_REST_Response( array( 'success' => true ), 200 );
     }
 }
