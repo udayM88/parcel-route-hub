@@ -1,3 +1,4 @@
+import CancellationFeeSettingsCard from "@/components/admin/CancellationFeeSettingsCard";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -125,8 +126,13 @@ const SystemSettings = () => {
           <TabsTrigger value="pricing">Pricing & Commission</TabsTrigger>
           <TabsTrigger value="email">Email Configuration</TabsTrigger>
           <TabsTrigger value="sms">SMS Notifications</TabsTrigger>
+          <TabsTrigger value="cancellation">Cancellation Charges</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="cancellation">
+          <CancellationFeeSettingsCard />
+        </TabsContent>
 
         <TabsContent value="general">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

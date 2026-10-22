@@ -90,6 +90,9 @@ interface Booking {
   failure_step?: string | null;
   partner_error_raw?: string | null;
   refund_id?: string | null;
+  cancellation_fee?: number | null;
+  refund_amount?: number | null;
+  cancellation_stage?: string | null;
   refund_reason?: string | null;
   parcel_photos?: any;
 }
@@ -859,6 +862,11 @@ const OrderMonitoring = () => {
                         <p className="text-muted-foreground mb-1">Customer-facing reason</p>
                         <p className="font-medium">{selectedBooking.failure_reason}</p>
                       </div>
+                    )}
+                    {selectedBooking.cancellation_fee != null && (
+                      <p className="text-xs text-muted-foreground">
+                        Cancellation charge: ₹{Number(selectedBooking.cancellation_fee)} ({selectedBooking.cancellation_stage}) · Refund: ₹{Number(selectedBooking.refund_amount ?? 0)}
+                      </p>
                     )}
                     {selectedBooking.refund_id && (
                       <div className="flex justify-between">
