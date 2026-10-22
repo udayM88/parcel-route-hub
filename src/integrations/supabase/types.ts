@@ -242,6 +242,9 @@ export type Database = {
           booking_source: string | null
           box_count: number
           business_account_id: string | null
+          cancellation_fee: number | null
+          cancellation_fee_gst: number | null
+          cancellation_stage: string | null
           chargeable_weight_g: number | null
           consumer_platform_fee: number
           courier_name: string
@@ -287,6 +290,7 @@ export type Database = {
           receiver_phone: string
           receiver_pincode: string
           receiver_state: string
+          refund_amount: number | null
           refund_id: string | null
           refund_reason: string | null
           retail_price: number | null
@@ -313,6 +317,9 @@ export type Database = {
           booking_source?: string | null
           box_count?: number
           business_account_id?: string | null
+          cancellation_fee?: number | null
+          cancellation_fee_gst?: number | null
+          cancellation_stage?: string | null
           chargeable_weight_g?: number | null
           consumer_platform_fee?: number
           courier_name: string
@@ -358,6 +365,7 @@ export type Database = {
           receiver_phone: string
           receiver_pincode: string
           receiver_state: string
+          refund_amount?: number | null
           refund_id?: string | null
           refund_reason?: string | null
           retail_price?: number | null
@@ -384,6 +392,9 @@ export type Database = {
           booking_source?: string | null
           box_count?: number
           business_account_id?: string | null
+          cancellation_fee?: number | null
+          cancellation_fee_gst?: number | null
+          cancellation_stage?: string | null
           chargeable_weight_g?: number | null
           consumer_platform_fee?: number
           courier_name?: string
@@ -429,6 +440,7 @@ export type Database = {
           receiver_phone?: string
           receiver_pincode?: string
           receiver_state?: string
+          refund_amount?: number | null
           refund_id?: string | null
           refund_reason?: string | null
           retail_price?: number | null
