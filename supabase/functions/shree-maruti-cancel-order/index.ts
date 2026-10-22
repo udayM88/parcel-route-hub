@@ -1,7 +1,7 @@
 import { dispatchEmail } from "../_shared/notify-email.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getEnvironmentFromRequest } from "../_shared/environment.ts";
-import { refundBookingIfPaid } from "../_shared/refund.ts";
+import { prepareCancellationQuote, refundCancelledBooking } from "../_shared/refund.ts";
 import { readGatewayError, shreeMarutiGatewayFetch } from "../_shared/shree-maruti-gateway.ts";
 
 const corsHeaders = {
@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
 
     const upstreamOrderId = String(body?.order_id || booking.prayog_order_id || "").trim();
     if (!upstreamOrderId) return json({ success: false, error: "Innofulfill order ID is missing; AWB cannot be used for cancellation" }, 400);
+    const cancelQuote = await prepareCancellationQuote(admin, req, bookingId, body);
     const reason = String(body?.cancel_remarks || "Cancelled By Customer").trim().slice(0, 255);
 
     const res = await shreeMarutiGatewayFetch(env, "/gateway/booking-service/orders/cancel/bulk", {
@@ -67,7 +68,7 @@ Deno.serve(async (req) => {
     }).eq("id", bookingId);
     if (updateError) return json({ success: false, error: "Courier cancelled the order, but ViaSetu could not save the status", details: updateError.message }, 500);
 
-    const refund = await refundBookingIfPaid(admin, bookingId, env, reason);
+    const refund = await refundCancelledBooking(admin, req, bookingId, env, reason, body, cancelQuote);
     dispatchEmail("order_cancelled", bookingId);
     return json({ success: true, message: "Order cancelled", order_id: upstreamOrderId, refund, trace_id: parsed.traceId });
   } catch (err) {
