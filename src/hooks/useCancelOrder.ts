@@ -103,6 +103,7 @@ export const useCancelOrder = (options?: UseCancelOrderOptions) => {
     currentStatus,
     partnerId,
     courierName,
+    waiveFee,
   }: {
     orderId: string;
     bookingSource: string;
@@ -113,7 +114,9 @@ export const useCancelOrder = (options?: UseCancelOrderOptions) => {
     currentStatus?: string | null;
     partnerId?: string | null;
     courierName?: string | null;
+    waiveFee?: boolean;
   }) => {
+    const feeFlag = { waive_cancellation_fee: Boolean(waiveFee) };
     setCancelling(true);
     try {
       // Assisted / manually-attached bookings carry booking_source like
@@ -130,6 +133,7 @@ export const useCancelOrder = (options?: UseCancelOrderOptions) => {
             awb: awb || undefined,
             cancel_remarks: reason,
             booking_id: bookingId,
+            ...feeFlag,
           },
           headers: { "x-environment": CURRENT_ENV },
         });
@@ -143,6 +147,7 @@ export const useCancelOrder = (options?: UseCancelOrderOptions) => {
             order_id: orderId,
             cancel_remarks: reason,
             booking_id: bookingId,
+            ...feeFlag,
           },
           headers: {
             ...(localStorage.getItem("auth_session") || localStorage.getItem("prayog_auth")
@@ -166,6 +171,7 @@ export const useCancelOrder = (options?: UseCancelOrderOptions) => {
             waybill: awb,
             cancel_remarks: reason,
             booking_id: bookingId,
+            ...feeFlag,
           },
           headers: { "x-environment": CURRENT_ENV },
         });
@@ -181,6 +187,7 @@ export const useCancelOrder = (options?: UseCancelOrderOptions) => {
             order_id: orderId,
             auth_token: auth?.access_token || auth?.token || "",
             booking_id: bookingId,
+            ...feeFlag,
           },
           headers: { "x-environment": CURRENT_ENV },
         });
@@ -197,7 +204,7 @@ export const useCancelOrder = (options?: UseCancelOrderOptions) => {
 
       toast({
         title: "Order Cancelled",
-        description: "Your order has been cancelled. Refund will be processed if applicable.",
+        description: "Your order has been cancelled. Any refund due (after applicable cancellation charges) will reach your original payment method.",
       });
       options?.onSuccess?.();
       return true;

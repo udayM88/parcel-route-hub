@@ -388,7 +388,7 @@ const OrderMonitoring = () => {
     }
   };
 
-  const handleCancelConfirm = async (reason: any) => {
+  const handleCancelConfirm = async (reason: any, waiveFee?: boolean) => {
     if (!selectedBooking) return;
     await cancelOrder({
       orderId: selectedBooking.prayog_order_id || selectedBooking.id,
@@ -398,6 +398,7 @@ const OrderMonitoring = () => {
       awb: selectedBooking.prayog_awb || selectedBooking.tracking_id,
       partnerId: selectedBooking.partner_id,
       courierName: selectedBooking.courier_name,
+      waiveFee,
     });
   };
 
@@ -1254,6 +1255,8 @@ const OrderMonitoring = () => {
         onOpenChange={setCancelDialogOpen}
         onConfirm={handleCancelConfirm}
         cancelling={cancelling}
+        bookingId={selectedBooking?.id}
+        allowWaive
       />
     </div>
   );

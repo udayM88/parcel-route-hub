@@ -251,7 +251,7 @@ const BusinessDashboard = () => {
 
   const { cancelOrder, cancelling } = useCancelOrder();
 
-  const handleCancel = async (reason: Parameters<typeof cancelOrder>[0]["reason"]) => {
+  const handleCancel = async (reason: Parameters<typeof cancelOrder>[0]["reason"], _waive?: boolean) => {
     if (!selected) return;
     setCancelBlocked(null);
     const awbs = boxes.map((bx) => bx.tracking_id).filter(Boolean) as string[];
@@ -936,6 +936,7 @@ const BusinessDashboard = () => {
         onOpenChange={setCancelOpen}
         onConfirm={handleCancel}
         cancelling={cancelling}
+        bookingId={selected?.id}
       />
     </div>
   );
