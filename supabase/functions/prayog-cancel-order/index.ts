@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
 
       // Auto-refund if payment was collected
       if (bookingData?.payment_status === "paid") {
-        const r = await refundCancelledBooking(supabase, req, booking_id, env, String("Cancelled" || "Cancelled By Customer"), reqBody, cancelQuote);
+        const r = await refundCancelledBooking(supabase, req, booking_id, env, "Cancelled By Customer", reqBody, cancelQuote);
         console.log("[prayog-cancel] refund outcome:", JSON.stringify(r));
       }
     }
