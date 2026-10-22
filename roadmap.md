@@ -7,3 +7,7 @@
 # Business wallet and merchant API
 - [ ] Finish wallet safety and authenticated verification — blocked by declined refund-safety migration and unavailable external Supabase test session; wallet shipment creation is paused.
 - [x] Diagnose Atulit login role mismatch: active Operations role; use /ops/login.
+
+# Stage-based cancellation charges
+- [x] Server-side quote, partial refunds in all six cancel handlers, admin waiver, settings tab, refund policy, business/admin pop-up (6 tests pass).
+- [ ] Consumer self-cancel button — consumers currently email support to cancel; needs a decision before adding.
