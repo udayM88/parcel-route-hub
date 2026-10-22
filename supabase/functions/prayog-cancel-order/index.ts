@@ -1,3 +1,4 @@
+import { prepareCancellationQuote, refundCancelledBooking } from "../_shared/refund.ts";
 import { dispatchSms } from "../_shared/notify-sms.ts";
 import { dispatchEmail } from "../_shared/notify-email.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
@@ -10,15 +11,17 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
+  let reqBody: any = {};
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
+    reqBody = await req.clone().json().catch(() => ({}));
     const env = getEnvironmentFromRequest(req);
     const prayogConfig = getPrayogConfig(env);
 
-    const { order_id, auth_token, booking_id } = await req.json();
+    const { order_id, auth_token, booking_id } = reqBody;
 
     if (!order_id) {
       return new Response(
@@ -77,6 +80,7 @@ Deno.serve(async (req) => {
         .select("payment_id, payment_status")
         .eq("id", booking_id)
         .single();
+      const cancelQuote = await prepareCancellationQuote(supabase, req, booking_id, reqBody);
 
       await supabase
         .from("bookings")
@@ -87,48 +91,9 @@ Deno.serve(async (req) => {
       dispatchSms("ORDER_CANCELLED", booking_id);
 
       // Auto-refund if payment was collected
-      if (isWalletPayment(bookingData?.payment_id) && bookingData?.payment_status === "paid") {
-        const wr = await refundWalletBooking(supabase, booking_id, undefined, "cancelled");
-        await supabase.from("bookings").update({ payment_status: wr.ok ? "refunded" : "refund_failed", refund_id: wr.ok ? "wallet" : null }).eq("id", booking_id);
-      } else if (bookingData?.payment_id && bookingData?.payment_status === "paid") {
-        try {
-          console.log(`[prayog-cancel] Initiating refund for payment ${bookingData.payment_id}`);
-          const razorpayConfig = getRazorpayConfig(env);
-          const authHeader = btoa(`${razorpayConfig.keyId}:${razorpayConfig.keySecret}`);
-
-          const refundResp = await fetch(
-            `https://api.razorpay.com/v1/payments/${bookingData.payment_id}/refund`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Basic ${authHeader}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ speed: "normal" }),
-            }
-          );
-
-          const refundResult = await refundResp.json();
-          if (refundResp.ok) {
-            await supabase
-              .from("bookings")
-              .update({ payment_status: "refunded" })
-              .eq("id", booking_id);
-            console.log(`[prayog-cancel] Refund initiated: ${refundResult.id}`);
-          } else {
-            await supabase
-              .from("bookings")
-              .update({ payment_status: "refund_failed" })
-              .eq("id", booking_id);
-            console.error(`[prayog-cancel] Refund failed:`, refundResult);
-          }
-        } catch (refundErr) {
-          console.error("[prayog-cancel] Refund error:", refundErr);
-          await supabase
-            .from("bookings")
-            .update({ payment_status: "refund_failed" })
-            .eq("id", booking_id);
-        }
+      if (bookingData?.payment_status === "paid") {
+        const r = await refundCancelledBooking(supabase, req, booking_id, env, String("Cancelled" || "Cancelled By Customer"), reqBody, cancelQuote);
+        console.log("[prayog-cancel] refund outcome:", JSON.stringify(r));
       }
     }
 

@@ -1,3 +1,4 @@
+import { prepareCancellationQuote, refundCancelledBooking } from "../_shared/refund.ts";
 import { dispatchSms } from "../_shared/notify-sms.ts";
 import { dispatchEmail } from "../_shared/notify-email.ts";
 // XpressBees cancellation — POST /api/shipments2/cancel  with { awb }.
@@ -15,11 +16,13 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
+  let reqBody: any = {};
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    reqBody = await req.clone().json().catch(() => ({}));
     const env = getEnvironmentFromRequest(req);
-    const { waybill, awb, booking_id, cancel_remarks } = await req.json();
+    const { waybill, awb, booking_id, cancel_remarks } = reqBody;
     const trackId = waybill || awb;
     if (!trackId) {
       return new Response(JSON.stringify({ success: false, error: "waybill (AWB) is required" }), {
@@ -60,6 +63,7 @@ Deno.serve(async (req) => {
         .select("payment_id, payment_status")
         .eq("id", booking_id)
         .single();
+      const cancelQuote = await prepareCancellationQuote(supabase, req, booking_id, reqBody);
 
       await supabase
         .from("bookings")
@@ -69,36 +73,9 @@ Deno.serve(async (req) => {
       dispatchEmail("order_cancelled", booking_id);
       dispatchSms("ORDER_CANCELLED", booking_id);
 
-      if (isWalletPayment(bookingData?.payment_id) && bookingData?.payment_status === "paid") {
-        const wr = await refundWalletBooking(supabase, booking_id, undefined, "cancelled");
-        await supabase.from("bookings").update({ payment_status: wr.ok ? "refunded" : "refund_failed", refund_id: wr.ok ? "wallet" : null }).eq("id", booking_id);
-      } else if (bookingData?.payment_id && bookingData?.payment_status === "paid") {
-        try {
-          const rz = getRazorpayConfig(env);
-          const auth = btoa(`${rz.keyId}:${rz.keySecret}`);
-          const refundResp = await fetch(
-            `https://api.razorpay.com/v1/payments/${bookingData.payment_id}/refund`,
-            {
-              method: "POST",
-              headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ speed: "normal" }),
-            },
-          );
-          const refundResult = await refundResp.json();
-          if (refundResp.ok) {
-            await supabase
-              .from("bookings")
-              .update({ payment_status: "refunded", refund_id: refundResult.id || null })
-              .eq("id", booking_id);
-            console.log("[xpressbees-cancel] refund initiated:", refundResult.id);
-          } else {
-            await supabase.from("bookings").update({ payment_status: "refund_failed" }).eq("id", booking_id);
-            console.error("[xpressbees-cancel] refund failed:", refundResult);
-          }
-        } catch (refundErr) {
-          console.error("[xpressbees-cancel] refund error:", refundErr);
-          await supabase.from("bookings").update({ payment_status: "refund_failed" }).eq("id", booking_id);
-        }
+      if (bookingData?.payment_status === "paid") {
+        const r = await refundCancelledBooking(supabase, req, booking_id, env, String(cancel_remarks || "Cancelled By Customer"), reqBody, cancelQuote);
+        console.log("[xpressbees-cancel] refund outcome:", JSON.stringify(r));
       }
     }
 

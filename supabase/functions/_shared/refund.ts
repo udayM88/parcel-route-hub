@@ -13,7 +13,9 @@ export async function refundBookingIfPaid(
   bookingId: string,
   env: Environment,
   reason?: string,
+  amount?: number,
 ): Promise<RefundOutcome> {
+  const partial = typeof amount === "number" && amount > 0 ? Math.round(amount * 100) / 100 : undefined;
   const { data: booking, error } = await supabase
     .from("bookings")
     .select("payment_id, payment_status, refund_id")
@@ -29,7 +31,7 @@ export async function refundBookingIfPaid(
   if (!booking.payment_id) return { status: "skipped", reason: "no payment_id" };
 
   if (isWalletPayment(booking.payment_id)) {
-    const wr = await refundWalletBooking(supabase, bookingId, undefined, reason || "cancelled");
+    const wr = await refundWalletBooking(supabase, bookingId, partial, reason || "cancelled");
     if (!wr.ok) return { status: "failed", error: wr.error || "wallet refund failed" };
     await supabase.from("bookings").update({
       payment_status: "refunded", refund_id: "wallet", ...(reason ? { refund_reason: reason } : {}),
@@ -49,7 +51,7 @@ export async function refundBookingIfPaid(
       {
         method: "POST",
         headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ speed: "normal" }),
+        body: JSON.stringify(partial ? { speed: "normal", amount: Math.round(partial * 100) } : { speed: "normal" }),
       },
     );
     const result = await resp.json().catch(() => ({}));
