@@ -242,6 +242,9 @@ export type Database = {
           booking_source: string | null
           box_count: number
           business_account_id: string | null
+          cancellation_fee: number | null
+          cancellation_fee_gst: number | null
+          cancellation_stage: string | null
           chargeable_weight_g: number | null
           consumer_platform_fee: number
           courier_name: string
@@ -287,6 +290,7 @@ export type Database = {
           receiver_phone: string
           receiver_pincode: string
           receiver_state: string
+          refund_amount: number | null
           refund_id: string | null
           refund_reason: string | null
           retail_price: number | null
@@ -313,6 +317,9 @@ export type Database = {
           booking_source?: string | null
           box_count?: number
           business_account_id?: string | null
+          cancellation_fee?: number | null
+          cancellation_fee_gst?: number | null
+          cancellation_stage?: string | null
           chargeable_weight_g?: number | null
           consumer_platform_fee?: number
           courier_name: string
@@ -358,6 +365,7 @@ export type Database = {
           receiver_phone: string
           receiver_pincode: string
           receiver_state: string
+          refund_amount?: number | null
           refund_id?: string | null
           refund_reason?: string | null
           retail_price?: number | null
@@ -384,6 +392,9 @@ export type Database = {
           booking_source?: string | null
           box_count?: number
           business_account_id?: string | null
+          cancellation_fee?: number | null
+          cancellation_fee_gst?: number | null
+          cancellation_stage?: string | null
           chargeable_weight_g?: number | null
           consumer_platform_fee?: number
           courier_name?: string
@@ -429,6 +440,7 @@ export type Database = {
           receiver_phone?: string
           receiver_pincode?: string
           receiver_state?: string
+          refund_amount?: number | null
           refund_id?: string | null
           refund_reason?: string | null
           retail_price?: number | null
@@ -1062,6 +1074,32 @@ export type Database = {
         }
         Relationships: []
       }
+      merchant_api_rate_limits: {
+        Row: {
+          api_key_id: string
+          request_count: number
+          window_start: string
+        }
+        Insert: {
+          api_key_id: string
+          request_count?: number
+          window_start: string
+        }
+        Update: {
+          api_key_id?: string
+          request_count?: number
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_api_rate_limits_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "business_api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       merchant_api_requests: {
         Row: {
           action: string
@@ -1103,28 +1141,187 @@ export type Database = {
           },
         ]
       }
-      merchant_api_rate_limits: {
+      merchant_bulk_imports: {
         Row: {
-          api_key_id: string
-          request_count: number
-          window_start: string
+          business_account_id: string
+          created_at: string
+          created_by: string | null
+          file_name: string
+          id: string
+          row_count: number
+          rows: Json
+          status: string
+          updated_at: string
+          valid_row_count: number
+          validation_errors: Json
         }
         Insert: {
-          api_key_id: string
-          request_count?: number
-          window_start: string
+          business_account_id: string
+          created_at?: string
+          created_by?: string | null
+          file_name: string
+          id?: string
+          row_count?: number
+          rows?: Json
+          status?: string
+          updated_at?: string
+          valid_row_count?: number
+          validation_errors?: Json
         }
         Update: {
-          api_key_id?: string
-          request_count?: number
-          window_start?: string
+          business_account_id?: string
+          created_at?: string
+          created_by?: string | null
+          file_name?: string
+          id?: string
+          row_count?: number
+          rows?: Json
+          status?: string
+          updated_at?: string
+          valid_row_count?: number
+          validation_errors?: Json
         }
         Relationships: [
           {
-            foreignKeyName: "merchant_api_rate_limits_api_key_id_fkey"
-            columns: ["api_key_id"]
+            foreignKeyName: "merchant_bulk_imports_business_account_id_fkey"
+            columns: ["business_account_id"]
             isOneToOne: false
-            referencedRelation: "business_api_keys"
+            referencedRelation: "business_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      merchant_console_activity_logs: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          business_account_id: string
+          created_at: string
+          details: Json
+          id: string
+          resource_id: string | null
+          resource_type: string
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          business_account_id: string
+          created_at?: string
+          details?: Json
+          id?: string
+          resource_id?: string | null
+          resource_type: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          business_account_id?: string
+          created_at?: string
+          details?: Json
+          id?: string
+          resource_id?: string | null
+          resource_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_console_activity_logs_business_account_id_fkey"
+            columns: ["business_account_id"]
+            isOneToOne: false
+            referencedRelation: "business_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      merchant_console_settings: {
+        Row: {
+          business_account_id: string
+          category: string
+          created_at: string
+          id: string
+          settings: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          business_account_id: string
+          category: string
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          business_account_id?: string
+          category?: string
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_console_settings_business_account_id_fkey"
+            columns: ["business_account_id"]
+            isOneToOne: false
+            referencedRelation: "business_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      merchant_webhook_subscriptions: {
+        Row: {
+          business_account_id: string
+          created_at: string
+          created_by: string | null
+          endpoint_url: string
+          event_types: string[]
+          id: string
+          is_active: boolean
+          last_delivery_at: string | null
+          last_delivery_status: number | null
+          last_test_status: number | null
+          last_tested_at: string | null
+          signing_secret: string
+          updated_at: string
+        }
+        Insert: {
+          business_account_id: string
+          created_at?: string
+          created_by?: string | null
+          endpoint_url: string
+          event_types?: string[]
+          id?: string
+          is_active?: boolean
+          last_delivery_at?: string | null
+          last_delivery_status?: number | null
+          last_test_status?: number | null
+          last_tested_at?: string | null
+          signing_secret: string
+          updated_at?: string
+        }
+        Update: {
+          business_account_id?: string
+          created_at?: string
+          created_by?: string | null
+          endpoint_url?: string
+          event_types?: string[]
+          id?: string
+          is_active?: boolean
+          last_delivery_at?: string | null
+          last_delivery_status?: number | null
+          last_test_status?: number | null
+          last_tested_at?: string | null
+          signing_secret?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_webhook_subscriptions_business_account_id_fkey"
+            columns: ["business_account_id"]
+            isOneToOne: false
+            referencedRelation: "business_accounts"
             referencedColumns: ["id"]
           },
         ]

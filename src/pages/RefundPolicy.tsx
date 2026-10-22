@@ -54,7 +54,7 @@ export default function RefundPolicy() {
           <List items={[
             "Duplicate payment for the same shipment",
             "Failed transaction where the amount was debited but the booking was not created",
-            "Shipment cancellation before pickup confirmation",
+            "Shipment cancellation before pickup, less the applicable cancellation charge (see Section 4A)",
             "Service failure by the courier partner (e.g., pickup not completed or shipment not manifested)",
             "Multi-parcel bookings where one or more parcels fail to be created — a proportional refund for the failed parcels is processed automatically",
           ]} />
@@ -73,16 +73,27 @@ export default function RefundPolicy() {
         <Section n="4" title="Refund Timeline &amp; Method">
           <List items={[
             "Eligible refunds are processed within 7–10 business days through the original payment method (Razorpay).",
-            "Refunds are issued for the full amount paid, inclusive of taxes, unless otherwise stated.",
+            "Refunds for failed bookings or courier-side issues are issued for the full amount paid, inclusive of taxes. Customer-initiated cancellations are refunded after deducting the cancellation charge in Section 4A.",
             "Refund status is visible on the order details page once the order has been cancelled.",
             "If a refund fails due to banking issues, our support team will reach out to arrange an alternate resolution.",
+          ]} />
+        </Section>
+
+        <Section n="4A" title="Cancellation Charges">
+          <p>Because the courier label (AWB) is generated instantly after payment, customer-initiated cancellations carry a stage-based charge (inclusive of GST), shown before you confirm:</p>
+          <List items={[
+            "Within 30 minutes of booking: ₹35 ViaSetu fee",
+            "After 30 minutes, before a pickup rider is assigned: ₹65 (₹30 courier label cost + ₹35 ViaSetu fee)",
+            "After a rider is assigned or pickup is attempted: ₹99 (₹60 courier attempted-pickup cost + ₹39 ViaSetu fee)",
+            "After pickup: online cancellation is not available; contact support",
+            "The charge applies once per order (not per parcel) and never exceeds the amount paid. No charge applies when a booking fails or the courier cancels.",
           ]} />
         </Section>
 
         <Section n="5" title="Pricing &amp; Taxes">
           <List items={[
             "All prices displayed at the time of booking are inclusive of GST (18%) and all applicable charges.",
-            "The amount refunded equals the amount actually charged for the cancelled or failed shipment.",
+            "The amount refunded equals the amount charged, less any applicable cancellation charge.",
             "No Cash on Delivery (COD) is supported; all payments are prepaid and online.",
           ]} />
         </Section>

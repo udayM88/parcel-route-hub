@@ -90,6 +90,9 @@ interface Booking {
   failure_step?: string | null;
   partner_error_raw?: string | null;
   refund_id?: string | null;
+  cancellation_fee?: number | null;
+  refund_amount?: number | null;
+  cancellation_stage?: string | null;
   refund_reason?: string | null;
   parcel_photos?: any;
 }
@@ -388,7 +391,7 @@ const OrderMonitoring = () => {
     }
   };
 
-  const handleCancelConfirm = async (reason: any) => {
+  const handleCancelConfirm = async (reason: any, waiveFee?: boolean) => {
     if (!selectedBooking) return;
     await cancelOrder({
       orderId: selectedBooking.prayog_order_id || selectedBooking.id,
@@ -398,6 +401,7 @@ const OrderMonitoring = () => {
       awb: selectedBooking.prayog_awb || selectedBooking.tracking_id,
       partnerId: selectedBooking.partner_id,
       courierName: selectedBooking.courier_name,
+      waiveFee,
     });
   };
 
@@ -859,6 +863,11 @@ const OrderMonitoring = () => {
                         <p className="font-medium">{selectedBooking.failure_reason}</p>
                       </div>
                     )}
+                    {selectedBooking.cancellation_fee != null && (
+                      <p className="text-xs text-muted-foreground">
+                        Cancellation charge: ₹{Number(selectedBooking.cancellation_fee)} ({selectedBooking.cancellation_stage}) · Refund: ₹{Number(selectedBooking.refund_amount ?? 0)}
+                      </p>
+                    )}
                     {selectedBooking.refund_id && (
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Refund ID</span>
@@ -1254,6 +1263,8 @@ const OrderMonitoring = () => {
         onOpenChange={setCancelDialogOpen}
         onConfirm={handleCancelConfirm}
         cancelling={cancelling}
+        bookingId={selectedBooking?.id}
+        allowWaive
       />
     </div>
   );
