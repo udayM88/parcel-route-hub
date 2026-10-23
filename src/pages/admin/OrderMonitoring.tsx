@@ -10,10 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Package, Clock, AlertCircle, CheckCircle, MapPin, User, Eye, Search, IndianRupee, Truck, Phone, Calendar as CalendarIcon, FileText, ExternalLink, Navigation, XCircle, Download, Loader2, RefreshCw, Camera } from "lucide-react";
+import { Package, Clock, AlertCircle, CheckCircle, MapPin, User, Eye, Search, IndianRupee, Truck, Phone, Calendar as CalendarIcon, FileText, FileSpreadsheet, ExternalLink, Navigation, XCircle, Download, Loader2, RefreshCw, Camera } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { format, startOfDay, endOfDay, isWithinInterval, subDays, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { CURRENT_ENV } from "@/config/environment";
 import { useCancelOrder, isCancellable } from "@/hooks/useCancelOrder";
 import CancelOrderDialog from "@/components/booking/CancelOrderDialog";
@@ -26,6 +26,13 @@ import { isBookedOrder } from "@/lib/revenue";
 import { bucketOfStatus } from "@/lib/booking-status";
 import { bookingFinancials } from "@/lib/booking-financials";
 import { cn } from "@/lib/utils";
+import {
+  downloadOrderMonitoringWorkbook,
+  filterOrderMonitoringBookings,
+  hasInvalidOrderMonitoringDateRange,
+  type OrderMonitoringStatusFilter,
+  type OrderMonitoringView,
+} from "@/lib/order-monitoring-export";
 
 import { resolvePartnerKey, trackingFunctionFor, labelFunctionFor, trackingBody } from "@/lib/partner-functions";
 import { isFreshLabelUrl } from "@/lib/label-url";
@@ -95,12 +102,14 @@ interface Booking {
   cancellation_stage?: string | null;
   refund_reason?: string | null;
   parcel_photos?: any;
+  box_count?: number | null;
 }
 
 const OrderMonitoring = () => {
   const { adminUser } = useAdminAuth();
   const isSuperAdmin = adminUser?.role === "super_admin";
-  const [selectedFilter, setSelectedFilter] = useState("all");
+  const [selectedFilter, setSelectedFilter] = useState<OrderMonitoringStatusFilter>("all");
+  const [activeTab, setActiveTab] = useState<OrderMonitoringView>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
@@ -118,6 +127,7 @@ const OrderMonitoring = () => {
   const [parcels, setParcels] = useState<any[]>([]);
   const [parcelLabelId, setParcelLabelId] = useState<string | null>(null);
   const [refreshingStatuses, setRefreshingStatuses] = useState(false);
+  const [exportingOrders, setExportingOrders] = useState(false);
   const { toast } = useToast();
   const { cancelOrder, cancelling } = useCancelOrder({
     onSuccess: () => {
@@ -191,6 +201,77 @@ const OrderMonitoring = () => {
     }
   };
 
+  const handleDownloadOrders = async () => {
+    if (invalidDateRange) {
+      toast({
+        title: "Check the date range",
+        description: "The From date must be earlier than or equal to the To date.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const batchSize = 1000;
+    const maximumRows = 100_000;
+    const allBookings: Booking[] = [];
+    setExportingOrders(true);
+
+    try {
+      for (let offset = 0; offset < maximumRows; offset += batchSize) {
+        let query = supabase
+          .from("bookings")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(offset, offset + batchSize - 1);
+
+        if (dateFrom) query = query.gte("created_at", startOfDay(dateFrom).toISOString());
+        if (dateTo) query = query.lte("created_at", endOfDay(dateTo).toISOString());
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const page = (data || []) as Booking[];
+        allBookings.push(...page);
+        if (page.length < batchSize) break;
+        if (allBookings.length >= maximumRows) {
+          throw new Error(`The report reached the ${maximumRows.toLocaleString()}-row safety limit. Please narrow the date range and try again.`);
+        }
+      }
+
+      const exportRows = filterOrderMonitoringBookings(
+        allBookings.filter((booking) => isBookedOrder(booking.status, booking.payment_status)),
+        { ...sharedFilters, view: activeTab },
+      );
+
+      if (exportRows.length === 0) {
+        toast({
+          title: "No orders to export",
+          description: "No booked orders match the current tab and filters.",
+        });
+        return;
+      }
+
+      const filename = downloadOrderMonitoringWorkbook(exportRows, {
+        ...sharedFilters,
+        view: activeTab,
+        generatedBy: adminUser?.email,
+      });
+      toast({
+        title: "Excel report downloaded",
+        description: `${exportRows.length.toLocaleString()} orders saved as ${filename}.`,
+      });
+    } catch (error: unknown) {
+      toast({
+        title: "Export failed",
+        description: error instanceof Error ? error.message : "Could not prepare the order report.",
+        variant: "destructive",
+      });
+    } finally {
+      setExportingOrders(false);
+    }
+  };
+
   const getStatusColor = (status: string | null) => {
     switch (bucketOfStatus(status)) {
       case "delivered": return "default";
@@ -221,34 +302,16 @@ const OrderMonitoring = () => {
 
 
   const inTransitBuckets = new Set(["confirmed", "picked_up", "in_transit", "out_for_delivery"]);
-
-  const filteredBookings = bookings.filter(booking => {
-    const matchesSearch = 
-      booking.tracking_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.sender_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.receiver_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.id.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const bookingDate = new Date(booking.created_at);
-    const matchesDate =
-      (!dateFrom && !dateTo) ||
-      (dateFrom && !dateTo && bookingDate >= startOfDay(dateFrom)) ||
-      (!dateFrom && dateTo && bookingDate <= endOfDay(dateTo)) ||
-      (dateFrom && dateTo && isWithinInterval(bookingDate, {
-        start: startOfDay(dateFrom),
-        end: endOfDay(dateTo),
-      }));
-
-    const bucket = bucketOfStatus(booking.status);
-
-    if (selectedFilter === "all") return matchesSearch && matchesDate;
-    if (selectedFilter === "pending") return matchesSearch && matchesDate && bucket === "created";
-    if (selectedFilter === "in_transit") return matchesSearch && matchesDate && inTransitBuckets.has(bucket);
-    if (selectedFilter === "delivered") return matchesSearch && matchesDate && bucket === "delivered";
-    if (selectedFilter === "cancelled") return matchesSearch && matchesDate && (bucket === "cancelled" || bucket === "rto");
-    if (selectedFilter === "cop_pending") return matchesSearch && matchesDate && booking.payment_status === "cop_pending";
-    return matchesSearch && matchesDate;
-  });
+  const sharedFilters = { searchTerm, statusFilter: selectedFilter, dateFrom, dateTo };
+  const filteredBookings = filterOrderMonitoringBookings(bookings, { ...sharedFilters, view: "all" });
+  const activeBookings = filterOrderMonitoringBookings(bookings, { ...sharedFilters, view: "active" });
+  const completedBookings = filterOrderMonitoringBookings(bookings, { ...sharedFilters, view: "completed" });
+  const visibleBookings = activeTab === "active"
+    ? activeBookings
+    : activeTab === "completed"
+      ? completedBookings
+      : filteredBookings;
+  const invalidDateRange = hasInvalidOrderMonitoringDateRange(dateFrom, dateTo);
 
   const countByBucket = (predicate: (b: string) => boolean) =>
     bookings.filter(b => predicate(bucketOfStatus(b.status))).length.toString();
@@ -439,7 +502,7 @@ const OrderMonitoring = () => {
               className="pl-9"
             />
           </div>
-          <Select value={selectedFilter} onValueChange={setSelectedFilter}>
+          <Select value={selectedFilter} onValueChange={(value) => setSelectedFilter(value as OrderMonitoringStatusFilter)}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
@@ -543,9 +606,42 @@ const OrderMonitoring = () => {
             All time
           </Button>
         </div>
+
+        {invalidDateRange && (
+          <p className="text-sm text-destructive">From date must be earlier than or equal to To date.</p>
+        )}
       </div>
 
-      <Tabs defaultValue="all" className="space-y-4">
+      <Card className="border-primary/20 bg-primary/[0.03]">
+        <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-primary/10 p-2 text-primary">
+              <FileSpreadsheet className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold">Download order report</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Exports every booked order matching the current tab, search, status, and date filters to Excel.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {bookings.length === 1000
+                  ? `${visibleBookings.length.toLocaleString()} matches among the latest 1,000 shown. The export fetches all matching rows.`
+                  : `${visibleBookings.length.toLocaleString()} matching ${visibleBookings.length === 1 ? "order" : "orders"} currently shown.`}
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={() => void handleDownloadOrders()}
+            disabled={loading || exportingOrders || invalidDateRange}
+            className="w-full shrink-0 sm:w-auto"
+          >
+            {exportingOrders ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+            {exportingOrders ? "Preparing Excel..." : "Download Excel"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as OrderMonitoringView)} className="space-y-4">
         <TabsList>
           <TabsTrigger value="all">All Orders ({bookings.length})</TabsTrigger>
           <TabsTrigger value="active">Active ({bookings.filter(b => bucketOfStatus(b.status) !== "delivered" && bucketOfStatus(b.status) !== "cancelled" && bucketOfStatus(b.status) !== "rto").length})</TabsTrigger>
@@ -690,7 +786,7 @@ const OrderMonitoring = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredBookings.filter(b => { const bk = bucketOfStatus(b.status); return bk !== "delivered" && bk !== "cancelled" && bk !== "rto"; }).map((booking) => (
+                      {activeBookings.map((booking) => (
                         <TableRow key={booking.id}>
                           <TableCell className="font-medium">
                             {booking.tracking_id || booking.id.slice(0, 8)}
@@ -755,7 +851,7 @@ const OrderMonitoring = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredBookings.filter(b => bucketOfStatus(b.status) === "delivered").map((booking) => (
+                      {completedBookings.map((booking) => (
                         <TableRow key={booking.id}>
                           <TableCell className="font-medium">
                             {booking.tracking_id || booking.id.slice(0, 8)}

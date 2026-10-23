@@ -134,6 +134,17 @@ The first additive developer-distribution beta was implemented on 2026-10-22 wit
 - Post-rebase verification passed: TypeScript, targeted ESLint, Vite production build, JavaScript SDK tests (3/3), PHP syntax checks (9 files), and merchant/docs Playwright tests (2/2).
 - The install archive was verified to contain `viasetu-woocommerce/viasetu-woocommerce.php` using portable forward-slash paths, fixing the earlier WordPress “Plugin file does not exist” activation failure.
 
+## Admin order-monitoring Excel export
+
+An additive admin reporting update was implemented on 2026-10-23 without a database migration or Edge Function change:
+
+- `/admin/orders` now includes a dedicated **Download order report** section.
+- The Excel export applies the current All/Active/Completed tab, search term, status filter, and inclusive From/To date range.
+- The interactive table remains capped at the latest 1,000 orders for responsiveness, while export fetches all matching booked orders from Supabase in stable 1,000-row batches. A visible 100,000-row safety limit fails explicitly instead of producing a partial report.
+- The workbook contains typed dates, numeric weights and amounts, text-safe IDs/pincodes, operational shipment fields, and the shared saved-order financial breakdown. It excludes raw partner error payloads, private label URLs, payment-link URLs, and other internal diagnostics.
+- Reversed date ranges are shown as invalid and cannot be exported.
+- Verification passed: TypeScript, focused export tests (4/4), targeted lint for the new export module/tests, and the Vite production build. The existing Order Monitoring file retains its prior 12 `no-explicit-any` errors and one hook-dependency warning; this update did not add a new page-level lint finding.
+
 ## Functional versus planned modules
 
 Functional/live-backed:
