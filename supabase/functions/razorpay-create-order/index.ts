@@ -14,10 +14,29 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { amount, currency = 'INR', receipt, notes, booking_draft } = await req.json() as {
+    const { amount, currency = 'INR', receipt, notes, booking_draft, prepared_booking_id } = await req.json() as {
       amount?: number; currency?: string; receipt?: string; notes?: Record<string, unknown>;
-      booking_draft?: BookingDraft;
+      booking_draft?: BookingDraft; prepared_booking_id?: string;
     };
+
+    // Business pay-first flow: the order row already exists (server-priced).
+    // The charged amount must equal that saved price.
+    let preparedRow: { id: string } | null = null;
+    if (prepared_booking_id) {
+      const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      const { data: row } = await sb.from('bookings')
+        .select('id,status,courier_price,payment_id')
+        .eq('id', prepared_booking_id).maybeSingle();
+      if (!row || row.status !== 'PENDING_PAYMENT' || row.payment_id) {
+        return new Response(JSON.stringify({ error: 'This order can no longer be paid. Please start again.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      if (Math.round(Number(row.courier_price)) !== Math.round(Number(amount))) {
+        return new Response(JSON.stringify({ error: 'Price mismatch. Please refresh and try again.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      preparedRow = { id: row.id };
+    }
 
 
     if (!amount || amount <= 0) {
@@ -81,8 +100,15 @@ Deno.serve(async (req) => {
     // still match the captured payment to this row and complete the shipment —
     // no captured payment can end up orphaned.
     let bookingRowId: string | null = null;
+    if (preparedRow) {
+      const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      const { error: linkErr } = await sb.from('bookings')
+        .update({ razorpay_order_id: data.id }).eq('id', preparedRow.id).eq('status', 'PENDING_PAYMENT');
+      if (linkErr) console.error('[create-order] prepared link failed:', linkErr);
+      else bookingRowId = preparedRow.id;
+    }
     const prayogAuthHeader = req.headers.get('x-prayog-auth');
-    if (prayogAuthHeader && booking_draft) {
+    if (!preparedRow && prayogAuthHeader && booking_draft) {
       try {
         const userId = JSON.parse(prayogAuthHeader)?.user_id;
         if (userId) {

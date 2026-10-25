@@ -261,67 +261,101 @@ const BusinessBooking = () => {
     }
   };
 
-  const handlePaymentSuccess = async (
-    _method: string,
-    details?: { razorpay_payment_id: string; razorpay_order_id: string },
-  ) => {
+  const [preparedBookingId, setPreparedBookingId] = useState<string | null>(null);
+
+  const buildShipmentBody = () => ({
+    sender_name: sender.name,
+    sender_phone: sender.phone.replace(/\D/g, "").slice(-10),
+    sender_address: sender.address,
+    sender_city: sender.city,
+    sender_state: sender.state,
+    sender_pincode: pickupPincode,
+    receiver_name: receiver.name,
+    receiver_phone: receiver.phone.replace(/\D/g, "").slice(-10),
+    receiver_address: receiver.address,
+    receiver_city: receiver.city,
+    receiver_state: receiver.state,
+    receiver_pincode: deliveryPincode,
+    goods_type: goodsType || "Package",
+    shipment_value: shipmentValue ? Number(shipmentValue) : null,
+    urgency: "standard",
+    partner_id: selected!.partnerId,
+    service_code: selected!.serviceCode,
+    courier_name: selected!.partnerName,
+    delivery_time: selected!.deliveryTime,
+    boxes: boxes.map((b, i) => ({
+      weight_kg: chargeableKgs[i],
+      length_cm: parseFloat(b.length) || null,
+      width_cm: parseFloat(b.width) || null,
+      height_cm: parseFloat(b.height) || null,
+      courier_rate: selected!.boxRates[i],
+    })),
+  });
+
+  // Save the order on the server before checkout opens, so a captured payment
+  // is always matched to it and shipped even if this tab closes after paying.
+  const startPayment = async () => {
     if (!selected) return;
     if (isBusinessDemoSession()) {
-      toast({
-        title: "Sample mode",
-        description: "Booking is disabled in the local sample account. No Supabase data was changed.",
-      });
+      toast({ title: "Sample mode", description: "Booking is disabled in the local sample account. No Supabase data was changed." });
       return;
     }
     setSubmitting(true);
     try {
       const { data, error } = await supabase.functions.invoke("business-create-shipment", {
-        body: {
-          sender_name: sender.name,
-          sender_phone: sender.phone.replace(/\D/g, "").slice(-10),
-          sender_address: sender.address,
-          sender_city: sender.city,
-          sender_state: sender.state,
-          sender_pincode: pickupPincode,
-          receiver_name: receiver.name,
-          receiver_phone: receiver.phone.replace(/\D/g, "").slice(-10),
-          receiver_address: receiver.address,
-          receiver_city: receiver.city,
-          receiver_state: receiver.state,
-          receiver_pincode: deliveryPincode,
-          goods_type: goodsType || "Package",
-          shipment_value: shipmentValue ? Number(shipmentValue) : null,
-          urgency: "standard",
-          partner_id: selected.partnerId,
-          service_code: selected.serviceCode,
-          courier_name: selected.partnerName,
-          delivery_time: selected.deliveryTime,
-          payment_id: details?.razorpay_payment_id || null,
-          boxes: boxes.map((b, i) => ({
-            weight_kg: chargeableKgs[i],
-            length_cm: parseFloat(b.length) || null,
-            width_cm: parseFloat(b.width) || null,
-            height_cm: parseFloat(b.height) || null,
-            courier_rate: selected.boxRates[i],
-          })),
-        },
+        body: { ...buildShipmentBody(), _prepare: true },
         headers: { "x-environment": CURRENT_ENV },
       });
-
-      if (error || data?.error) throw new Error(error?.message || data?.error);
-
-      setShowPayment(false);
-      setResult({ bookingId: data.booking_id, boxes: data.boxes || [] });
-      toast({
-        title: "Shipment booked",
-        description: `${data.booked_count} of ${boxes.length} boxes booked successfully.`,
-      });
+      if (error || data?.error || !data?.booking_id) throw new Error(data?.error || error?.message || "Could not start payment");
+      if (Math.round(Number(data.total_amount)) !== Math.round(breakdown.total)) {
+        throw new Error("The price changed. Please fetch rates again.");
+      }
+      setPreparedBookingId(data.booking_id);
+      setShowPayment(true);
     } catch (e: any) {
-      toast({
-        title: "Booking failed",
-        description: `${e?.message || "Something went wrong."} If you were charged and no shipment appears, the payment is refunded automatically within about an hour.`,
-        variant: "destructive",
-      });
+      toast({ title: "Could not start payment", description: e?.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handlePaymentSuccess = async (
+    _method: string,
+    details?: { razorpay_payment_id: string; razorpay_order_id: string; booking_id?: string | null },
+  ) => {
+    const bookingId = details?.booking_id || preparedBookingId;
+    if (!bookingId) return;
+    setShowPayment(false);
+    setSubmitting(true);
+    try {
+      // The shipment is created on the server right after payment; wait for it.
+      let last: any = null;
+      for (let i = 0; i < 45; i++) {
+        const { data } = await supabase.functions.invoke("business-create-shipment", {
+          body: { _status_booking_id: bookingId },
+          headers: { "x-environment": CURRENT_ENV },
+        });
+        last = data;
+        if (data?.status === "CREATED" || data?.status === "FAILED" || data?.status === "CANCELLED") break;
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      setPreparedBookingId(null);
+      if (last?.status === "CREATED") {
+        const booked = (last.boxes || []).filter((x: any) => x.success).length;
+        setResult({ bookingId, boxes: last.boxes || [] });
+        toast({ title: "Shipment booked", description: `${booked} of ${boxes.length} boxes booked successfully.` });
+      } else if (last?.status === "FAILED") {
+        toast({
+          title: "Booking failed",
+          description: `${last.failure_reason || "The courier could not accept this shipment."} Your payment is refunded automatically.`,
+          variant: "destructive",
+        });
+      } else {
+        setResult({ bookingId, boxes: last?.boxes || [] });
+        toast({ title: "Payment received", description: "Your shipment is being booked. It will appear in Orders shortly." });
+      }
+    } catch {
+      toast({ title: "Payment received", description: "Your shipment is being booked. Check Orders in a few minutes." });
     } finally {
       setSubmitting(false);
     }
@@ -660,7 +694,7 @@ const BusinessBooking = () => {
                 className="w-full mt-3"
                 size="lg"
                 disabled={submitting || !declarationAccepted}
-                onClick={() => setShowPayment(true)}
+                onClick={startPayment}
               >
                 {submitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Booking...</> : `Pay ₹${breakdown.total} & book`}
               </Button>
@@ -686,6 +720,7 @@ const BusinessBooking = () => {
             email: business?.email,
           }}
           onPaymentSuccess={handlePaymentSuccess}
+          preparedBookingId={preparedBookingId}
         />
       )}
     </div>

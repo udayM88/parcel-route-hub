@@ -48,9 +48,11 @@ interface PaymentModalProps {
    * closes before the courier API call completes.
    */
   bookingDraft?: Record<string, unknown>;
+  /** Business pay-first flow: server-created order row to attach the payment to. */
+  preparedBookingId?: string | null;
 }
 
-const PaymentModal = ({ isOpen, onClose, orderDetails, onPaymentSuccess, customerDetails, bookingDraft }: PaymentModalProps) => {
+const PaymentModal = ({ isOpen, onClose, orderDetails, onPaymentSuccess, customerDetails, bookingDraft, preparedBookingId }: PaymentModalProps) => {
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [isProcessing, setIsProcessing] = useState(false);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
@@ -116,6 +118,7 @@ const PaymentModal = ({ isOpen, onClose, orderDetails, onPaymentSuccess, custome
           // Persisted server-side as a PENDING_PAYMENT row before checkout opens,
           // so a captured payment can never be orphaned if the browser closes.
           booking_draft: bookingDraft || null,
+          prepared_booking_id: preparedBookingId || undefined,
           notes: {
             courierName: orderDetails.courierName,
             courierId: orderDetails.courierId,
