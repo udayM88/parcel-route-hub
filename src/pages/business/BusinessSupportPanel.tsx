@@ -56,7 +56,7 @@ const formatDate = (value: string) => new Intl.DateTimeFormat("en-IN", {
   minute: "2-digit",
 }).format(new Date(value));
 
-const statusLabel = (status: string) => status.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+const statusLabel = (status: string) => status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 export default function BusinessSupportPanel() {
   const isDemo = isBusinessDemoSession();

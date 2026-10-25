@@ -39,9 +39,9 @@ type WebhookRow = { id: string; endpoint_url: string; event_types: string[]; sig
 const db = supabase as any;
 const inr = (value: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(value || 0);
 const when = (value: string) => new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-const human = (value: string | null) => (value || "created").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+const human = (value: string | null) => (value || "created").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const downloadCsv = (name: string, rows: Array<Array<string | number | null | undefined>>) => {
-  const escape = (value: string | number | null | undefined) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+  const escape = (value: string | number | null | undefined) => `"${String(value ?? "").replace(/"/g, '""')}"`;
   const blob = new Blob([rows.map((row) => row.map(escape).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");

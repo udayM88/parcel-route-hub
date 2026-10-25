@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
             console.log('[create-order] pre-payment booking row:', bookingRowId);
             // Multi-parcel orders: persist one booking_boxes row per parcel so
             // the shipment creator (and the retry sweeper) can book each one.
-            await syncBookingBoxes(supabase, bookingRowId, booking_draft.boxes ?? []);
+            await syncBookingBoxes(supabase as any, bookingRowId as string, booking_draft.boxes ?? []);
           }
         }
       } catch (e) {
@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Error in razorpay-create-order:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
+      JSON.stringify({ error: (error as any)?.message || 'Internal server error' }),
 
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

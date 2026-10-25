@@ -94,7 +94,7 @@ export async function recordCourierStatus(
   const notifiable = NOTIFIABLE_STATUSES.includes(n.normalized);
 
   if (!sameAsPrevious && !stale && eventId) {
-    dispatchMerchantWebhooks(admin, booking, eventId, previous, n.normalized);
+    dispatchMerchantWebhooks(admin, booking as any, eventId, previous, n.normalized);
   }
 
   let reason = "";

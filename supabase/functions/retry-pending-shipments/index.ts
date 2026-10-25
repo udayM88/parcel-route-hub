@@ -190,6 +190,33 @@ Deno.serve(async (req) => {
             }
           }
 
+          // Never touch wallet top-ups (they live in wallet_transactions).
+          const { data: walletTx } = await admin
+            .from("wallet_transactions")
+            .select("id")
+            .or(`payment_id.eq.${p.id}${p.order_id ? `,razorpay_order_id.eq.${p.order_id}` : ""}`)
+            .limit(1);
+          if (walletTx && walletTx.length) continue;
+
+          const ageMs = now - p.created_at * 1000;
+          let autoRefund: any = null;
+          // Auto-refund once the payment is 60+ min old with still no order —
+          // the browser/booking step clearly never completed (e.g. business
+          // portal checkout closed after capture).
+          if (ageMs > 60 * 60 * 1000 && (p.amount_refunded || 0) === 0) {
+            try {
+              const rr = await fetch(`https://api.razorpay.com/v1/payments/${p.id}/refund`, {
+                method: "POST",
+                headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ notes: { reason: "orphan_no_booking_auto_refund" } }),
+              });
+              autoRefund = await rr.json();
+              console.log("[retry] auto-refunded orphan payment", p.id, rr.status, autoRefund?.id);
+            } catch (e) {
+              console.warn("[retry] orphan auto-refund failed", p.id, e);
+            }
+          }
+
           orphans.push({
             payment_id: p.id,
             order_id: p.order_id,
@@ -199,6 +226,7 @@ Deno.serve(async (req) => {
             amount_refunded: p.amount_refunded / 100,
             created_at: new Date(p.created_at * 1000).toISOString(),
             notes: p.notes,
+            auto_refund_id: autoRefund?.id || null,
           });
           console.warn("[retry] ORPHAN captured payment with no booking row:", p.id, p.amount / 100, p.contact);
         }

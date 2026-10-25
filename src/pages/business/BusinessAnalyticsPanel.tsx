@@ -28,7 +28,7 @@ const DEMO_ORDERS: AnalyticsOrder[] = [
 ];
 
 const inr = (value: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value);
-const readable = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+const readable = (value: string) => value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 export default function BusinessAnalyticsPanel() {
   const { business } = useBusinessAuth();
