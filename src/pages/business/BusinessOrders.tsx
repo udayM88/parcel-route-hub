@@ -39,7 +39,7 @@ const DEMO_ORDERS: MerchantOrder[] = [
 ];
 
 const inr = (value: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value);
-const label = (value: string | null) => (value || "created").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+const label = (value: string | null) => (value || "created").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 export default function BusinessOrders() {
   const navigate = useNavigate();
@@ -90,7 +90,7 @@ export default function BusinessOrders() {
   }, [orders, query, status]);
 
   const exportCsv = () => {
-    const escape = (value: string | number | null) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const escape = (value: string | number | null) => `"${String(value ?? "").replace(/"/g, '""')}"`;
     const rows = [
       ["Order ID", "Created At", "AWB", "Sender", "Receiver", "Destination", "Courier", "Service", "Amount", "Payment", "Status", "Source"],
       ...filtered.map((order) => [order.id, order.created_at, order.tracking_id || order.prayog_awb, order.sender_name, order.receiver_name, `${order.receiver_city} ${order.receiver_pincode}`, order.courier_name, order.service_code, order.courier_price, order.payment_status, order.status, order.booking_source]),

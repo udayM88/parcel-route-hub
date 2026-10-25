@@ -27,11 +27,6 @@ type RazorpayOptions = {
   handler: (response: RazorpayResponse) => Promise<void>;
 };
 
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
-}
 
 const inr = (n: number) => `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const TYPE_LABEL: Record<string, string> = { topup: "Top-up", charge: "Shipment", refund: "Refund", adjustment: "Adjustment" };

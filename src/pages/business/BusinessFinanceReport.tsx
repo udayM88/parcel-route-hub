@@ -89,7 +89,7 @@ export default function BusinessFinanceReport({ mode }: { mode: FinanceMode }) {
   const currentBalance = transactions[0]?.balance_after || 0;
 
   const exportCsv = () => {
-    const escape = (value: string | number | null) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const escape = (value: string | number | null) => `"${String(value ?? "").replace(/"/g, '""')}"`;
     const rows = [
       ["Transaction ID", "Date", "Type", "Reference", "Note", "Amount", "Balance"],
       ...filtered.map((transaction) => [transaction.id, transaction.created_at, transaction.type, transaction.booking_id || transaction.payment_id, transaction.note, transaction.amount, transaction.balance_after]),
