@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
             console.log('[create-order] pre-payment booking row:', bookingRowId);
             // Multi-parcel orders: persist one booking_boxes row per parcel so
             // the shipment creator (and the retry sweeper) can book each one.
-            await syncBookingBoxes(supabase as any, bookingRowId, booking_draft.boxes ?? []);
+            await syncBookingBoxes(supabase as any, bookingRowId as string, booking_draft.boxes ?? []);
           }
         }
       } catch (e) {
