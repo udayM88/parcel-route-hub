@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Menu, X, Linkedin, Facebook, Instagram, ChevronDown, BookOpen, HelpCircle, Briefcase, Package, Truck, Zap, MapPin, User, Home, Building2, Hand, Landmark } from "lucide-react";
 import Logo from "@/components/Logo";
 import googlePlayBadgeAsset from "@/assets/google-play-badge.png.asset.json";
+import { requestSendParcel, mobilePlatform, SEND_PARCEL_EVENT } from "@/lib/send-parcel";
 
 const C = {
   bg: "#FFFFFF",
@@ -344,7 +345,7 @@ function SiteHeader() {
 
             <Link to="/contact" onClick={() => setOpen(false)} className="text-lg font-bold" style={{ color: C.text }}>Contact Us</Link>
 
-            <button onClick={() => { setOpen(false); navigate("/login"); }} className="mt-4 h-12 rounded-lg font-bold" style={{ background: C.teal, color: C.bg }}>Send a Parcel →</button>
+            <button onClick={() => { setOpen(false); requestSendParcel(navigate); }} className="mt-4 h-12 rounded-lg font-bold" style={{ background: C.teal, color: C.bg }}>Send a Parcel →</button>
           </nav>
         </div>,
       document.body
@@ -430,12 +431,46 @@ function SiteFooter() {
   );
 }
 
+function SendParcelSheet() {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(SEND_PARCEL_EVENT, onOpen);
+    return () => window.removeEventListener(SEND_PARCEL_EVENT, onOpen);
+  }, []);
+  if (!open) return null;
+  const platform = mobilePlatform();
+  const storeUrl = platform === "ios" ? APP_STORE_URL : PLAY_STORE_URL;
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Send a parcel">
+      <div className="absolute inset-0" style={{ background: "rgba(11,18,32,0.5)" }} onClick={() => setOpen(false)} />
+      <div className="relative w-full max-w-md rounded-t-2xl p-6 pb-8 animate-in slide-in-from-bottom duration-300" style={{ background: C.bg, fontFamily: FONT_STACK }}>
+        <button className="absolute right-4 top-4" style={{ color: C.gray }} onClick={() => setOpen(false)} aria-label="Close"><X className="h-5 w-5" /></button>
+        <div className="mx-auto mb-4 h-1.5 w-10 rounded-full" style={{ background: C.border }} />
+        <h2 className="text-xl font-bold" style={{ color: C.text }}>Send a parcel faster with the app</h2>
+        <p className="mt-2 text-[14px]" style={{ color: C.gray }}>Quicker booking, saved addresses and live delivery updates.</p>
+        <a href={storeUrl} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}
+          className="mt-5 flex h-12 items-center justify-center rounded-lg font-bold" style={{ background: C.teal, color: C.bg }}>
+          Get the ViaSetu App
+        </a>
+        <button onClick={() => { setOpen(false); navigate("/login"); }}
+          className="mt-3 h-12 w-full rounded-lg border font-bold" style={{ borderColor: C.border, color: C.text }}>
+          Continue on website
+        </button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function PublicSiteLayout({ children }: { children: ReactNode }) {
   return (
     <div style={{ background: C.bg, color: C.text, fontFamily: FONT_STACK }} className="min-h-screen flex flex-col">
       <SiteHeader />
       <main className="flex-1 pt-20">{children}</main>
       <SiteFooter />
+      <SendParcelSheet />
     </div>
   );
 }
