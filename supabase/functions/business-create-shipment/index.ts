@@ -131,6 +131,22 @@ Deno.serve(async (req) => {
       return json({ error: "Business account is not approved for booking yet." }, 403);
     }
 
+    // Status lookup for a prepared (pay-first) booking. Shipment is created
+    // server-side by razorpay-verify-payment → create-consumer-shipment.
+    if (!internal && rawBody?._status_booking_id) {
+      const { data: row } = await admin.from("bookings")
+        .select("id,status,tracking_id,label_url,payment_status,failure_reason,box_count")
+        .eq("id", rawBody._status_booking_id).eq("business_account_id", biz.id).maybeSingle();
+      if (!row) return json({ error: "Booking not found" }, 404);
+      const { data: bxs } = await admin.from("booking_boxes")
+        .select("box_index,status,tracking_id,label_url,error_message")
+        .eq("booking_id", row.id).order("box_index");
+      const boxesOut = (bxs && bxs.length)
+        ? bxs.map((x: any) => ({ box_index: x.box_index, success: !!x.tracking_id, tracking_id: x.tracking_id, label_url: x.label_url, error: x.error_message }))
+        : [{ box_index: 1, success: !!row.tracking_id, tracking_id: row.tracking_id, label_url: row.label_url, error: row.failure_reason }];
+      return json({ booking_id: row.id, status: row.status, payment_status: row.payment_status, failure_reason: row.failure_reason, boxes: boxesOut });
+    }
+
     const parsed = validate(rawBody);
     if (!parsed.ok) return json({ error: parsed.error }, 400);
     const b = parsed.data;
@@ -149,6 +165,8 @@ Deno.serve(async (req) => {
     const gst = totalPrice - totalNet;
     const totalWeightKg = boxes.reduce((s, bx) => s + (Number(bx.weight_kg) || 0), 0);
 
+
+    const prepare = !internal && rawBody?._prepare === true;
 
     const { data: booking, error: insErr } = await admin
       .from("bookings")
@@ -187,8 +205,8 @@ Deno.serve(async (req) => {
         partner_id: b.partner_id || null,
         service_code: b.service_code || null,
         box_count: boxes.length,
-        status: "PAYMENT_RECEIVED",
-        payment_id: payWithWallet ? null : (b.payment_id || null),
+        status: prepare ? "PENDING_PAYMENT" : "PAYMENT_RECEIVED",
+        payment_id: prepare ? null : payWithWallet ? null : (b.payment_id || null),
         payment_status: payWithWallet ? "wallet_pending" : (b.payment_id ? "paid" : "pending"),
         booking_source: internal ? "merchant_api" : "business_portal",
       })
@@ -198,6 +216,25 @@ Deno.serve(async (req) => {
     if (insErr || !booking) {
       console.error("[business-create-shipment] insert failed:", insErr);
       return json({ error: insErr?.message || "Failed to create booking" }, 500);
+    }
+
+    // Pay-first flow: persist the order (and every box) BEFORE checkout so a
+    // captured payment is always matched to it and shipped server-side, even
+    // if the browser closes right after paying.
+    if (prepare) {
+      if (!pickPartnerFn(b.partner_id || "", b.courier_name)) {
+        await admin.from("bookings").delete().eq("id", booking.id);
+        return json({ error: `Unknown courier partner '${b.courier_name}'` }, 400);
+      }
+      if (boxes.length > 1) {
+        await admin.from("booking_boxes").insert(boxes.map((bx, i) => ({
+          booking_id: booking.id, box_index: i + 1, weight_kg: Number(bx.weight_kg),
+          length_cm: bx.length_cm ?? null, width_cm: bx.width_cm ?? null, height_cm: bx.height_cm ?? null,
+          chargeable_weight_kg: Number(bx.weight_kg), courier_rate: perBox[i].rate, price: perBox[i].price,
+          status: "pending",
+        })));
+      }
+      return json({ prepared: true, booking_id: booking.id, total_amount: totalPrice });
     }
 
     if (payWithWallet) {

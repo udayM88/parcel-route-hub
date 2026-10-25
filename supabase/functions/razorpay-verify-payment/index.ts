@@ -156,6 +156,27 @@ Deno.serve(async (req) => {
         console.error("[verify-payment] persist threw:", e);
       }
     } else {
+      // Signature-verified payment for a row pre-created at order time
+      // (business pay-first flow). Claim it by the Razorpay order id.
+      try {
+        const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+        const { data: preRow } = await supabase.from("bookings")
+          .select("id,status,payment_id").eq("razorpay_order_id", razorpay_order_id).maybeSingle();
+        if (preRow?.id) {
+          if (preRow.status === "PENDING_PAYMENT") {
+            const { error: updErr } = await supabase.from("bookings").update({
+              payment_id: razorpay_payment_id, payment_status: "paid", status: "PAYMENT_RECEIVED",
+            }).eq("id", preRow.id).eq("status", "PENDING_PAYMENT");
+            if (updErr) persistError = updErr.message;
+          }
+          if (!persistError) bookingRowId = preRow.id;
+          console.log("[verify-payment] claimed prepared row:", preRow.id);
+        }
+      } catch (e: any) {
+        persistError = String(e?.message || e);
+      }
+    }
+    if (!bookingRowId && !(prayogAuthHeader && booking_draft)) {
       // Not fatal — payment is still verified. Reconciliation will catch it.
       console.warn(
         "[verify-payment] skipping booking row insert (missing prayog auth or draft)",
