@@ -317,7 +317,11 @@ const BusinessBooking = () => {
         description: `${data.booked_count} of ${boxes.length} boxes booked successfully.`,
       });
     } catch (e: any) {
-      toast({ title: "Booking failed", description: e?.message || "Please contact support.", variant: "destructive" });
+      toast({
+        title: "Booking failed",
+        description: `${e?.message || "Something went wrong."} If you were charged and no shipment appears, the payment is refunded automatically within about an hour.`,
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
