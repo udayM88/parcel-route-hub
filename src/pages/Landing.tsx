@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import PageSeo from "@/components/PageSeo";
 import Logo from "@/components/Logo";
 import PublicSiteLayout from "@/components/site/PublicSiteLayout";
+import { requestSendParcel } from "@/lib/send-parcel";
 const AuthedHome = lazy(() => import("./Index"));
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -436,7 +437,7 @@ const Landing = () => {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const goSend = () => navigate("/login");
+  const goSend = () => requestSendParcel(navigate);
   const goTrack = () => navigate("/tracking");
   const trackAwb = (awb: string) => navigate("/tracking", { state: { awbNumber: awb } });
 
