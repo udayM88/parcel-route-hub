@@ -3,6 +3,11 @@ import type { BusinessAccount } from "@/contexts/useBusinessAuth";
 export const BUSINESS_DEMO_EMAIL = "demo@viasetu.local";
 export const BUSINESS_DEMO_PASSWORD = "Demo@1234";
 
+// The public demo is intentionally enabled in production. Set the Vite flag to
+// "false" for an immediate kill switch without changing the login flow.
+export const BUSINESS_DEMO_ENABLED =
+  String(import.meta.env.VITE_ENABLE_BUSINESS_DEMO ?? "true").toLowerCase() !== "false";
+
 const DEMO_SESSION_KEY = "viasetu_business_demo_session";
 
 export const BUSINESS_DEMO_ACCOUNT: BusinessAccount = {
@@ -25,12 +30,17 @@ export const BUSINESS_DEMO_ACCOUNT: BusinessAccount = {
 };
 
 export const isBusinessDemoSession = () =>
-  import.meta.env.DEV &&
+  BUSINESS_DEMO_ENABLED &&
   typeof window !== "undefined" &&
   window.sessionStorage.getItem(DEMO_SESSION_KEY) === "active";
 
+export const isBusinessDemoCredentials = (email: string, password: string) =>
+  BUSINESS_DEMO_ENABLED &&
+  email.trim().toLowerCase() === BUSINESS_DEMO_EMAIL &&
+  password === BUSINESS_DEMO_PASSWORD;
+
 export const startBusinessDemoSession = () => {
-  if (!import.meta.env.DEV || typeof window === "undefined") return false;
+  if (!BUSINESS_DEMO_ENABLED || typeof window === "undefined") return false;
   window.sessionStorage.setItem(DEMO_SESSION_KEY, "active");
   window.localStorage.setItem("viasetu_merchant_theme", "ocean");
   return true;

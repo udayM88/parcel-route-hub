@@ -39,7 +39,7 @@ const DEMO_TICKETS: SupportTicket[] = [
     user_id: "demo-merchant",
     booking_id: null,
     subject: "Need help with a delayed sample shipment",
-    description: "This is a local sample ticket. No support request was submitted.",
+    description: "This is a session-only sample ticket. No support request was submitted.",
     category: "shipment",
     priority: "medium",
     status: "in_progress",

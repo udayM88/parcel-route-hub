@@ -221,6 +221,7 @@ function WebhooksPanel() {
 }
 
 function PincodePanel() {
+  const demo = isBusinessDemoSession();
   const [pickup, setPickup] = useState("");
   const [delivery, setDelivery] = useState("");
   const [busy, setBusy] = useState(false);
@@ -228,12 +229,18 @@ function PincodePanel() {
   const check = async () => {
     if (!/^\d{6}$/.test(pickup) || !/^\d{6}$/.test(delivery)) { toast.error("Enter two valid 6-digit pincodes"); return; }
     setBusy(true);
+    if (demo) {
+      setResults(PARTNER_REGISTRY.map((partner, index) => ({ partner: partner.name, serviceable: index < 3 })));
+      setBusy(false);
+      toast.success("Sample coverage loaded without contacting courier services");
+      return;
+    }
     const functions: Record<string, string> = { shadowfax: "shadowfax-serviceability", delhivery: "delhivery-serviceability", urbanebolt: "urbanebolt-serviceability", xpressbees: "xpressbees-serviceability", shree_maruti: "shree-maruti-serviceability" };
     const settled = await Promise.allSettled(PARTNER_REGISTRY.map(async (partner) => { const { data, error } = await supabase.functions.invoke(functions[partner.code], { body: { pickup_pincode: pickup, delivery_pincode: delivery, weight_kg: 0.5, length_cm: 10, width_cm: 10, height_cm: 10 }, headers: { "x-environment": CURRENT_ENV } }); return { partner: partner.name, serviceable: !error && data?.is_serviceable === true }; }));
     setResults(settled.map((result, index) => result.status === "fulfilled" ? result.value : { partner: PARTNER_REGISTRY[index].name, serviceable: false }));
     setBusy(false);
   };
-  return <Card className="merchant-bordered-card"><CardHeader><CardTitle className="flex items-center gap-2"><MapPinCheck className="size-5 text-primary" />Live pincode serviceability</CardTitle><CardDescription>Checks the configured courier endpoints without creating an order.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row"><Input value={pickup} onChange={(event) => setPickup(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Pickup pincode" /><Input value={delivery} onChange={(event) => setDelivery(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Delivery pincode" /><Button onClick={check} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <MapPinCheck />}Check</Button></div>{results.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{results.map((result) => <div key={result.partner} className="flex items-center justify-between rounded-xl border p-4"><span className="font-bold">{result.partner}</span><Badge variant={result.serviceable ? "default" : "secondary"}>{result.serviceable ? "Serviceable" : "Unavailable"}</Badge></div>)}</div> : <EmptyState icon={MapPinCheck} title="Check a route" description="Enter pickup and delivery pincodes to query live courier coverage." />}</CardContent></Card>;
+  return <Card className="merchant-bordered-card"><CardHeader><CardTitle className="flex items-center gap-2"><MapPinCheck className="size-5 text-primary" />{demo ? "Sample pincode serviceability" : "Live pincode serviceability"}</CardTitle><CardDescription>{demo ? "Uses local sample coverage and never contacts a courier service." : "Checks the configured courier endpoints without creating an order."}</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row"><Input value={pickup} onChange={(event) => setPickup(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Pickup pincode" /><Input value={delivery} onChange={(event) => setDelivery(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Delivery pincode" /><Button onClick={check} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <MapPinCheck />}Check</Button></div>{results.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{results.map((result) => <div key={result.partner} className="flex items-center justify-between rounded-xl border p-4"><span className="font-bold">{result.partner}</span><Badge variant={result.serviceable ? "default" : "secondary"}>{result.serviceable ? "Serviceable" : "Unavailable"}</Badge></div>)}</div> : <EmptyState icon={MapPinCheck} title="Check a route" description={demo ? "Enter pickup and delivery pincodes to preview sample coverage." : "Enter pickup and delivery pincodes to query live courier coverage."} />}</CardContent></Card>;
 }
 
 function ActivityPanel() {
@@ -254,10 +261,18 @@ function ActivityPanel() {
 }
 
 function ActiveSessionsPanel() {
+  const demo = isBusinessDemoSession();
   const [email, setEmail] = useState("");
   const [createdAt, setCreatedAt] = useState("");
-  useEffect(() => { void supabase.auth.getSession().then(({ data }) => { setEmail(data.session?.user.email || ""); setCreatedAt(data.session?.user.last_sign_in_at || data.session?.user.created_at || ""); }); }, []);
-  return <Card className="merchant-bordered-card overflow-hidden"><CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="size-5 text-primary" />Current authenticated session</CardTitle><CardDescription>Supabase securely stores only the active browser session available to this merchant.</CardDescription></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>User</TableHead><TableHead>Device</TableHead><TableHead>Browser</TableHead><TableHead>Status</TableHead><TableHead>Signed in</TableHead></TableRow></TableHeader><TableBody><TableRow><TableCell className="font-semibold">{email || "Merchant account"}</TableCell><TableCell>{navigator.platform || "Current device"}</TableCell><TableCell>{navigator.userAgent.includes("Chrome") ? "Chrome" : "Web browser"}</TableCell><TableCell><Badge>Current · Active</Badge></TableCell><TableCell>{createdAt ? when(createdAt) : "Current session"}</TableCell></TableRow></TableBody></Table></CardContent></Card>;
+  useEffect(() => {
+    if (demo) {
+      setEmail("demo@viasetu.local");
+      setCreatedAt(new Date().toISOString());
+      return;
+    }
+    void supabase.auth.getSession().then(({ data }) => { setEmail(data.session?.user.email || ""); setCreatedAt(data.session?.user.last_sign_in_at || data.session?.user.created_at || ""); });
+  }, [demo]);
+  return <Card className="merchant-bordered-card overflow-hidden"><CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="size-5 text-primary" />Current authenticated session</CardTitle><CardDescription>{demo ? "This sample session exists only in the current browser tab." : "Supabase securely stores only the active browser session available to this merchant."}</CardDescription></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>User</TableHead><TableHead>Device</TableHead><TableHead>Browser</TableHead><TableHead>Status</TableHead><TableHead>Signed in</TableHead></TableRow></TableHeader><TableBody><TableRow><TableCell className="font-semibold">{email || "Merchant account"}</TableCell><TableCell>{navigator.platform || "Current device"}</TableCell><TableCell>{navigator.userAgent.includes("Chrome") ? "Chrome" : "Web browser"}</TableCell><TableCell><Badge>Current · Active</Badge></TableCell><TableCell>{createdAt ? when(createdAt) : "Current session"}</TableCell></TableRow></TableBody></Table></CardContent></Card>;
 }
 
 export default function BusinessActivatedModule({ module }: { module: string }) {

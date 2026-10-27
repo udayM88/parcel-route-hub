@@ -86,7 +86,7 @@ const BusinessWallet = () => {
 
   const topUp = async () => {
     if (isDemo) {
-      toast({ title: "Sample mode", description: "Wallet funding is disabled in the local sample account. No payment was started." });
+      toast({ title: "Sample mode", description: "Wallet funding is disabled in the sample account. No payment was started." });
       return;
     }
     const amt = Math.round(Number(amount));
@@ -164,7 +164,7 @@ const BusinessWallet = () => {
         </div>
 
         <Card className="merchant-bordered-card">
-          <CardHeader><CardTitle className="text-base">Transactions</CardTitle><CardDescription>{isDemo ? "Local sample entries; no financial records were created." : "Latest wallet credits, shipment charges, refunds and adjustments."}</CardDescription></CardHeader>
+          <CardHeader><CardTitle className="text-base">Transactions</CardTitle><CardDescription>{isDemo ? "Session-only sample entries; no financial records were created." : "Latest wallet credits, shipment charges, refunds and adjustments."}</CardDescription></CardHeader>
           <CardContent className="overflow-x-auto">
             {txs.length === 0 ? <p className="text-sm text-muted-foreground py-6 text-center">No transactions yet.</p> : (
               <Table>

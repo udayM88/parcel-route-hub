@@ -211,7 +211,7 @@ const BusinessDevelopers = () => {
       <Dialog open={!!newKey} onOpenChange={(o) => !o && setNewKey(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Copy your new key now</DialogTitle>
-            <DialogDescription>{isDemo ? "This is a local sample token and cannot call the ViaSetu API." : "For security it won't be shown again. Store it safely and never put it in browser code."}</DialogDescription></DialogHeader>
+            <DialogDescription>{isDemo ? "This is a session-only sample token and cannot call the ViaSetu API." : "For security it won't be shown again. Store it safely and never put it in browser code."}</DialogDescription></DialogHeader>
           <code className="text-xs bg-muted p-3 rounded break-all">{newKey}</code>
           <Button onClick={() => newKey && copy(newKey)}><Copy className="h-4 w-4 mr-1" />Copy key</Button>
         </DialogContent>

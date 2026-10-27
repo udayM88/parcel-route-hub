@@ -66,6 +66,7 @@ const BusinessBooking = () => {
     | undefined;
   const { toast } = useToast();
   const { business } = useBusinessAuth();
+  const isDemo = isBusinessDemoSession();
 
   const [step, setStep] = useState(1);
 
@@ -113,6 +114,25 @@ const BusinessBooking = () => {
   useEffect(() => {
     const targets = [pickupPincode, deliveryPincode].filter((p) => /^\d{6}$/.test(p));
     if (targets.length === 0) return;
+    if (isDemo) {
+      const sampleLocations: Record<string, PincodeLocation> = {
+        "411001": { city: "Pune", state: "Maharashtra" },
+        "560001": { city: "Bengaluru", state: "Karnataka" },
+        "110001": { city: "New Delhi", state: "Delhi" },
+        "400001": { city: "Mumbai", state: "Maharashtra" },
+      };
+      const pickup = sampleLocations[pickupPincode] || { city: "Sample pickup city", state: "Sample state" };
+      const delivery = sampleLocations[deliveryPincode] || { city: "Sample delivery city", state: "Sample state" };
+      if (/^\d{6}$/.test(pickupPincode)) {
+        setPickupLoc(pickup);
+        setSender((current) => ({ ...current, city: current.city || pickup.city, state: current.state || pickup.state }));
+      }
+      if (/^\d{6}$/.test(deliveryPincode)) {
+        setDeliveryLoc(delivery);
+        setReceiver((current) => ({ ...current, city: current.city || delivery.city, state: current.state || delivery.state }));
+      }
+      return;
+    }
     let cancelled = false;
     const timer = setTimeout(async () => {
       setLocLoading(true);
@@ -142,7 +162,7 @@ const BusinessBooking = () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [pickupPincode, deliveryPincode]);
+  }, [deliveryPincode, isDemo, pickupPincode]);
 
   const swapPincodes = () => {
     setPickupPincode(deliveryPincode);
@@ -177,6 +197,20 @@ const BusinessBooking = () => {
     setFetching(true);
     resetQuotes();
     try {
+      if (isDemo) {
+        const samplePartners = [
+          { partnerId: "demo-delhivery", partnerCode: "delhivery", partnerName: "Delhivery", serviceCode: "surface", serviceName: "Surface", deliveryTime: "3-5 days", base: 92 },
+          { partnerId: "demo-xpressbees", partnerCode: "xpressbees", partnerName: "XpressBees", serviceCode: "standard", serviceName: "Standard", deliveryTime: "2-4 days", base: 108 },
+          { partnerId: "demo-shadowfax", partnerCode: "shadowfax", partnerName: "Shadowfax", serviceCode: "express", serviceName: "Express", deliveryTime: "1-3 days", base: 138 },
+        ];
+        const sampleQuotes = samplePartners.map((partner) => {
+          const boxRates = chargeableKgs.map((kg) => Math.round(partner.base + Math.max(0, kg - 0.5) * 42));
+          return { ...partner, boxRates, totalPrice: computeBusinessBreakdown(boxRates).total };
+        });
+        setQuotes(sampleQuotes);
+        setStep(2);
+        return;
+      }
       // Quote every box with every partner; only keep partner+service combos
       // that are serviceable for ALL boxes.
       const perBoxResults = await Promise.all(
@@ -297,7 +331,7 @@ const BusinessBooking = () => {
   const startPayment = async () => {
     if (!selected) return;
     if (isBusinessDemoSession()) {
-      toast({ title: "Sample mode", description: "Booking is disabled in the local sample account. No Supabase data was changed." });
+      toast({ title: "Sample mode", description: "Booking is disabled in the sample account. No Supabase data was changed." });
       return;
     }
     setSubmitting(true);
@@ -323,6 +357,11 @@ const BusinessBooking = () => {
     _method: string,
     details?: { razorpay_payment_id: string; razorpay_order_id: string; booking_id?: string | null },
   ) => {
+    if (isDemo) {
+      setShowPayment(false);
+      toast({ title: "Sample mode", description: "No payment or shipment was created." });
+      return;
+    }
     const bookingId = details?.booking_id || preparedBookingId;
     if (!bookingId) return;
     setShowPayment(false);

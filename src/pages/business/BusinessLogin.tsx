@@ -14,8 +14,11 @@ import { Label } from "@/components/ui/label";
 import { useBusinessAuth } from "@/contexts/useBusinessAuth";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  BUSINESS_DEMO_ENABLED,
   BUSINESS_DEMO_EMAIL,
   BUSINESS_DEMO_PASSWORD,
+  endBusinessDemoSession,
+  isBusinessDemoCredentials,
   startBusinessDemoSession,
 } from "@/lib/business-demo";
 import loginBackground from "@/assets/merchant-console/merchant-login-background-v2.png";
@@ -55,12 +58,13 @@ const BusinessLogin = () => {
 
     setLoading(true);
     try {
-      if (
-        import.meta.env.DEV
-        && normalizedEmail === BUSINESS_DEMO_EMAIL
-        && password === BUSINESS_DEMO_PASSWORD
-      ) {
-        startBusinessDemoSession();
+      if (isBusinessDemoCredentials(normalizedEmail, password)) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+          if (signOutError) throw new Error("Could not isolate the sample session. Please try again.");
+        }
+        if (!startBusinessDemoSession()) throw new Error("Sample access is currently unavailable.");
         await refresh(false);
         persistRememberedEmail(normalizedEmail);
         toast.success("Sample merchant workspace opened");
@@ -68,6 +72,7 @@ const BusinessLogin = () => {
         return;
       }
 
+      endBusinessDemoSession();
       const { data, error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
         password,
@@ -84,17 +89,17 @@ const BusinessLogin = () => {
         account = await refresh(false);
       } catch (accountError) {
         console.error("Business account lookup error:", accountError);
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
         toast.error("We could not verify your business access. Please try again.");
         return;
       }
       if (!account) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
         toast.error("This account is not registered as a ViaSetu business.");
         return;
       }
       if (!account.is_active || account.status !== "approved") {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
         toast.error("Your business account is pending approval. Our team will contact you shortly.");
         return;
       }
@@ -114,6 +119,10 @@ const BusinessLogin = () => {
     e.preventDefault();
     const emailCheck = emailSchema.safeParse(email.trim());
     if (!emailCheck.success) { toast.error(emailCheck.error.errors[0].message); return; }
+    if (BUSINESS_DEMO_ENABLED && email.trim().toLowerCase() === BUSINESS_DEMO_EMAIL) {
+      toast.error("The shared sample password cannot be reset.");
+      return;
+    }
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
@@ -199,12 +208,12 @@ const BusinessLogin = () => {
               </p>
             </div>
 
-            {import.meta.env.DEV ? (
+            {BUSINESS_DEMO_ENABLED ? (
               <div className="mb-3.5 rounded-xl border border-[#8bdce4] bg-[linear-gradient(100deg,#e4fafc_0%,#eaf4ff_100%)] p-2.5 text-sm text-[#102a43] shadow-[0_7px_20px_rgba(32,201,215,0.07)]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-bold">Local sample access</p>
-                    <p className="mt-0.5 text-xs text-[#62788a]">Safe local merchant workspace</p>
+                    <p className="font-bold">Sample merchant access</p>
+                    <p className="mt-0.5 text-xs text-[#62788a]">Safe session-only workspace</p>
                   </div>
                   <Button
                     type="button"
@@ -217,7 +226,7 @@ const BusinessLogin = () => {
                       setIsResetMode(false);
                     }}
                   >
-                    Fill sample
+                    Fill demo
                   </Button>
                 </div>
               </div>

@@ -227,6 +227,7 @@ const BusinessDashboard = () => {
     setSelected(b);
     setBoxes([]);
     setCancelBlocked(null);
+    if (isDemo) return;
     setBoxesLoading(true);
     const { data } = await supabase
       .from("booking_boxes")
@@ -238,6 +239,7 @@ const BusinessDashboard = () => {
   };
 
   const refreshSelected = async (bookingId: string) => {
+    if (isDemo) return;
     const { data } = await supabase
       .from("bookings")
       .select(BOOKING_COLUMNS)
@@ -253,6 +255,11 @@ const BusinessDashboard = () => {
 
   const handleCancel = async (reason: Parameters<typeof cancelOrder>[0]["reason"], _waive?: boolean) => {
     if (!selected) return;
+    if (isDemo) {
+      toast({ title: "Sample mode", description: "No courier cancellation was sent." });
+      setCancelOpen(false);
+      return;
+    }
     setCancelBlocked(null);
     const awbs = boxes.map((bx) => bx.tracking_id).filter(Boolean) as string[];
     const fallbackAwb = selected.tracking_id || selected.prayog_awb || null;
@@ -297,6 +304,10 @@ const BusinessDashboard = () => {
     }
     setTrackingBox(bx.id);
     if (trackingEvents[bx.id]) return;
+    if (isDemo) {
+      setTrackingEvents((current) => ({ ...current, [bx.id]: [{ status: "in_transit", event: "Sample parcel is in transit", location: "Pune", createdAt: new Date().toISOString() }] }));
+      return;
+    }
     setTrackingLoading(bx.id);
     try {
       const { data, error } = await supabase.functions.invoke(trackingFunctionFor(key), {
@@ -320,6 +331,10 @@ const BusinessDashboard = () => {
   };
 
   const handleLabel = async (bx: BookingBox) => {
+    if (isDemo) {
+      toast({ title: "Sample mode", description: "No courier label request was sent." });
+      return;
+    }
     if (isFreshLabelUrl(bx.label_url)) {
       window.open(bx.label_url as string, "_blank", "noopener");
       return;
