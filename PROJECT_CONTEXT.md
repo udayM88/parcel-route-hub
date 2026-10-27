@@ -186,6 +186,17 @@ UI/planned or schema-gated (do not claim fully functional yet):
 
 ## Merchant creation and login
 
+### Merchant login visual refresh (local, not pushed)
+
+- On 2026-10-28, `/viasetuforbusinesses` received a responsive ViaSetu merchant-login redesign using the existing exact ViaSetu wordmark, Public Sans Variable, and the project-owned background asset at `src/assets/merchant-console/merchant-login-background-v2.png`.
+- This is a presentation-only change: Supabase authentication, account approval checks, password-reset redirect, development-only sample session, and post-login routing remain unchanged.
+- The desktop layout is constrained to one viewport frame with no nested card scrollbar or horizontal overflow. Mobile uses the natural document scroll and has no horizontal/side scrolling.
+- The final visual pass keeps the generated warehouse scene continuous across the entire desktop instead of introducing a separate pale-blue or dark right panel. The image is softly enlarged, and its readability overlay fades out before the login card so the warehouse remains visible behind it. Mobile extends the hero image farther behind the overlapping form for a natural transition. The compact glass-white form uses cool-grey inputs, a stronger sample-access callout, and a navy-to-teal primary action. Decorative circles and nonessential SVG icons were removed; only the functional password visibility icon remains. No unsupported social-login controls were added.
+- The ViaSetu wordmark is placed inside the login card directly above the “Welcome back” heading on both desktop and mobile; the earlier duplicate logo floating over the hero was removed.
+- The UI adds password visibility and optional remembered-email convenience; only the email address is stored in local storage and the password is never persisted.
+- Validation passed locally: TypeScript, targeted ESLint, Vite production build, and the full merchant Playwright journey. The Playwright login step also asserts that the desktop login route has neither horizontal nor vertical document overflow at 1440x900.
+- These login-page changes have not yet been committed, pushed, or deployed.
+
 Production merchants should be created from the official admin flow:
 
 1. Sign in at `/admin/login` with a `super_admin` or `operations` account.

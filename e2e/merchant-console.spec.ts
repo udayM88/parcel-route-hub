@@ -3,10 +3,32 @@ import { expect, test } from "@playwright/test";
 const base = "http://127.0.0.1:4174/viasetuforbusinesses";
 
 test("local merchant sample keeps writes isolated and core screens usable", async ({ page }) => {
+  const loginConsoleErrors: string[] = [];
+  const loginPageErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") loginConsoleErrors.push(message.text());
+  });
+  page.on("pageerror", (error) => loginPageErrors.push(error.message));
+
   await page.goto(base);
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  const loginViewport = await page.evaluate(() => ({
+    hasHorizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,
+    hasVerticalOverflow: document.documentElement.scrollHeight > window.innerHeight,
+  }));
+  expect(loginViewport).toEqual({
+    hasHorizontalOverflow: false,
+    hasVerticalOverflow: false,
+  });
+  const relevantLoginConsoleErrors = loginConsoleErrors.filter(
+    (message) => !message.includes("net::ERR_NETWORK_ACCESS_DENIED"),
+  );
+  expect(relevantLoginConsoleErrors).toEqual([]);
+  expect(loginPageErrors).toEqual([]);
   await page.getByLabel("Work Email").fill("demo@viasetu.local");
-  await page.getByLabel("Password").fill("Demo@1234");
-  await page.getByRole("button", { name: "Sign In" }).click();
+  await page.getByLabel("Password", { exact: true }).fill("Demo@1234");
+  await page.getByRole("button", { name: "Sign in securely", exact: true }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole("heading", { name: /Sample Merchant/ })).toBeVisible();
 
