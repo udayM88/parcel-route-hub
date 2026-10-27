@@ -6,6 +6,7 @@ import {
   buildOrderMonitoringWorkbook,
   filterOrderMonitoringBookings,
   hasInvalidOrderMonitoringDateRange,
+  isPickupCompletionEvent,
   type OrderMonitoringBooking,
 } from "./order-monitoring-export";
 
@@ -91,6 +92,15 @@ describe("order monitoring Excel export", () => {
     }), []);
   });
 
+  test("accepts completed pickup scans but rejects pickup attempts", () => {
+    assert.equal(isPickupCompletionEvent("Shipment picked up", null), true);
+    assert.equal(isPickupCompletionEvent("PICKUP_DONE", null), true);
+    assert.equal(isPickupCompletionEvent("Unknown", "PU"), true);
+    assert.equal(isPickupCompletionEvent("Out for pickup", null), false);
+    assert.equal(isPickupCompletionEvent("Pickup attempt failed", "PND"), false);
+    assert.equal(isPickupCompletionEvent("Not picked up", null), false);
+  });
+
   test("creates a typed, filterable workbook without raw private diagnostics", async () => {
     const row: OrderMonitoringBooking = {
       id: "6a5dcb83-1111-2222-3333-123456789012",
@@ -103,6 +113,7 @@ describe("order monitoring Excel export", () => {
       courier_name: "Test Courier",
       created_at: "2026-10-23T10:15:00+05:30",
       updated_at: "2026-10-23T11:30:00+05:30",
+      pickup_date: "2026-10-24T09:00:00+05:30",
       sender_name: "Sender",
       sender_phone: "09876543210",
       sender_address: "Pickup address",
@@ -150,20 +161,41 @@ describe("order monitoring Excel export", () => {
       generatedAt: new Date("2026-10-23T12:00:00+05:30"),
       generatedBy: "ops@viasetu.com",
     });
-    const workbook = XLSX.read(await blob.arrayBuffer(), { cellDates: true });
+    const workbook = XLSX.read(await blob.arrayBuffer(), { cellDates: true, cellStyles: true });
     const sheet = workbook.Sheets.Orders;
 
     assert.equal(sheet.A1.v, "ViaSetu Order Monitoring Report");
     assert.equal(sheet.A9.v, "Order ID");
+    assert.equal(sheet.B9.v, "AWB Number");
+    assert.equal(sheet.D9.v, "Order Date & Time");
+    assert.equal(sheet.E9.v, "Pickup Date & Time");
+    assert.equal(sheet.F9.v, "Estimated Delivery (Shown at Booking)");
+    assert.equal(sheet.G9.v, "Parcel Amount (INR)");
     assert.equal(sheet.A10.v, row.id);
-    assert.equal(sheet.O10.v, "001234");
-    assert.equal(sheet.O10.t, "s");
-    assert.equal(sheet.X10.v, 1.25);
-    assert.equal(sheet.AL10.v, 118);
-    assert.equal(sheet.AM10.v, 60);
-    assert.equal(sheet.AN10.v, 40);
+    assert.equal(sheet.B10.v, "AWB-500");
+    assert.equal(sheet.D10.v instanceof Date, true);
+    assert.equal(sheet.E10.v instanceof Date, true);
+    assert.equal(sheet.F10.v, "2-3 days");
+    assert.equal(sheet.G10.v, 118);
+    assert.equal(sheet.B9.s?.fgColor?.rgb, "0F8F95");
+    assert.equal(sheet.G10.s?.fgColor?.rgb, "E8F5EE");
+    assert.equal(sheet.R10.v, "001234");
+    assert.equal(sheet.R10.t, "s");
+    assert.equal(sheet.AA10.v, 1.25);
+    assert.equal(sheet.AI10.v, 500);
+    assert.equal(sheet.AN10.v, 60);
+    assert.equal(sheet.AO10.v, 40);
     assert.equal(sheet.D7.v, 1);
-    assert.equal(sheet["!autofilter"]?.ref, "A9:AX10");
+    assert.equal(sheet["!autofilter"]?.ref, "A9:AY10");
+
+    const summary = workbook.Sheets.Summary;
+    assert.equal(summary.A10.v, "Total orders");
+    assert.equal(summary.B10.v, 1);
+    assert.equal(summary.A12.v, "Orders with pickup scan");
+    assert.equal(summary.B12.v, 1);
+    assert.equal(summary.A13.v, "Total parcel amount (INR)");
+    assert.equal(summary.B13.v, 118);
+    assert.equal(summary.A1.s?.fgColor?.rgb, "102A43");
 
     const headers = XLSX.utils.sheet_to_json<string[]>(sheet, {
       header: 1,
@@ -172,5 +204,19 @@ describe("order monitoring Excel export", () => {
     })[0];
     assert.equal(headers.includes("Partner Error Raw"), false);
     assert.equal(headers.includes("Label URL"), false);
+  });
+
+  test("leaves pickup date blank when no pickup scan was recorded", async () => {
+    const blob = buildOrderMonitoringWorkbook([bookings[1]], {
+      searchTerm: "",
+      statusFilter: "all",
+      view: "all",
+      generatedAt: new Date("2026-10-27T09:00:00+05:30"),
+    });
+    const workbook = XLSX.read(await blob.arrayBuffer(), { cellDates: true });
+    const sheet = workbook.Sheets.Orders;
+
+    assert.equal(sheet.D10.v instanceof Date, true);
+    assert.equal(sheet.E10.v, "");
   });
 });

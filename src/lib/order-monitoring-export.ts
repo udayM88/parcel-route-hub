@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import * as XLSX from "xlsx";
+import XLSX from "xlsx-js-style";
 
 import { bookingFinancials } from "./booking-financials";
 import { bucketOfStatus } from "./booking-status";
@@ -24,6 +24,7 @@ export interface OrderMonitoringBooking {
   courier_name?: string | null;
   created_at: string;
   updated_at?: string | null;
+  pickup_date?: string | null;
   sender_name?: string | null;
   sender_phone?: string | null;
   sender_address?: string | null;
@@ -89,14 +90,17 @@ const IN_TRANSIT_BUCKETS = new Set([
 
 const HEADERS = [
   "Order ID",
-  "Tracking ID / AWB",
+  "AWB Number",
   "Partner Order ID",
-  "Created At",
-  "Last Updated",
+  "Order Date & Time",
+  "Pickup Date & Time",
+  "Estimated Delivery (Shown at Booking)",
+  "Parcel Amount (INR)",
   "Order Status",
   "Payment Status",
   "Booking Source",
   "Courier Partner",
+  "Last Updated",
   "Sender Name",
   "Sender Phone",
   "Sender Address",
@@ -119,13 +123,11 @@ const HEADERS = [
   "Width (cm)",
   "Height (cm)",
   "Urgency",
-  "Estimated Delivery",
-  "Declared Value (INR)",
+  "Declared Parcel Value (INR)",
   "Insurance Required",
   "Packaging Required",
   "Parcel Count",
   "Photo Count",
-  "Total Amount (INR)",
   "Courier Cost from Saved Order (INR)",
   "Platform Revenue excl. GST (INR)",
   "GST (INR)",
@@ -143,6 +145,28 @@ const HEADERS = [
 const HEADER_ROW = 9;
 const MONEY_FORMAT = '#,##0.00;[Red](#,##0.00);"-"';
 const NUMBER_FORMAT = "0.00";
+const COLORS = {
+  navy: "102A43",
+  navySoft: "DCE8F5",
+  teal: "0F8F95",
+  cyan: "20C9D7",
+  cyanSoft: "E8FAFB",
+  green: "1F7A4D",
+  greenSoft: "E8F5EE",
+  amberSoft: "FFF5DB",
+  white: "FFFFFF",
+  ink: "10233F",
+  muted: "52606D",
+  grid: "C9D7E3",
+  stripe: "F7FAFC",
+} as const;
+
+const thinBorder = {
+  top: { style: "thin", color: { rgb: COLORS.grid } },
+  right: { style: "thin", color: { rgb: COLORS.grid } },
+  bottom: { style: "thin", color: { rgb: COLORS.grid } },
+  left: { style: "thin", color: { rgb: COLORS.grid } },
+};
 
 function startOfLocalDay(date: Date): number {
   const value = new Date(date);
@@ -158,6 +182,22 @@ function endOfLocalDay(date: Date): number {
 
 export function hasInvalidOrderMonitoringDateRange(dateFrom?: Date, dateTo?: Date): boolean {
   return Boolean(dateFrom && dateTo && startOfLocalDay(dateFrom) > endOfLocalDay(dateTo));
+}
+
+export function isPickupCompletionEvent(rawStatus?: string | null, rawCode?: string | null): boolean {
+  if (String(rawCode || "").trim().toUpperCase() === "PU") return true;
+
+  const status = String(rawStatus || "")
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+  if (!status.includes("pick")) return false;
+  if (/(not|no) picked|out for pick|pick ?up attempt|attempt.*pick|pick.*fail|fail.*pick|pick.*pending|pending.*pick|pick.*cancel|cancel.*pick|pick.*scheduled|scheduled.*pick/.test(status)) {
+    return false;
+  }
+
+  return /picked up|pick ?up (done|complete|completed|success|successful)/.test(status);
 }
 
 function matchesStatus(booking: OrderMonitoringBooking, statusFilter: OrderMonitoringStatusFilter): boolean {
@@ -284,11 +324,14 @@ function orderRow(booking: OrderMonitoringBooking): Array<string | number | Date
     text(booking.prayog_awb || booking.tracking_id),
     text(booking.prayog_order_id),
     validDate(booking.created_at),
-    validDate(booking.updated_at),
+    validDate(booking.pickup_date),
+    text(booking.delivery_time),
+    numberOrBlank(booking.courier_price),
     titleCase(booking.status, "Pending"),
     titleCase(booking.payment_status),
     text(booking.booking_source),
     text(booking.courier_name),
+    validDate(booking.updated_at),
     text(booking.sender_name),
     text(booking.sender_phone),
     text(booking.sender_address),
@@ -311,13 +354,11 @@ function orderRow(booking: OrderMonitoringBooking): Array<string | number | Date
     numberOrBlank(booking.width),
     numberOrBlank(booking.height),
     titleCase(booking.urgency),
-    text(booking.delivery_time),
     numberOrBlank(booking.shipment_value),
     yesNo(booking.insurance_required),
     yesNo(booking.packaging_required),
     numberOrBlank(booking.box_count),
     photoCount,
-    numberOrBlank(booking.courier_price),
     financials.courierCost,
     financials.platformRevenue,
     numberOrBlank(booking.gst),
@@ -346,7 +387,7 @@ export function buildOrderMonitoringWorkbook(
     ["Status filter", statusFilterLabel(options.statusFilter)],
     ["Date range", dateRangeLabel(options.dateFrom, options.dateTo)],
     ["Search", options.searchTerm.trim() || "None", "Order count", rows.length],
-    [],
+    ["Pickup date source: earliest recorded pickup scan; blank when no pickup scan is available"],
     [...HEADERS],
     ...rows.map(orderRow),
   ];
@@ -355,7 +396,10 @@ export function buildOrderMonitoringWorkbook(
   const lastColumn = XLSX.utils.encode_col(HEADERS.length - 1);
   const lastRow = Math.max(HEADER_ROW, HEADER_ROW + rows.length);
 
-  worksheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: HEADERS.length - 1 } }];
+  worksheet["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: HEADERS.length - 1 } },
+    { s: { r: 7, c: 0 }, e: { r: 7, c: HEADERS.length - 1 } },
+  ];
   worksheet["!autofilter"] = { ref: `A${HEADER_ROW}:${lastColumn}${lastRow}` };
   worksheet["!cols"] = HEADERS.map((header) => {
     if (header.includes("Address")) return { wch: 34 };
@@ -365,44 +409,194 @@ export function buildOrderMonitoringWorkbook(
     if (header.includes("Amount") || header.includes("Revenue") || header.includes("Cost")) return { wch: 22 };
     return { wch: Math.min(Math.max(header.length + 2, 14), 24) };
   });
+  worksheet["!rows"] = [
+    { hpt: 30 },
+    { hpt: 21 },
+    { hpt: 21 },
+    { hpt: 21 },
+    { hpt: 21 },
+    { hpt: 21 },
+    { hpt: 21 },
+    { hpt: 25 },
+    { hpt: 42 },
+    ...rows.map(() => ({ hpt: 30 })),
+  ];
   (worksheet as XLSX.WorkSheet & { "!freeze"?: { xSplit: number; ySplit: number } })["!freeze"] = {
-    xSplit: 0,
+    xSplit: 2,
     ySplit: HEADER_ROW,
   };
 
   if (worksheet.B2) worksheet.B2.z = "dd mmm yyyy hh:mm";
+  const dateColumns = new Set(["Order Date & Time", "Pickup Date & Time", "Last Updated"]);
+  const numberColumns = new Set([
+    "Package Weight (kg)",
+    "Dead Weight (kg)",
+    "Volumetric Weight (kg)",
+    "Chargeable Weight (kg)",
+    "Length (cm)",
+    "Width (cm)",
+    "Height (cm)",
+  ]);
+  const moneyColumns = new Set([
+    "Parcel Amount (INR)",
+    "Declared Parcel Value (INR)",
+    "Courier Cost from Saved Order (INR)",
+    "Platform Revenue excl. GST (INR)",
+    "GST (INR)",
+    "Packaging Amount (INR)",
+    "Insurance Amount (INR)",
+    "Cancellation Fee (INR)",
+    "Refund Amount (INR)",
+  ]);
   for (let row = HEADER_ROW + 1; row <= lastRow; row += 1) {
-    ["D", "E"].forEach((column) => {
-      const cell = worksheet[`${column}${row}`];
-      if (cell) cell.z = "dd mmm yyyy hh:mm";
-    });
-    ["X", "Y", "Z", "AA", "AB", "AC", "AD"].forEach((column) => {
-      const cell = worksheet[`${column}${row}`];
-      if (cell) cell.z = NUMBER_FORMAT;
-    });
-    ["AG", "AL", "AM", "AN", "AO", "AP", "AQ", "AU", "AV"].forEach((column) => {
-      const cell = worksheet[`${column}${row}`];
-      if (cell) cell.z = MONEY_FORMAT;
+    HEADERS.forEach((header, columnIndex) => {
+      const cell = worksheet[XLSX.utils.encode_cell({ r: row - 1, c: columnIndex })];
+      if (!cell) return;
+      if (dateColumns.has(header)) cell.z = "dd mmm yyyy hh:mm";
+      else if (numberColumns.has(header)) cell.z = NUMBER_FORMAT;
+      else if (moneyColumns.has(header)) cell.z = MONEY_FORMAT;
+
+      const isPrimary = columnIndex <= 6;
+      const isAmount = header === "Parcel Amount (INR)";
+      const fill = isAmount
+        ? COLORS.greenSoft
+        : isPrimary
+          ? (row % 2 === 0 ? COLORS.cyanSoft : "F2FCFC")
+          : (row % 2 === 0 ? COLORS.stripe : COLORS.white);
+      cell.s = {
+        fill: { patternType: "solid", fgColor: { rgb: fill } },
+        font: {
+          color: { rgb: COLORS.ink },
+          bold: header === "AWB Number" || isAmount,
+        },
+        alignment: {
+          vertical: "top",
+          wrapText: header.includes("Address") || header.includes("Reason") || header.includes("Review"),
+        },
+        border: thinBorder,
+      };
     });
   }
 
   const titleCell = worksheet.A1;
   if (titleCell) {
-    titleCell.s = { font: { bold: true, sz: 16, color: { rgb: "16324F" } } };
+    titleCell.s = {
+      font: { bold: true, sz: 17, color: { rgb: COLORS.white } },
+      fill: { patternType: "solid", fgColor: { rgb: COLORS.navy } },
+      alignment: { vertical: "center", horizontal: "left" },
+      border: thinBorder,
+    };
+  }
+  for (let metadataRow = 2; metadataRow <= 7; metadataRow += 1) {
+    for (let column = 0; column < 4; column += 1) {
+      const cell = worksheet[XLSX.utils.encode_cell({ r: metadataRow - 1, c: column })];
+      if (!cell) continue;
+      const isLabel = column % 2 === 0;
+      cell.s = {
+        font: { bold: isLabel, color: { rgb: isLabel ? COLORS.navy : COLORS.ink } },
+        fill: { patternType: "solid", fgColor: { rgb: isLabel ? COLORS.navySoft : COLORS.white } },
+        alignment: { vertical: "center" },
+        border: thinBorder,
+      };
+    }
+  }
+  const pickupSourceCell = worksheet.A8;
+  if (pickupSourceCell) {
+    pickupSourceCell.s = {
+      font: { italic: true, bold: true, color: { rgb: COLORS.navy } },
+      fill: { patternType: "solid", fgColor: { rgb: COLORS.amberSoft } },
+      alignment: { vertical: "center", horizontal: "left" },
+      border: thinBorder,
+    };
   }
   HEADERS.forEach((_, columnIndex) => {
     const cell = worksheet[XLSX.utils.encode_cell({ r: HEADER_ROW - 1, c: columnIndex })];
     if (cell) {
+      const isPrimaryHeader = columnIndex <= 6;
       cell.s = {
         font: { bold: true, color: { rgb: "FFFFFF" } },
-        fill: { fgColor: { rgb: "16324F" } },
-        alignment: { vertical: "center", wrapText: true },
+        fill: { patternType: "solid", fgColor: { rgb: isPrimaryHeader ? COLORS.teal : COLORS.navy } },
+        alignment: { vertical: "center", horizontal: "center", wrapText: true },
+        border: {
+          top: { style: "medium", color: { rgb: isPrimaryHeader ? COLORS.cyan : COLORS.navy } },
+          right: { style: "thin", color: { rgb: COLORS.white } },
+          bottom: { style: "medium", color: { rgb: COLORS.cyan } },
+          left: { style: "thin", color: { rgb: COLORS.white } },
+        },
       };
     }
   });
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
+
+  const statusCounts = new Map<string, number>();
+  rows.forEach((row) => {
+    const status = titleCase(row.status, "Pending");
+    statusCounts.set(status, (statusCounts.get(status) || 0) + 1);
+  });
+  const summary = XLSX.utils.aoa_to_sheet([
+    ["ViaSetu Order Export Summary"],
+    ["Generated at", generatedAt],
+    ["Generated by", options.generatedBy || "admin"],
+    ["Current view", viewLabel(options.view)],
+    ["Status filter", statusFilterLabel(options.statusFilter)],
+    ["Date range", dateRangeLabel(options.dateFrom, options.dateTo)],
+    ["Search", options.searchTerm.trim() || "None"],
+    [],
+    ["Operational Summary", "Value"],
+    ["Total orders", rows.length],
+    ["Orders with AWB", rows.filter((row) => Boolean(row.prayog_awb || row.tracking_id)).length],
+    ["Orders with pickup scan", rows.filter((row) => Boolean(row.pickup_date)).length],
+    ["Total parcel amount (INR)", rows.reduce((sum, row) => sum + (Number(row.courier_price) || 0), 0)],
+    [],
+    ["Status Breakdown", "Orders"],
+    ...Array.from(statusCounts.entries()).sort(([a], [b]) => a.localeCompare(b)),
+  ], { cellDates: true });
+  summary["!cols"] = [{ wch: 32 }, { wch: 28 }];
+  summary["!rows"] = [
+    { hpt: 30 },
+    { hpt: 22 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 },
+    { hpt: 12 },
+    { hpt: 26 },
+  ];
+  summary["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+  if (summary.B2) summary.B2.z = "dd mmm yyyy hh:mm";
+  if (summary.B13) summary.B13.z = MONEY_FORMAT;
+  const summaryRange = XLSX.utils.decode_range(summary["!ref"] || "A1:B1");
+  for (let row = summaryRange.s.r; row <= summaryRange.e.r; row += 1) {
+    for (let column = summaryRange.s.c; column <= summaryRange.e.c; column += 1) {
+      const cell = summary[XLSX.utils.encode_cell({ r: row, c: column })];
+      if (!cell) continue;
+      const isTitle = row === 0;
+      const isSectionHeader = row === 8 || row === 14;
+      const isMoneyTotal = row === 12;
+      cell.s = {
+        font: {
+          bold: isTitle || isSectionHeader || column === 0 || isMoneyTotal,
+          sz: isTitle ? 17 : 11,
+          color: { rgb: isTitle || isSectionHeader ? COLORS.white : isMoneyTotal ? COLORS.green : COLORS.ink },
+        },
+        fill: {
+          patternType: "solid",
+          fgColor: {
+            rgb: isTitle
+              ? COLORS.navy
+              : isSectionHeader
+                ? COLORS.teal
+                : isMoneyTotal
+                  ? COLORS.greenSoft
+                  : row % 2 === 0
+                    ? COLORS.stripe
+                    : COLORS.white,
+          },
+        },
+        alignment: { vertical: "center", wrapText: true },
+        border: thinBorder,
+      };
+    }
+  }
+  XLSX.utils.book_append_sheet(workbook, summary, "Summary");
   workbook.Props = {
     Title: "ViaSetu Order Monitoring Report",
     Subject: `${viewLabel(options.view)} - ${dateRangeLabel(options.dateFrom, options.dateTo)}`,

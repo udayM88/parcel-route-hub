@@ -30,6 +30,7 @@ import {
   downloadOrderMonitoringWorkbook,
   filterOrderMonitoringBookings,
   hasInvalidOrderMonitoringDateRange,
+  isPickupCompletionEvent,
   type OrderMonitoringStatusFilter,
   type OrderMonitoringView,
 } from "@/lib/order-monitoring-export";
@@ -43,6 +44,43 @@ import { isFreshLabelUrl } from "@/lib/label-url";
 // so we must not rely on booking_source alone.
 const partnerKeyOf = (b: { partner_id?: string | null; booking_source?: string | null; courier_name?: string | null }) =>
   resolvePartnerKey(b.partner_id, `${b.booking_source || ""} ${b.courier_name || ""}`);
+
+const PICKUP_EVENT_BATCH_SIZE = 150;
+const PICKUP_EVENT_PAGE_SIZE = 1000;
+
+async function fetchPickupDates(bookingIds: string[]): Promise<Map<string, string>> {
+  const pickupDates = new Map<string, string>();
+  const uniqueIds = Array.from(new Set(bookingIds.filter(Boolean)));
+
+  for (let batchStart = 0; batchStart < uniqueIds.length; batchStart += PICKUP_EVENT_BATCH_SIZE) {
+    const batch = uniqueIds.slice(batchStart, batchStart + PICKUP_EVENT_BATCH_SIZE);
+
+    for (let pageStart = 0; ; pageStart += PICKUP_EVENT_PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from("shipment_status_events")
+        .select("booking_id,event_time,raw_status,raw_code")
+        .in("booking_id", batch)
+        .or("raw_status.ilike.%pick%,raw_code.eq.PU")
+        .order("event_time", { ascending: true })
+        .range(pageStart, pageStart + PICKUP_EVENT_PAGE_SIZE - 1);
+
+      if (error) throw error;
+      for (const event of data || []) {
+        if (
+          event.booking_id
+          && event.event_time
+          && !pickupDates.has(event.booking_id)
+          && isPickupCompletionEvent(event.raw_status, event.raw_code)
+        ) {
+          pickupDates.set(event.booking_id, event.event_time);
+        }
+      }
+      if (!data || data.length < PICKUP_EVENT_PAGE_SIZE) break;
+    }
+  }
+
+  return pickupDates;
+}
 
 
 interface Booking {
@@ -75,6 +113,7 @@ interface Booking {
   packaging_required: boolean | null;
   created_at: string;
   updated_at: string;
+  pickup_date?: string | null;
   length: string | null;
   width: string | null;
   height: string | null;
@@ -252,14 +291,29 @@ const OrderMonitoring = () => {
         return;
       }
 
-      const filename = downloadOrderMonitoringWorkbook(exportRows, {
+      let pickupDates = new Map<string, string>();
+      let pickupDatesUnavailable = false;
+      try {
+        pickupDates = await fetchPickupDates(exportRows.map((booking) => booking.id));
+      } catch (pickupError) {
+        pickupDatesUnavailable = true;
+        console.warn("Could not load pickup scans for the order export", pickupError);
+      }
+
+      const enrichedRows = exportRows.map((booking) => ({
+        ...booking,
+        pickup_date: pickupDates.get(booking.id) || null,
+      }));
+      const filename = downloadOrderMonitoringWorkbook(enrichedRows, {
         ...sharedFilters,
         view: activeTab,
         generatedBy: adminUser?.email,
       });
       toast({
         title: "Excel report downloaded",
-        description: `${exportRows.length.toLocaleString()} orders saved as ${filename}.`,
+        description: pickupDatesUnavailable
+          ? `${exportRows.length.toLocaleString()} orders saved as ${filename}. Pickup scan dates could not be loaded, so those cells are blank.`
+          : `${exportRows.length.toLocaleString()} orders saved as ${filename}.`,
       });
     } catch (error: unknown) {
       toast({

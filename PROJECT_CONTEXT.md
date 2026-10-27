@@ -1,6 +1,6 @@
 # ViaSetu Project Context and Handoff
 
-Last updated: 2026-10-22 (Asia/Kolkata)
+Last updated: 2026-10-27 (Asia/Kolkata)
 
 This file is the persistent project handoff. Read it before making changes and update it after any material feature, database, architecture, deployment, or operational change. Do not store passwords, service-role keys, OAuth tokens, customer PII, or other secrets here.
 
@@ -142,8 +142,12 @@ An additive admin reporting update was implemented on 2026-10-23 without a datab
 - The Excel export applies the current All/Active/Completed tab, search term, status filter, and inclusive From/To date range.
 - The interactive table remains capped at the latest 1,000 orders for responsiveness, while export fetches all matching booked orders from Supabase in stable 1,000-row batches. A visible 100,000-row safety limit fails explicitly instead of producing a partial report.
 - The workbook contains typed dates, numeric weights and amounts, text-safe IDs/pincodes, operational shipment fields, and the shared saved-order financial breakdown. It excludes raw partner error payloads, private label URLs, payment-link URLs, and other internal diagnostics.
+- The 2026-10-27 workbook refinement places the five primary fulfilment fields first: AWB number, order date/time, pickup date/time, the exact estimated-delivery text saved when the booking was made, and parcel amount. `courier_price` remains the authoritative parcel amount charged; `shipment_value` is retained separately as declared parcel value.
+- Pickup date/time is resolved read-only from the earliest recorded pickup scan in `shipment_status_events` (pickup wording or `PU` code). It is never guessed from the order date. Historical rows without a pickup scan remain blank and the workbook explains that source explicitly.
+- The download now includes a compact Summary sheet (order/AWB/pickup counts, total parcel amount, and status breakdown), freezes the identifying columns/header, uses typed date/money/measurement cells, and keeps the detailed Orders sheet filterable with practical column widths.
+- The 2026-10-27 styling pass uses `xlsx-js-style` so ViaSetu navy/teal header fills, highlighted core columns, green amount cells, alternating row fills, visible grid borders, wrapped long text, and styled metadata/summary blocks are written into the actual downloaded workbook rather than existing only as in-memory style hints.
 - Reversed date ranges are shown as invalid and cannot be exported.
-- Verification passed: TypeScript, focused export tests (4/4), targeted lint for the new export module/tests, and the Vite production build. The existing Order Monitoring file retains its prior 12 `no-explicit-any` errors and one hook-dependency warning; this update did not add a new page-level lint finding.
+- Verification passed after the 2026-10-27 refinement: TypeScript, focused export tests (6/6), targeted lint for the export module/tests, `git diff --check`, and the Vite production build. The existing Order Monitoring file retains its prior 12 `no-explicit-any` errors and one hook-dependency warning; this update did not add a new page-level lint finding.
 
 ## Functional versus planned modules
 
