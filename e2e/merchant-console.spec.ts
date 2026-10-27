@@ -19,7 +19,8 @@ test("merchant sample keeps writes isolated and core screens usable", async ({ p
 
   await page.goto(base);
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
-  await expect(page.getByText("Sample merchant access", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Sample merchant access|Local sample access/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Fill (demo|sample)/ })).toHaveCount(0);
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   const loginViewport = await page.evaluate(() => ({
     hasHorizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,

@@ -16,7 +16,6 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   BUSINESS_DEMO_ENABLED,
   BUSINESS_DEMO_EMAIL,
-  BUSINESS_DEMO_PASSWORD,
   endBusinessDemoSession,
   isBusinessDemoCredentials,
   startBusinessDemoSession,
@@ -207,30 +206,6 @@ const BusinessLogin = () => {
                   : "Sign in to continue to your merchant workspace."}
               </p>
             </div>
-
-            {BUSINESS_DEMO_ENABLED ? (
-              <div className="mb-3.5 rounded-xl border border-[#8bdce4] bg-[linear-gradient(100deg,#e4fafc_0%,#eaf4ff_100%)] p-2.5 text-sm text-[#102a43] shadow-[0_7px_20px_rgba(32,201,215,0.07)]">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-bold">Sample merchant access</p>
-                    <p className="mt-0.5 text-xs text-[#62788a]">Safe session-only workspace</p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 rounded-lg border-[#0b919c] bg-[#0b919c] px-3 text-xs font-bold text-white shadow-sm hover:bg-[#087f8d] hover:text-white"
-                    onClick={() => {
-                      setEmail(BUSINESS_DEMO_EMAIL);
-                      setPassword(BUSINESS_DEMO_PASSWORD);
-                      setIsResetMode(false);
-                    }}
-                  >
-                    Fill demo
-                  </Button>
-                </div>
-              </div>
-            ) : null}
 
             <form onSubmit={isResetMode ? handleForgotPassword : handleLogin} className="space-y-3.5">
               <div className="space-y-2">

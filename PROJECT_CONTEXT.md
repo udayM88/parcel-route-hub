@@ -212,6 +212,8 @@ The public sample credentials are:
 
 They open a browser-tab-only sample session and never authenticate as a Supabase user. Production demo access is enabled by default and can be disabled immediately by setting `VITE_ENABLE_BUSINESS_DEMO=false` before the production build.
 
+The public login keeps the sample credentials operational without advertising a separate sample-access card or autofill button. Visitors see the same clean merchant login form and can enter either approved merchant credentials or the documented sample credentials manually.
+
 ### Production demo-session safety
 
 - The public sample credential path is a client-side preview only; it does not create an Auth user, business account, payment, shipment, API key, support record, address, webhook, or other database row.
