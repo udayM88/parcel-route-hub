@@ -15,7 +15,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 import {
   Bold, Italic, UnderlineIcon, Strikethrough, List, ListOrdered, Quote,
   Link as LinkIcon, Image as ImageIcon, Undo, Redo, Code, Code2,
@@ -34,8 +33,6 @@ const COLORS = ['#000000', '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4'
 
 export default function RichTextEditor({ value, onChange, onInsertImage }: Props) {
   const onChangeRef = useRef(onChange);
-  const editorRef = useRef<HTMLDivElement>(null);
-  const toolbarSentinelRef = useRef<HTMLDivElement>(null);
   const [, refreshToolbar] = useState(0);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
@@ -62,22 +59,6 @@ export default function RichTextEditor({ value, onChange, onInsertImage }: Props
   const [linkUrl, setLinkUrl] = useState('');
   const [linkNewTab, setLinkNewTab] = useState(true);
   const [colorOpen, setColorOpen] = useState(false);
-  const [toolbarStuck, setToolbarStuck] = useState(false);
-
-  useEffect(() => {
-    const sentinel = toolbarSentinelRef.current;
-    const editorElement = editorRef.current;
-    if (!sentinel || !editorElement) return;
-
-    const observer = new IntersectionObserver(([entry]) => {
-      if (!entry) return;
-      const editorBottom = editorElement.getBoundingClientRect().bottom;
-      setToolbarStuck(!entry.isIntersecting && entry.boundingClientRect.top < 64 && editorBottom > 128);
-    }, { rootMargin: '-64px 0px 0px 0px', threshold: 1 });
-
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, []);
 
   // Sync external value changes (e.g., initial DB load) without ever wiping
   // the user's in-progress edits on re-renders or window focus changes.
@@ -146,9 +127,8 @@ export default function RichTextEditor({ value, onChange, onInsertImage }: Props
   };
 
   return (
-    <div ref={editorRef} className="border rounded-md bg-background cms-editor isolate">
-      <div ref={toolbarSentinelRef} className="cms-toolbar-sentinel" aria-hidden="true" />
-      <div className={cn('cms-toolbar sticky top-16 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90', toolbarStuck && 'cms-toolbar--stuck')}>
+    <div className="border rounded-md bg-background cms-editor isolate overflow-hidden">
+      <div className="cms-toolbar relative z-10 border-b bg-background">
        <div className="cms-toolbar-scroll flex items-center gap-0.5 p-2">
         <Select value={headingValue} onValueChange={setHeading}>
           <SelectTrigger className="h-9 w-[112px] shrink-0 text-xs sm:h-8"><SelectValue /></SelectTrigger>
@@ -212,7 +192,9 @@ export default function RichTextEditor({ value, onChange, onInsertImage }: Props
         </div>
        </div>
       </div>
-      <EditorContent editor={editor} />
+      <div className="cms-editor-scroll" aria-label="Blog content writing area">
+        <EditorContent editor={editor} />
+      </div>
 
       <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
         <DialogContent className="sm:max-w-md">

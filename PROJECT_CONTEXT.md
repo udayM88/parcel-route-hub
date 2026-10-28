@@ -229,6 +229,7 @@ The public login keeps the sample credentials operational without advertising a 
 - All decorative, looping, hover-scale, floating, pulsing, and entrance motion is disabled while the user is on `/admin/cms` or a nested CMS route.
 - Functional loading and save indicators keep their spinner animation so asynchronous state remains understandable.
 - The reduced-motion class is applied and cleaned up by `AdminLayout`; public pages and non-CMS Admin/Ops routes are not changed.
+- The rich-text toolbar stays inside the editor instead of sticking beneath the global Admin header. Blog content scrolls in a dedicated, height-bounded writing area, preventing text from sliding underneath the toolbar or appearing to disappear during page scroll.
 
 ## Verification performed for release `4d62dcf`
 

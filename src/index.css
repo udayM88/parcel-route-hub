@@ -912,20 +912,19 @@ All colors MUST be HSL.
 .cms-content mark { background: #fef08a; padding: 0 0.15em; border-radius: 2px; }
 .cms-content [style*="text-align"] { display: block; }
 .cms-editor { position: relative; }
-.cms-toolbar-sentinel { height: 1px; margin-bottom: -1px; }
-.cms-toolbar {
-  transition: box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
-}
-.cms-toolbar--stuck {
-  border-color: hsl(var(--border));
-  box-shadow: 0 8px 18px -14px hsl(var(--foreground) / 0.45);
-}
 .cms-toolbar-scroll {
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
+}
+.cms-editor-scroll {
+  min-height: 400px;
+  max-height: min(65dvh, 760px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .cms-editor .ProseMirror {
   min-height: 400px;
@@ -944,12 +943,8 @@ All colors MUST be HSL.
 }
 
 @media (max-width: 767px) {
-  .cms-toolbar { top: 3.5rem; }
+  .cms-editor-scroll { min-height: 55dvh; max-height: 65dvh; }
   .cms-editor .ProseMirror { min-height: 55dvh; padding: 0.875rem; font-size: 1rem; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cms-toolbar { transition: none; }
 }
 
 /*
