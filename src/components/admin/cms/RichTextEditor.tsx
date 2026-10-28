@@ -45,7 +45,7 @@ export default function RichTextEditor({ value, onChange, onInsertImage }: Props
       Image,
       Placeholder.configure({ placeholder: 'Write your content...' }),
       TextStyle,
-      Color,
+      Color.configure({ types: ['textStyle'] }),
       Highlight.configure({ multicolor: false }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
     ],
@@ -59,6 +59,7 @@ export default function RichTextEditor({ value, onChange, onInsertImage }: Props
   const [linkUrl, setLinkUrl] = useState('');
   const [linkNewTab, setLinkNewTab] = useState(true);
   const [colorOpen, setColorOpen] = useState(false);
+  const colorSelectionRef = useRef<{ from: number; to: number } | null>(null);
 
   // Sync external value changes (e.g., initial DB load) without ever wiping
   // the user's in-progress edits on re-renders or window focus changes.
@@ -126,6 +127,42 @@ export default function RichTextEditor({ value, onChange, onInsertImage }: Props
     else editor.chain().focus().toggleHeading({ level: Number(v.slice(1)) as 1 | 2 | 3 | 4 | 5 | 6 }).run();
   };
 
+  const handleColorOpenChange = (open: boolean) => {
+    if (open) {
+      const { from, to } = editor.state.selection;
+      colorSelectionRef.current = { from, to };
+    }
+    setColorOpen(open);
+  };
+
+  const applyTextColor = (color?: string) => {
+    const saved = colorSelectionRef.current ?? {
+      from: editor.state.selection.from,
+      to: editor.state.selection.to,
+    };
+    let { from, to } = saved;
+
+    // With only a caret, apply the colour to the current text block so users
+    // get immediate feedback instead of affecting only text typed afterwards.
+    if (from === to) {
+      const resolved = editor.state.doc.resolve(from);
+      if (resolved.depth > 0) {
+        from = resolved.start(resolved.depth);
+        to = resolved.end(resolved.depth);
+      }
+    }
+
+    const chain = editor.chain().focus();
+    if (to > from) chain.setTextSelection({ from, to });
+    if (color) chain.setColor(color);
+    else chain.unsetColor();
+    if (saved.from === saved.to) chain.setTextSelection(saved.from);
+    chain.run();
+
+    colorSelectionRef.current = null;
+    setColorOpen(false);
+  };
+
   return (
     <div className="border rounded-md bg-background cms-editor isolate overflow-hidden">
       <div className="cms-toolbar relative z-10 border-b bg-background">
@@ -149,22 +186,26 @@ export default function RichTextEditor({ value, onChange, onInsertImage }: Props
         <ToolBtn title="Strikethrough" active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough className="h-4 w-4" /></ToolBtn>
         <ToolBtn title="Inline code" active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()}><Code className="h-4 w-4" /></ToolBtn>
         <Sep />
-        <Popover open={colorOpen} onOpenChange={setColorOpen}>
+        <Popover open={colorOpen} onOpenChange={handleColorOpenChange}>
           <PopoverTrigger asChild>
             <Button type="button" title="Text color" aria-label="Text color" variant="ghost" size="sm"
               onMouseDown={(event) => event.preventDefault()} className="h-9 w-9 shrink-0 p-0 sm:h-8 sm:w-8">
-              <span className="inline-block h-4 w-4 rounded-sm border" style={{ background: (editor.getAttributes('textStyle').color as string) || '#000' }} />
+              <span className="relative flex h-6 w-5 items-center justify-center text-sm font-semibold leading-none">
+                A
+                <span className="absolute inset-x-0 bottom-0 h-1 rounded-full border border-black/10"
+                  style={{ background: (editor.getAttributes('textStyle').color as string) || '#000000' }} />
+              </span>
             </Button>
           </PopoverTrigger>
           <PopoverContent align="start" className="flex w-auto max-w-[calc(100vw-2rem)] flex-wrap gap-1 p-2">
             {COLORS.map((color) => (
               <Button key={color} type="button" variant="ghost" size="icon" aria-label={`Use ${color} text color`}
-                className="h-8 w-8 p-1" onClick={() => { editor.chain().focus().setColor(color).run(); setColorOpen(false); }}>
+                className="h-8 w-8 p-1" onMouseDown={(event) => event.preventDefault()} onClick={() => applyTextColor(color)}>
                 <span className="h-full w-full rounded-sm border" style={{ background: color }} />
               </Button>
             ))}
             <Button type="button" variant="ghost" size="icon" aria-label="Clear text color" className="h-8 w-8"
-              onClick={() => { editor.chain().focus().unsetColor().run(); setColorOpen(false); }}>×</Button>
+              onMouseDown={(event) => event.preventDefault()} onClick={() => applyTextColor()}>×</Button>
           </PopoverContent>
         </Popover>
         <ToolBtn title="Highlight" active={editor.isActive('highlight')} onClick={() => editor.chain().focus().toggleHighlight().run()}><Highlighter className="h-4 w-4" /></ToolBtn>

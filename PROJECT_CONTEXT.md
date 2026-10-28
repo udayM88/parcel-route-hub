@@ -230,6 +230,7 @@ The public login keeps the sample credentials operational without advertising a 
 - Functional loading and save indicators keep their spinner animation so asynchronous state remains understandable.
 - The reduced-motion class is applied and cleaned up by `AdminLayout`; public pages and non-CMS Admin/Ops routes are not changed.
 - The rich-text toolbar stays inside the editor instead of sticking beneath the global Admin header. Blog content scrolls in a dedicated, height-bounded writing area, preventing text from sliding underneath the toolbar or appearing to disappear during page scroll.
+- The text-colour control preserves the editor selection while its palette is open. It applies colour to an explicit selection or, when only the caret is present, to the current text block; the toolbar shows this as an `A` with a live colour underline rather than an ambiguous black dot.
 
 ## Verification performed for release `4d62dcf`
 
