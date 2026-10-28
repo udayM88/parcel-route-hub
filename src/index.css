@@ -952,4 +952,28 @@ All colors MUST be HSL.
   .cms-toolbar { transition: none; }
 }
 
+/*
+ * CMS is a focused writing workspace. Remove decorative and continuous motion
+ * on /admin/cms routes while keeping explicit loading/save feedback visible.
+ * The body class is applied by AdminLayout and removed immediately on exit, so
+ * public pages and the rest of the Admin/Ops console retain their own behavior.
+ */
+body.cms-static-mode *,
+body.cms-static-mode *::before,
+body.cms-static-mode *::after {
+  animation: none !important;
+  transition-duration: 0s !important;
+  scroll-behavior: auto !important;
+}
+
+body.cms-static-mode .transition-all {
+  transform: none !important;
+  scale: 1 !important;
+  translate: none !important;
+}
+
+body.cms-static-mode .animate-spin {
+  animation: spin 1s linear infinite !important;
+}
+
 

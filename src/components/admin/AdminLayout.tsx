@@ -23,7 +23,8 @@ import {
   PackagePlus,
   Clock,
   Inbox,
-  Truck
+  Truck,
+  type LucideIcon
 } from "lucide-react";
 
 import { 
@@ -44,7 +45,7 @@ import ChangePasswordDialog from "@/components/admin/ChangePasswordDialog";
 
 type Role = "super_admin" | "cms_editor" | "operations" | "support";
 
-const adminMenuItems: { title: string; url: string; icon: any; allowedRoles: Role[] }[] = [
+const adminMenuItems: { title: string; url: string; icon: LucideIcon; allowedRoles: Role[] }[] = [
   { title: "Dashboard", url: "/admin/dashboard", icon: Home, allowedRoles: ["super_admin"] },
   { title: "Real-Time Tracking", url: "/admin/tracking", icon: MapPin, allowedRoles: ["super_admin", "operations", "support"] },
   { title: "Order Monitoring", url: "/admin/orders", icon: Package, allowedRoles: ["super_admin", "operations", "support"] },
@@ -145,7 +146,9 @@ function AdminSidebar() {
 }
 
 const AdminLayout = () => {
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1280);
+  const isCmsRoute = location.pathname === "/admin/cms" || location.pathname.startsWith("/admin/cms/");
 
   useEffect(() => {
     const media = window.matchMedia("(min-width: 1280px)");
@@ -153,6 +156,11 @@ const AdminLayout = () => {
     media.addEventListener("change", syncSidebar);
     return () => media.removeEventListener("change", syncSidebar);
   }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle("cms-static-mode", isCmsRoute);
+    return () => document.body.classList.remove("cms-static-mode");
+  }, [isCmsRoute]);
 
   return (
     <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>

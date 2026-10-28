@@ -224,6 +224,12 @@ The public login keeps the sample credentials operational without advertising a 
 - No Supabase migration, RLS policy, Edge Function, or production table/data change was required for this feature.
 - Verification passed against a Vite production build served by `vite preview`: TypeScript, targeted ESLint for the changed non-legacy files, production build, `git diff --check`, and the full merchant Playwright journey. `BusinessBooking.tsx` retains its 12 pre-existing `no-explicit-any` lint findings; this change added none. The journey also asserted that no non-read Supabase request was emitted during the sample session.
 
+### CMS writing workspace motion policy
+
+- All decorative, looping, hover-scale, floating, pulsing, and entrance motion is disabled while the user is on `/admin/cms` or a nested CMS route.
+- Functional loading and save indicators keep their spinner animation so asynchronous state remains understandable.
+- The reduced-motion class is applied and cleaned up by `AdminLayout`; public pages and non-CMS Admin/Ops routes are not changed.
+
 ## Verification performed for release `4d62dcf`
 
 - `npx tsc --noEmit` passed.
