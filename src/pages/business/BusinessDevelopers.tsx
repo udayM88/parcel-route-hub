@@ -166,9 +166,9 @@ const BusinessDevelopers = () => {
                   keys.map((k) => (
                     <div key={k.id} className="flex flex-wrap items-center justify-between gap-2 border rounded-lg p-3">
                       <div className="min-w-0">
-                        <p className="font-medium flex items-center gap-2">{k.name}
+                        <div className="flex items-center gap-2 font-medium">{k.name}
                           <Badge variant={k.environment === "live" ? "default" : "secondary"}>{k.environment}</Badge>
-                          {k.revoked_at && <Badge variant="destructive">Revoked</Badge>}</p>
+                          {k.revoked_at && <Badge variant="destructive">Revoked</Badge>}</div>
                         <p className="text-xs text-muted-foreground font-mono">{k.key_prefix}••••••••</p>
                         <p className="text-xs text-muted-foreground">{k.scopes?.length ?? 0} scopes · {k.rate_limit_per_minute ?? 120} requests/min · Expires {k.expires_at ? fmt(k.expires_at) : "never"}</p>
                         <p className="text-xs text-muted-foreground">Created {fmt(k.created_at)} · Last used {fmt(k.last_used_at)}</p>

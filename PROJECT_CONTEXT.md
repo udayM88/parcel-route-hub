@@ -232,6 +232,19 @@ The public login keeps the sample credentials operational without advertising a 
 - The rich-text toolbar stays inside the editor instead of sticking beneath the global Admin header. Blog content scrolls in a dedicated, height-bounded writing area, preventing text from sliding underneath the toolbar or appearing to disappear during page scroll.
 - The text-colour control preserves the editor selection while its palette is open. It applies colour to an explicit selection or, when only the caret is present, to the current text block; the toolbar shows this as an `A` with a live colour underline rather than an ambiguous black dot.
 
+## Merchant console functional audit (2026-10-29)
+
+- Audited all 31 authenticated `/viasetuforbusinesses` console routes at 1440x900 and representative dashboard, order, booking, wallet, developer, integration, bulk-booking, webhook, address, and support routes at 390x844.
+- Every audited route rendered its intended page, retained a main heading, avoided document-level horizontal overflow, and avoided the generic `Module connected` fallback.
+- The shared sample session emitted no non-read Supabase request during the crawl or the full merchant Playwright journey. No database migration, RLS policy, Edge Function, production row, or courier/payment request was changed by this audit.
+- Fixed the global header order search so its `?search=` value now initializes the Orders screen filter instead of being discarded after navigation.
+- Connected the previously inert notification-bell control to the existing merchant Notification Settings route.
+- Repaired invalid HTML nesting in the API-key list (`Badge` elements inside a paragraph), removing the React `validateDOMNesting` console warning.
+- Added regression coverage for header search propagation, notification navigation, console/page errors, and the existing demo-write isolation guard.
+- Verification passed: TypeScript, targeted ESLint for all files changed by this audit, Vite production build, the full merchant Playwright journey, and `git diff --check`.
+- Existing planned/gated features remain intentionally unchanged: hyperlocal orders, team invitation/RBAC, final COD remittance, automatic bulk-file shipment creation, durable webhook retries/history, and the public `create_shipment` safety gate.
+- `BusinessBooking.tsx` still has 12 pre-existing `no-explicit-any` lint findings, and `BusinessAuthContext.tsx` retains one Fast Refresh warning. These are static-analysis debt rather than failures introduced by this audit; do not describe the entire merchant directory as lint-clean.
+
 ## Verification performed for release `4d62dcf`
 
 - `npx tsc --noEmit` passed.

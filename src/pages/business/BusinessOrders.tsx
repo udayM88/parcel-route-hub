@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, Download, Loader2, PackageOpen, Plus, RefreshCw, Search } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,12 +43,14 @@ const label = (value: string | null) => (value || "created").replace(/_/g, " ").
 
 export default function BusinessOrders() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { business } = useBusinessAuth();
   const isDemo = isBusinessDemoSession();
   const [orders, setOrders] = useState<MerchantOrder[]>(isDemo ? DEMO_ORDERS : []);
   const [loading, setLoading] = useState(!isDemo);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
+  const requestedSearch = searchParams.get("search") || "";
+  const [query, setQuery] = useState(requestedSearch);
   const [status, setStatus] = useState("all");
 
   const load = useCallback(async () => {
@@ -77,6 +79,10 @@ export default function BusinessOrders() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setQuery(requestedSearch);
+  }, [requestedSearch]);
 
   const statusOptions = useMemo(() => Array.from(new Set(orders.map((order) => order.status || "created"))), [orders]);
   const filtered = useMemo(() => {

@@ -41,6 +41,16 @@ test("merchant sample keeps writes isolated and core screens usable", async ({ p
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole("heading", { name: /Sample Merchant/ })).toBeVisible();
 
+  await page.getByLabel("Search orders").fill("DLV-DEMO-92841");
+  await page.getByLabel("Search orders").press("Enter");
+  await expect(page).toHaveURL(/\/orders\?search=DLV-DEMO-92841$/);
+  await expect(page.getByLabel("Search merchant orders")).toHaveValue("DLV-DEMO-92841");
+  await expect(page.getByText("DLV-DEMO-92841", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Open notification settings" }).click();
+  await expect(page).toHaveURL(/\/module\/notifications$/);
+  await expect(page.getByRole("heading", { name: "Notification Settings" })).toBeVisible();
+
   await page.goto(`${base}/orders`);
   await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();
   await expect(page.getByText("DLV-DEMO-92841", { exact: true })).toBeVisible();
@@ -118,4 +128,6 @@ test("merchant sample keeps writes isolated and core screens usable", async ({ p
   await page.getByRole("button", { name: "Save address" }).click();
   await expect(page.getByText("Demo Returns Desk", { exact: true })).toBeVisible();
   expect(unsafeSupabaseRequests).toEqual([]);
+  expect(loginConsoleErrors.filter((message) => !message.includes("net::ERR_NETWORK_ACCESS_DENIED"))).toEqual([]);
+  expect(loginPageErrors).toEqual([]);
 });

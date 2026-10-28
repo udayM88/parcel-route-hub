@@ -423,7 +423,16 @@ export default function BusinessConsoleLayout() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button variant="outline" size="icon" className="relative hidden size-10 rounded-lg border border-[#d9e3f2] sm:inline-flex" aria-label="Notifications"><Bell /><span className="absolute right-2 top-1.5 size-2 rounded-full bg-[#d35656] ring-2 ring-white" /></Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="relative hidden size-10 rounded-lg border border-[#d9e3f2] sm:inline-flex"
+            aria-label="Open notification settings"
+            onClick={() => navigate(`${merchantRoot}/module/notifications`)}
+          >
+            <Bell />
+            <span className="absolute right-2 top-1.5 size-2 rounded-full bg-[#d35656] ring-2 ring-white" />
+          </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
