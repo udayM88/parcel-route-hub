@@ -265,7 +265,8 @@ Deno.serve(async (req) => {
         status: "FAILED",
         failure_reason: `Unknown partner for courier '${b.courier_name}'`,
       }).eq("id", booking.id);
-      if (payWithWallet) await refundWalletBooking(admin, booking.id, undefined, "unknown_partner");
+      // Auto-refunds disabled — refunds are manual via Customer Care.
+      void refundWalletBooking;
       return json({ error: `Unknown courier partner '${b.courier_name}'`, booking_id: booking.id }, 400);
     }
 
@@ -368,7 +369,7 @@ Deno.serve(async (req) => {
 
     // Wallet: refund whatever boxes failed, straight back to the wallet.
     let walletRefunded = 0;
-    if (payWithWallet) {
+    if (false && payWithWallet) { // auto-refunds disabled — manual via Customer Care
       const failedIdx = results.filter((r) => !r.success).map((r) => r.box_index - 1);
       const failedAmount = booked.length === 0
         ? totalPrice

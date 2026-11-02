@@ -203,7 +203,8 @@ Deno.serve(async (req) => {
           // Auto-refund once the payment is 60+ min old with still no order —
           // the browser/booking step clearly never completed (e.g. business
           // portal checkout closed after capture).
-          if (ageMs > 60 * 60 * 1000 && (p.amount_refunded || 0) === 0) {
+          // AUTO-REFUNDS DISABLED: orphan payments are only reported for manual review.
+          if (false && ageMs > 60 * 60 * 1000 && (p.amount_refunded || 0) === 0) {
             try {
               const rr = await fetch(`https://api.razorpay.com/v1/payments/${p.id}/refund`, {
                 method: "POST",

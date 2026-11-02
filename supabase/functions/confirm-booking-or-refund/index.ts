@@ -93,66 +93,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Attempt refund with up to 3 retries, exponential backoff.
-    const authHeader = btoa(`${razorpayConfig.keyId}:${razorpayConfig.keySecret}`);
-    const refundPayload: Record<string, unknown> = {};
-    if (amount && amount > 0) refundPayload.amount = Math.round(amount * 100);
-    refundPayload.notes = {
-      reason: reason || "auto_refund",
-      error: (error_detail || "").slice(0, 250),
-      user_id: userId,
-    };
-
-    let refundData: any = null;
-    let lastErr: any = null;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        const resp = await fetch(
-          `https://api.razorpay.com/v1/payments/${payment_id}/refund`,
-          {
-            method: "POST",
-            headers: {
-              "Authorization": `Basic ${authHeader}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(refundPayload),
-          },
-        );
-        const data = await resp.json();
-        if (resp.ok) {
-          refundData = data;
-          break;
-        }
-        // If Razorpay says it's already fully refunded, treat as success.
-        const desc = String(data?.error?.description || "").toLowerCase();
-        if (desc.includes("fully refunded") || desc.includes("already been refunded")) {
-          refundData = { id: data?.error?.metadata?.refund_id || null, status: "processed", already: true };
-          break;
-        }
-        lastErr = data;
-        console.warn(`[confirm-booking-or-refund] refund attempt ${attempt} failed:`, data);
-      } catch (err) {
-        lastErr = err;
-        console.warn(`[confirm-booking-or-refund] refund attempt ${attempt} threw:`, err);
-      }
-      if (attempt < 3) await sleep(500 * Math.pow(2, attempt - 1));
-    }
-
+    // AUTO-REFUNDS DISABLED: refunds are issued manually by staff only after the
+    // customer contacts Customer Care. We only record the failure here.
+    const refundData: any = null;
+    const lastErr: any = null;
+    void sleep;
     const refunded = !!refundData;
-    const paymentStatus = refunded ? "refunded" : "refund_failed";
+    const paymentStatus = refunded ? "refunded" : "paid";
 
     let bookingRecord: any = existing || null;
 
     // Build a user-friendly failure reason for the History UI.
-    const friendlyReason = (() => {
-      const r = (reason || "").toLowerCase();
-      if (r.includes("shadowfax")) return "Shadowfax couldn't accept the booking. Payment refunded.";
-      if (r.includes("delhivery")) return "Delhivery couldn't accept the booking. Payment refunded.";
-      if (r.includes("urbanebolt")) return "Urbanebolt couldn't accept the booking. Payment refunded.";
-      if (r.includes("xpressbees")) return "XpressBees couldn't accept the booking. Payment refunded.";
-      if (r.includes("unexpected")) return "An unexpected error occurred. Payment refunded.";
-      return "Booking could not be completed. Payment refunded.";
-    })();
+    const friendlyReason = (() => "Booking could not be completed. For your refund, please contact ViaSetu Customer Care at +91 94068 33147.")();
     const failureStep = (() => {
       const r = (reason || "").toLowerCase();
       if (r.includes("payment")) return "payment";
@@ -174,7 +126,7 @@ Deno.serve(async (req) => {
           status: "FAILED",
           payment_status: paymentStatus,
           refund_id: refundData?.id || null,
-          refund_reason: reason || "booking_failed_after_payment",
+          refund_reason: "manual_refund_pending_customer_care",
           failure_reason: friendlyReason,
           failure_step: failureStep,
           partner_error_raw: partnerErrorRaw,
@@ -225,10 +177,12 @@ Deno.serve(async (req) => {
         refund_id: refundData?.id || null,
         refund_status: refundData?.status || null,
         booking: bookingRecord,
-        error: refunded ? null : (lastErr?.error?.description || String(lastErr) || "refund failed"),
+        manual_refund: true,
+        error: null,
+        message: "No automatic refund. Customer must contact Customer Care for a refund.",
       }),
       {
-        status: refunded ? 200 : 502,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
