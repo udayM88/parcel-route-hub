@@ -140,12 +140,14 @@ export async function refundCancelledBooking(
       cancellation_fee_gst: quote.gstOnFee, refund_amount: quote.refundAmount,
     }).eq("id", bookingId);
   }
-  if (quote && quote.deduction > 0 && quote.refundAmount <= 0) {
-    return { status: "skipped", reason: "cancellation fee equals amount paid" };
-  }
-  return refundBookingIfPaid(supabase, bookingId, env, reason,
-    quote && quote.deduction > 0 ? quote.refundAmount : undefined);
+  // Business policy: cancellations are never auto-refunded. The customer
+  // contacts Customer Care; staff issue the refund manually (reconciliation).
+  void env; void reason;
+  return { status: "skipped", reason: "manual_refund_via_customer_care" };
 }
+
+/** Cancellations (app or partner-side) never trigger automatic refunds. */
+export const AUTO_REFUND_ON_CANCELLATION = false;
 
 /** Helper for cancel functions: decide waiver up-front from the request. */
 export async function prepareCancellationQuote(supabase: any, req: Request, bookingId: string, body: any) {

@@ -77,6 +77,7 @@ const CancelOrderDialog = ({ open, onOpenChange, onConfirm, cancelling, bookingI
           </DialogTitle>
           <DialogDescription>
             This action cannot be undone. Your shipping label has already been generated with the courier.
+            Refunds are not automatic — after cancelling, please contact Customer Care at +91 94068 33147 to request your refund.
           </DialogDescription>
         </DialogHeader>
 
@@ -181,7 +182,7 @@ const CancelOrderDialog = ({ open, onOpenChange, onConfirm, cancelling, bookingI
             onClick={() => onConfirm(reason, waived)}
             disabled={cancelling || (Boolean(bookingId) && (loading || quote?.stage === "not_allowed"))}
           >
-            {cancelling ? "Cancelling..." : quote ? `Cancel & refund ${inr(refund)}` : "Cancel Order"}
+            {cancelling ? "Cancelling..." : "Cancel Order"}
           </Button>
         </DialogFooter>
       </DialogContent>
