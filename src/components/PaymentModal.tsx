@@ -178,8 +178,8 @@ const PaymentModal = ({ isOpen, onClose, orderDetails, onPaymentSuccess, custome
 
                 if (!refundError && refundData?.refunded) {
                   toast({
-                    title: "Payment Refunded",
-                    description: `Verification failed. ₹${totalAmount} refunded automatically. Refund ID: ${refundData.refund_id || 'processing'}`,
+                    title: "Payment Issue",
+                    description: `Verification failed. Please contact viasetu customer care at +91 94068 33147 for your refund.`,
                   });
                 } else {
                   toast({
