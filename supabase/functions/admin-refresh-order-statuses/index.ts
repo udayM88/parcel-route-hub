@@ -180,13 +180,9 @@ Deno.serve(async (req) => {
             .eq("id", b.id);
           if (cancelErr) { errors.push({ id: b.id, reason: cancelErr.message }); return; }
 
-          const refund = await refundBookingIfPaid(
-            admin,
-            b.id,
-            env === "production" ? "production" : "sandbox",
-            `Cancelled at partner: ${newStatus}`,
-          );
-          console.log(`[admin-refresh] booking ${b.id} cancelled at partner; refund:`, JSON.stringify(refund));
+          // No automatic refund on cancellation — customer contacts Customer Care.
+          void refundBookingIfPaid;
+          console.log(`[admin-refresh] booking ${b.id} cancelled at partner; refund left for Customer Care`);
 
           dispatchEmail("order_cancelled", b.id, { status: newStatus });
           cancelled++;
