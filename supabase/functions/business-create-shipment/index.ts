@@ -13,6 +13,7 @@ import { dispatchEmail } from "../_shared/notify-email.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { bookingFunctionFor, resolvePartnerKey } from "../_shared/partner-key.ts";
 import { refundWalletBooking, walletApply, WALLET_PREFIX } from "../_shared/wallet.ts";
+import { merchantCan, resolveMerchantAccess } from "../_shared/merchant-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -118,12 +119,10 @@ Deno.serve(async (req) => {
       const { data: userData, error: userErr } = await authClient.auth.getUser();
       if (userErr || !userData?.user) return json({ error: "Invalid session" }, 401);
       userId = userData.user.id;
-      const { data } = await admin
-        .from("business_accounts")
-        .select("id,company_name,status,is_active")
-        .eq("user_id", userId)
-        .eq("is_active", true)
-        .maybeSingle();
+      const access = await resolveMerchantAccess(admin, userData.user);
+      if (!merchantCan(access, "orders:write")) return json({ error: "Shipment creation permission required" }, 403);
+      const { data } = await admin.from("business_accounts")
+        .select("id,company_name,status,is_active").eq("id", access!.business_account_id).maybeSingle();
       biz = data;
     }
 

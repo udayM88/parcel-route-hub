@@ -48,7 +48,7 @@ const loadRazorpay = () =>
   });
 
 const BusinessWallet = () => {
-  const { business } = useBusinessAuth();
+  const { business, can } = useBusinessAuth();
   const { toast } = useToast();
   const isDemo = isBusinessDemoSession();
   const [balance, setBalance] = useState(0);
@@ -57,6 +57,7 @@ const BusinessWallet = () => {
   const [loading, setLoading] = useState(true);
   const [amount, setAmount] = useState("1000");
   const [paying, setPaying] = useState(false);
+  const mayFund = can("wallet:manage");
 
   const load = useCallback(async () => {
     if (!business) return;
@@ -85,6 +86,7 @@ const BusinessWallet = () => {
   useEffect(() => { load(); }, [load]);
 
   const topUp = async () => {
+    if (!mayFund) { toast({ title: "Wallet permission required", description: "Ask the merchant owner or an administrator to add funds.", variant: "destructive" }); return; }
     if (isDemo) {
       toast({ title: "Sample mode", description: "Wallet funding is disabled in the sample account. No payment was started." });
       return;
@@ -146,7 +148,7 @@ const BusinessWallet = () => {
               )}
             </CardContent>
           </Card>
-          <Card className="merchant-surface merchant-bordered-card">
+          {mayFund ? <Card className="merchant-surface merchant-bordered-card">
             <CardHeader className="pb-2"><CardTitle className="text-base">Add money</CardTitle><CardDescription>Pay by UPI, card or netbanking. Credited instantly.</CardDescription></CardHeader>
             <CardContent className="space-y-3">
               <div className="flex gap-2 flex-wrap">
@@ -160,7 +162,7 @@ const BusinessWallet = () => {
               </div>
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="size-3.5 text-primary" />Balance changes are completed only by the verified server-side payment flow.</p>
             </CardContent>
-          </Card>
+          </Card> : <Card className="merchant-surface merchant-bordered-card"><CardHeader><CardTitle className="text-base">Read-only wallet access</CardTitle><CardDescription>You can review balances and transactions. Your role cannot start a payment.</CardDescription></CardHeader><CardContent><ShieldCheck className="size-8 text-primary" /></CardContent></Card>}
         </div>
 
         <Card className="merchant-bordered-card">

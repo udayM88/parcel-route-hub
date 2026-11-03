@@ -149,12 +149,12 @@ const App = () => (
             <Route path="reset-password" element={<BusinessResetPassword />} />
             <Route element={<ProtectedBusinessRoute><BusinessConsoleLayout /></ProtectedBusinessRoute>}>
               <Route path="dashboard" element={<BusinessDashboard />} />
-              <Route path="orders" element={<BusinessOrders />} />
-              <Route path="book" element={<BusinessBooking />} />
-              <Route path="create-order" element={<BusinessBooking />} />
-              <Route path="wallet" element={<BusinessWallet />} />
-              <Route path="developers" element={<BusinessDevelopers />} />
-              <Route path="integrations" element={<BusinessIntegrations />} />
+              <Route path="orders" element={<ProtectedBusinessRoute permission="orders:read"><BusinessOrders /></ProtectedBusinessRoute>} />
+              <Route path="book" element={<ProtectedBusinessRoute permission="orders:write"><BusinessBooking /></ProtectedBusinessRoute>} />
+              <Route path="create-order" element={<ProtectedBusinessRoute permission="orders:write"><BusinessBooking /></ProtectedBusinessRoute>} />
+              <Route path="wallet" element={<ProtectedBusinessRoute permission="wallet:read"><BusinessWallet /></ProtectedBusinessRoute>} />
+              <Route path="developers" element={<ProtectedBusinessRoute permission="integrations:read"><BusinessDevelopers /></ProtectedBusinessRoute>} />
+              <Route path="integrations" element={<ProtectedBusinessRoute permission="integrations:read"><BusinessIntegrations /></ProtectedBusinessRoute>} />
               <Route path="module/:module" element={<BusinessModulePage />} />
             </Route>
           </Route>

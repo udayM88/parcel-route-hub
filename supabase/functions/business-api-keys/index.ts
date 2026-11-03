@@ -3,6 +3,7 @@
 // Actions: create { name, environment, scopes?, expires_in_days?, rate_limit_per_minute? }, revoke { id }.
 // Admins (super_admin/operations) may revoke any key with { id }.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { merchantCan, resolveMerchantAccess } from "../_shared/merchant-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,8 +33,7 @@ Deno.serve(async (req) => {
     const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const body = await req.json().catch(() => ({}));
 
-    const { data: biz } = await admin.from("business_accounts").select("id,status")
-      .eq("user_id", u.user.id).eq("is_active", true).maybeSingle();
+    const access = await resolveMerchantAccess(admin, u.user);
     const { data: au } = await admin.from("admin_users").select("role")
       .eq("user_id", u.user.id).eq("is_active", true).maybeSingle();
     const isStaff = !!au && ["super_admin", "operations"].includes(au.role);
@@ -42,8 +42,8 @@ Deno.serve(async (req) => {
       if (!body.id) return json({ error: "id required" }, 400);
       let q = admin.from("business_api_keys").update({ revoked_at: new Date().toISOString() }).eq("id", body.id).is("revoked_at", null);
       if (!isStaff) {
-        if (!biz) return json({ error: "Forbidden" }, 403);
-        q = q.eq("business_account_id", biz.id);
+        if (!merchantCan(access, "integrations:write")) return json({ error: "Forbidden" }, 403);
+        q = q.eq("business_account_id", access!.business_account_id);
       }
       const { data, error } = await q.select("id");
       if (error) return json({ error: error.message }, 500);
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     }
 
     if (body.action === "create") {
-      if (!biz || biz.status !== "approved") return json({ error: "Business account not approved" }, 403);
+      if (!merchantCan(access, "integrations:write")) return json({ error: "Business account not approved or permission denied" }, 403);
       const name = String(body.name || "").trim().slice(0, 60);
       const environment = body.environment === "sandbox" ? "sandbox" : "live";
       if (name.length < 2) return json({ error: "Give the key a name" }, 400);
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
         return json({ error: "Rate limit must be between 1 and 1000 requests per minute" }, 400);
       }
       const { count } = await admin.from("business_api_keys").select("id", { count: "exact", head: true })
-        .eq("business_account_id", biz.id).is("revoked_at", null);
+        .eq("business_account_id", access!.business_account_id).is("revoked_at", null);
       if ((count ?? 0) >= MAX_ACTIVE_KEYS) return json({ error: `Maximum ${MAX_ACTIVE_KEYS} active keys` }, 400);
 
       const rand = new Uint8Array(24);
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
       const secret = Array.from(rand).map((b) => b.toString(16).padStart(2, "0")).join("");
       const key = `vs_${environment === "live" ? "live" : "test"}_${secret}`;
       const { data, error } = await admin.from("business_api_keys").insert({
-        business_account_id: biz.id, name, environment,
+        business_account_id: access!.business_account_id, name, environment,
         key_prefix: key.slice(0, 12), key_hash: await sha256Hex(key), created_by: u.user.id,
         scopes,
         expires_at: expiryDays === null ? null : new Date(Date.now() + expiryDays * 86_400_000).toISOString(),

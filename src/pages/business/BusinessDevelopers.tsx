@@ -50,7 +50,7 @@ const EXAMPLES: { title: string; desc: string; body: string; idem?: boolean }[] 
 ];
 
 const BusinessDevelopers = () => {
-  const { business } = useBusinessAuth();
+  const { business, can } = useBusinessAuth();
   const { toast } = useToast();
   const isDemo = isBusinessDemoSession();
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -61,6 +61,7 @@ const BusinessDevelopers = () => {
   const [expiry, setExpiry] = useState("90");
   const [creating, setCreating] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
+  const mayWrite = can("integrations:write");
 
   const load = useCallback(async () => {
     if (!business) return;
@@ -82,6 +83,7 @@ const BusinessDevelopers = () => {
   const copy = (s: string) => { navigator.clipboard.writeText(s); toast({ title: "Copied" }); };
 
   const create = async () => {
+    if (!mayWrite) { toast({ title: "Integration permission required", variant: "destructive" }); return; }
     if (isDemo) {
       const createdAt = new Date().toISOString();
       const sampleKey = `vs_test_sample_only_${crypto.randomUUID().replace(/-/g, "")}`;
@@ -109,6 +111,7 @@ const BusinessDevelopers = () => {
   };
 
   const revoke = async (id: string) => {
+    if (!mayWrite) { toast({ title: "Integration permission required", variant: "destructive" }); return; }
     if (!confirm("Revoke this key? Websites using it will stop working immediately.")) return;
     if (isDemo) {
       setKeys((current) => current.map((key) => key.id === id ? { ...key, revoked_at: new Date().toISOString() } : key));
@@ -142,7 +145,7 @@ const BusinessDevelopers = () => {
           <TabsList><TabsTrigger value="keys">API Keys</TabsTrigger><TabsTrigger value="docs">Documentation</TabsTrigger></TabsList>
 
           <TabsContent value="keys" className="space-y-4">
-            <Card className="merchant-surface merchant-bordered-card">
+            {mayWrite ? <Card className="merchant-surface merchant-bordered-card">
               <CardHeader><CardTitle className="text-base flex items-center gap-2"><KeyRound className="h-4 w-4" />Create a key</CardTitle>
                 <CardDescription>Use a separate, limited key for each website or backend. Shipment creation remains in controlled rollout until wallet refund verification is approved.</CardDescription></CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_160px_180px_150px_auto] xl:items-end">
@@ -158,7 +161,7 @@ const BusinessDevelopers = () => {
                     <SelectContent><SelectItem value="30">30 days</SelectItem><SelectItem value="90">90 days</SelectItem><SelectItem value="365">1 year</SelectItem><SelectItem value="never">Never</SelectItem></SelectContent></Select></div>
                 <Button onClick={create} disabled={creating || name.trim().length < 2}>{creating && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Create key</Button>
               </CardContent>
-            </Card>
+            </Card> : <Card className="merchant-surface merchant-bordered-card"><CardHeader><CardTitle className="text-base">Read-only API access</CardTitle><CardDescription>Your role can inspect API key metadata and documentation but cannot create or revoke credentials.</CardDescription></CardHeader></Card>}
             <Card className="merchant-bordered-card">
               <CardHeader><CardTitle className="text-base">Your keys</CardTitle></CardHeader>
               <CardContent className="space-y-2">
@@ -173,7 +176,7 @@ const BusinessDevelopers = () => {
                         <p className="text-xs text-muted-foreground">{k.scopes?.length ?? 0} scopes · {k.rate_limit_per_minute ?? 120} requests/min · Expires {k.expires_at ? fmt(k.expires_at) : "never"}</p>
                         <p className="text-xs text-muted-foreground">Created {fmt(k.created_at)} · Last used {fmt(k.last_used_at)}</p>
                       </div>
-                      {!k.revoked_at && <Button size="sm" variant="outline" onClick={() => revoke(k.id)}><Trash2 className="h-4 w-4 mr-1" />Revoke</Button>}
+                      {!k.revoked_at && mayWrite ? <Button size="sm" variant="outline" onClick={() => revoke(k.id)}><Trash2 className="h-4 w-4 mr-1" />Revoke</Button> : null}
                     </div>
                   ))}
               </CardContent>

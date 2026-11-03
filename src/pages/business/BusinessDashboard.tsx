@@ -94,7 +94,7 @@ const bucketLabel = (b: StatusBucket) =>
 const BusinessDashboard = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { business } = useBusinessAuth();
+  const { business, can } = useBusinessAuth();
   const { toast } = useToast();
   const isDemo = isBusinessDemoSession();
   const [bookings, setBookings] = useState<BusinessBooking[]>([]);
@@ -137,11 +137,11 @@ const BusinessDashboard = () => {
           .eq("business_account_id", business.id)
           .order("created_at", { ascending: false })
           .limit(500),
-        supabase
+        can("wallet:read") ? supabase
           .from("business_wallets")
           .select("balance")
           .eq("business_account_id", business.id)
-          .maybeSingle(),
+          .maybeSingle() : Promise.resolve({ data: null, error: null }),
       ]);
       if (ordersResult.error || walletResult.error) {
         toast({
@@ -155,7 +155,7 @@ const BusinessDashboard = () => {
       setLoading(false);
     };
     load();
-  }, [business, isDemo, toast]);
+  }, [business, can, isDemo, toast]);
 
   // Live updates for this business's bookings.
   useEffect(() => {
@@ -511,9 +511,9 @@ const BusinessDashboard = () => {
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">Here is a safe preview of your shipping operations workspace.</p>
           </div>
-          <Button className="h-9 shrink-0 px-4" onClick={() => navigate("/viasetuforbusinesses/create-order")}>
+          {can("orders:write") ? <Button className="h-9 shrink-0 px-4" onClick={() => navigate("/viasetuforbusinesses/create-order")}>
             <Plus className="mr-1 size-5" /> {isDemo ? "Create sample order" : "Create order"}
-          </Button>
+          </Button> : null}
         </section>
         <Card className="merchant-hero-card merchant-bordered-card overflow-hidden border-cyan-200/60">
           <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)]">
@@ -529,7 +529,7 @@ const BusinessDashboard = () => {
                 <Badge className="border-cyan-300/20 bg-cyan-300/15 text-cyan-100 shadow-none backdrop-blur-md hover:bg-cyan-300/15">ViaSetu Merchant Console</Badge>
                 <h2 className="mt-[18px] max-w-[520px] text-[1.45rem] font-extrabold leading-[1.25] tracking-[-0.025em] md:text-[1.7rem]">Every shipment. One clear route.</h2>
                 <p className="mt-2 max-w-[530px] text-sm leading-[1.55] text-slate-300">Create orders, connect your store and follow every delivery from one simple workspace.</p>
-                <Button variant="secondary" className="mt-[22px] h-11 bg-white px-[18px] text-[#087f8d] hover:bg-cyan-50 hover:text-[#076c78]" onClick={() => navigate("/viasetuforbusinesses/integrations")}>Explore integrations <ArrowRight className="ml-1 size-5" /></Button>
+                {can("integrations:read") ? <Button variant="secondary" className="mt-[22px] h-11 bg-white px-[18px] text-[#087f8d] hover:bg-cyan-50 hover:text-[#076c78]" onClick={() => navigate("/viasetuforbusinesses/integrations")}>Explore integrations <ArrowRight className="ml-1 size-5" /></Button> : null}
               </div>
             </div>
             <div className="merchant-setup-panel flex flex-col justify-center p-[22px] md:p-[21px] lg:justify-start lg:pt-8">
@@ -556,7 +556,7 @@ const BusinessDashboard = () => {
                     {step.complete ? (
                       <span className="text-[11px] font-bold text-[#0a8f5b]">Complete</span>
                     ) : (
-                      <Button size="sm" variant="outline" className="h-[30px] min-h-0 border border-cyan-200 bg-white px-3 text-[#087f8d] hover:bg-cyan-50 hover:text-[#076c78]" onClick={() => navigate("/viasetuforbusinesses/wallet")}>Add funds</Button>
+                      can("wallet:manage") ? <Button size="sm" variant="outline" className="h-[30px] min-h-0 border border-cyan-200 bg-white px-3 text-[#087f8d] hover:bg-cyan-50 hover:text-[#076c78]" onClick={() => navigate("/viasetuforbusinesses/wallet")}>Add funds</Button> : <span className="text-[11px] font-bold text-muted-foreground">Funding required</span>
                     )}
                   </div>
                 ))}
@@ -590,7 +590,7 @@ const BusinessDashboard = () => {
             </Card>
           </button>
 
-          <button type="button" onClick={() => navigate("/viasetuforbusinesses/wallet")} className="text-left">
+          {can("wallet:read") ? <button type="button" onClick={() => navigate("/viasetuforbusinesses/wallet")} className="text-left">
             <Card className="merchant-stat-card merchant-stat-amber min-h-[126px]" style={{ animationDelay: "200ms" }}>
               <CardContent className="p-[18px]">
                 <div className="flex items-start justify-between">
@@ -600,7 +600,7 @@ const BusinessDashboard = () => {
                 <div className="mt-3 flex items-center gap-1"><ArrowUp className="size-3.5 text-[#a96511]" /><span className="text-[11px] font-medium text-[#50617a]">{isDemo ? "Non-financial mock balance" : walletBalance > 0 ? "Available for merchant shipments" : "Add funds to create prepaid shipments"}</span></div>
               </CardContent>
             </Card>
-          </button>
+          </button> : <Card className="merchant-stat-card merchant-stat-amber min-h-[126px]"><CardContent className="grid h-full place-items-center p-[18px] text-center"><div><WalletCards className="mx-auto size-6 text-[#a96511]" /><p className="mt-2 text-xs font-bold text-[#40516b]">Wallet access restricted</p></div></CardContent></Card>}
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -629,11 +629,11 @@ const BusinessDashboard = () => {
               <h2 className="text-base font-extrabold">Quick actions</h2>
               <div className="mt-4 space-y-2">
                 {[
-                  ["Create an order", "/viasetuforbusinesses/create-order"],
-                  ["Calculate shipping rate", "/viasetuforbusinesses/module/rate-calculator"],
-                  ["Track a shipment", "/viasetuforbusinesses/module/tracking"],
-                  ["Connect a sales channel", "/viasetuforbusinesses/integrations"],
-                ].map(([label, route], index) => (
+                  can("orders:write") ? ["Create an order", "/viasetuforbusinesses/create-order"] : null,
+                  can("orders:read") ? ["Calculate shipping rate", "/viasetuforbusinesses/module/rate-calculator"] : null,
+                  can("orders:read") ? ["Track a shipment", "/viasetuforbusinesses/module/tracking"] : null,
+                  can("integrations:read") ? ["Connect a sales channel", "/viasetuforbusinesses/integrations"] : null,
+                ].filter((item): item is string[] => Boolean(item)).map(([label, route], index) => (
                   <Button key={label} variant={index === 0 ? "default" : "outline"} className={`w-full justify-between ${index === 0 ? "" : "bg-white/70"}`} onClick={() => navigate(route)}>{label}<ArrowRight className="size-4" /></Button>
                 ))}
               </div>
@@ -893,10 +893,10 @@ const BusinessDashboard = () => {
                 <Button size="sm" variant="outline" onClick={handleInvoice}>
                   <FileText className="h-4 w-4 mr-1" /> Download invoice
                 </Button>
-                <Button size="sm" variant="outline" onClick={handleRepeat}>
+                {can("orders:write") ? <Button size="sm" variant="outline" onClick={handleRepeat}>
                   <Copy className="h-4 w-4 mr-1" /> Repeat shipment
-                </Button>
-                {isCancellable(selected.status) && (
+                </Button> : null}
+                {can("orders:write") && isCancellable(selected.status) && (
                   <Button size="sm" variant="destructive" onClick={() => setCancelOpen(true)} disabled={cancelling}>
                     <Ban className="h-4 w-4 mr-1" /> Cancel shipment
                   </Button>

@@ -1,6 +1,6 @@
 # ViaSetu Project Context and Handoff
 
-Last updated: 2026-10-27 (Asia/Kolkata)
+Last updated: 2026-11-03 (Asia/Kolkata)
 
 This file is the persistent project handoff. Read it before making changes and update it after any material feature, database, architecture, deployment, or operational change. Do not store passwords, service-role keys, OAuth tokens, customer PII, or other secrets here.
 
@@ -171,10 +171,10 @@ Functional/live-backed:
 - Merchant label/invoice settings
 - COD, rate-card, invoice, and weight-reconciliation operational summaries derived from authoritative tenant data
 - Bulk-booking file validation and staging audit
+- Tenant-scoped merchant team users, invitations, roles, permissions, suspension, and activity controls
 
 UI/planned or schema-gated (do not claim fully functional yet):
 
-- Full merchant team users/roles/permissions
 - Final COD remittance/settlement operations with courier reconciliation
 - Carrier-audited weight dispute/settlement workflow
 - Automatic row-by-row shipment creation from uploaded bulk-booking files
@@ -255,6 +255,17 @@ The public login keeps the sample credentials operational without advertising a 
 - The repository-wide lint command still has hundreds of pre-existing errors, mainly `no-explicit-any`, across unrelated legacy frontend and edge-function files. Do not present full-project lint as clean until those are separately addressed.
 - GitHub `main` was verified at `4d62dcf8a805bb1cf799c494d3b43487d2f08407` after push.
 - The primary ViaSetu site was verified to serve a bundle containing the new `BusinessConsoleLayout` and `BusinessOrders` routes.
+
+## Merchant team access and RBAC implementation (2026-11-03)
+
+- Added a tenant-scoped merchant team model with owner, admin, operations, finance, developer, and viewer access. The database migration is additive and does not rewrite existing merchant, Auth, booking, wallet, or API-key rows.
+- Added the `merchant-team` Edge Function for listing members, invitations, role changes, suspension/reactivation, invitation resend, removal, and member activity. A shared merchant-access helper now centralizes account resolution and permission checks.
+- Applied server-side role checks to merchant API-key, wallet, webhook-test, and shipment-creation functions; UI hiding is not treated as authorization.
+- Added a production-grade Users workspace to the merchant console, permission-filtered navigation and shortcuts, protected routes, and permission-aware controls across orders, wallet, developers, addresses, support, and activated modules.
+- Kept sample access session-only and local: demo team actions do not create Auth users or write production data.
+- Added Playwright coverage for the complete merchant journey and a 31-route console audit. The team-action toast placement was adjusted so it cannot block table actions.
+- The migration and Edge Function source are committed for deployment, but pushing GitHub code alone does not apply the Supabase migration or deploy functions. Deploy those through the reviewed Supabase/Lovable release workflow after the code revision is approved.
+- Local verification for this release includes TypeScript, targeted ESLint, Vite production build, merchant Playwright journey, 31-route audit, and `git diff --check`. Deno is not installed locally, so Supabase Edge Function type-checking must also run in the deployment pipeline.
 
 ## Recommended workflow for the next contributor
 

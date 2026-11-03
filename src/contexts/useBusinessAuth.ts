@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import type { MerchantAccess, MerchantPermission } from "@/lib/merchant-permissions";
 
 export type BusinessAccount = {
   id: string;
@@ -22,6 +23,8 @@ export type BusinessAccount = {
 export type BusinessAuthState = {
   loading: boolean;
   business: BusinessAccount | null;
+  access: MerchantAccess | null;
+  can: (permission: MerchantPermission) => boolean;
   refresh: (showLoading?: boolean) => Promise<BusinessAccount | null>;
 };
 

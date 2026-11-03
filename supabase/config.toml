@@ -174,5 +174,8 @@ verify_jwt = false
 [functions.business-webhook-test]
 verify_jwt = false
 
+[functions.merchant-team]
+verify_jwt = false
+
 [functions.cancellation-quote]
 verify_jwt = false

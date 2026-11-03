@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { Building2, Calculator, Database, Loader2, Mail, MapPin, Phone, Search, ShieldCheck, Truck } from "lucide-react";
+import { Building2, Calculator, Database, Loader2, Mail, MapPin, Phone, Search, ShieldCheck, ShieldX, Truck } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +19,17 @@ import BusinessFinanceReport from "@/pages/business/BusinessFinanceReport";
 import BusinessAnalyticsPanel from "@/pages/business/BusinessAnalyticsPanel";
 import BusinessAddressesPanel from "@/pages/business/BusinessAddressesPanel";
 import BusinessActivatedModule from "@/pages/business/BusinessActivatedModule";
+import type { MerchantPermission } from "@/lib/merchant-permissions";
+
+const modulePermission: Record<string, MerchantPermission> = {
+  users: "team:manage", "bulk-booking": "orders:write", "cod-orders": "orders:read", "cod-dashboard": "reports:read",
+  "weight-reconciliation": "orders:read", invoices: "wallet:read", webhooks: "integrations:read", pincodes: "orders:read",
+  "activity-logs": "reports:read", "active-sessions": "settings:read", "carrier-selection": "settings:read",
+  "carrier-rules": "settings:read", notifications: "settings:read", "label-configuration": "settings:read",
+  "invoice-configuration": "settings:read", "rate-cards": "orders:read", support: "support:read", addresses: "orders:read",
+  analytics: "reports:read", transactions: "wallet:read", "recharge-management": "wallet:read", "billing-statements": "wallet:read",
+  "rate-calculator": "orders:read", tracking: "orders:read", profile: "settings:read",
+};
 
 type TrackingResult = {
   id: string;
@@ -53,7 +65,7 @@ const RATE_PARTNERS = [
 ];
 
 function RateCalculatorPanel() {
-  const { business } = useBusinessAuth();
+  const { business, can } = useBusinessAuth();
   const isDemo = isBusinessDemoSession();
   const [pickup, setPickup] = useState("");
   const [delivery, setDelivery] = useState("");
@@ -157,13 +169,14 @@ function RateCalculatorPanel() {
 
 export default function BusinessModulePage() {
   const { module = "" } = useParams();
-  const { business } = useBusinessAuth();
+  const { business, can } = useBusinessAuth();
   const isDemo = isBusinessDemoSession();
   const meta = moduleMeta[module] || { title: "Merchant Module", description: "This merchant workspace is being connected safely.", icon: Database };
   const Icon = meta.icon;
   const [tracking, setTracking] = useState("");
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [trackingResult, setTrackingResult] = useState<TrackingResult | null | undefined>(undefined);
+  const requiredPermission = modulePermission[module];
 
   const findShipment = async () => {
     const value = tracking.trim();
@@ -203,7 +216,7 @@ export default function BusinessModulePage() {
         </div>
       </div>
 
-      {module === "support" ? <BusinessSupportPanel /> : module === "addresses" ? <BusinessAddressesPanel /> : module === "analytics" ? <BusinessAnalyticsPanel /> : ["transactions", "recharge-management", "billing-statements"].includes(module) ? (
+      {requiredPermission && !can(requiredPermission) ? <Alert className="border-amber-200 bg-amber-50/80"><ShieldX /><AlertTitle>Permission required</AlertTitle><AlertDescription>Your merchant role does not include {requiredPermission.replace(":", " ")} access. Ask the owner or an administrator to update your role.</AlertDescription></Alert> : module === "support" ? <BusinessSupportPanel /> : module === "addresses" ? <BusinessAddressesPanel /> : module === "analytics" ? <BusinessAnalyticsPanel /> : ["transactions", "recharge-management", "billing-statements"].includes(module) ? (
         <BusinessFinanceReport mode={module as "transactions" | "recharge-management" | "billing-statements"} />
       ) : module === "rate-calculator" ? <RateCalculatorPanel /> : module === "tracking" ? (
         <Card>

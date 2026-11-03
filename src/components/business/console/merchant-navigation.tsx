@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import type { MerchantPermission } from "@/lib/merchant-permissions";
 import {
   Activity,
   Archive,
@@ -35,6 +36,7 @@ export type MerchantNavItem = {
   to?: string;
   icon?: LucideIcon;
   shortcut?: string;
+  permission?: MerchantPermission;
   children?: MerchantNavItem[];
 };
 
@@ -49,31 +51,31 @@ export const merchantNavigation: MerchantNavSection[] = [
   {
     label: "Operations",
     items: [
-      { label: "Dashboard", to: `${root}/dashboard`, icon: LayoutDashboard },
+      { label: "Dashboard", to: `${root}/dashboard`, icon: LayoutDashboard, permission: "orders:read" },
       {
         label: "Orders",
         icon: Archive,
         children: [
-          { label: "Create Order", to: `${root}/create-order`, icon: PackagePlus, shortcut: "Ctrl + O" },
-          { label: "View Orders", to: `${root}/orders`, icon: Archive, shortcut: "Ctrl + Shift + A" },
-          { label: "Bulk Booking", to: `${root}/module/bulk-booking`, icon: Upload, shortcut: "Ctrl + B" },
+          { label: "Create Order", to: `${root}/create-order`, icon: PackagePlus, shortcut: "Ctrl + O", permission: "orders:write" },
+          { label: "View Orders", to: `${root}/orders`, icon: Archive, shortcut: "Ctrl + Shift + A", permission: "orders:read" },
+          { label: "Bulk Booking", to: `${root}/module/bulk-booking`, icon: Upload, shortcut: "Ctrl + B", permission: "orders:write" },
         ],
       },
       {
         label: "COD Management",
         icon: CircleDollarSign,
         children: [
-          { label: "View COD Orders", to: `${root}/module/cod-orders`, icon: CircleDollarSign },
-          { label: "COD Dashboard", to: `${root}/module/cod-dashboard`, icon: BarChart3 },
+          { label: "View COD Orders", to: `${root}/module/cod-orders`, icon: CircleDollarSign, permission: "orders:read" },
+          { label: "COD Dashboard", to: `${root}/module/cod-dashboard`, icon: BarChart3, permission: "reports:read" },
         ],
       },
-      { label: "Tracking", to: `${root}/module/tracking`, icon: MapPin, shortcut: "Ctrl + Alt + T" },
-      { label: "Weight Reconciliation", to: `${root}/module/weight-reconciliation`, icon: Scale },
+      { label: "Tracking", to: `${root}/module/tracking`, icon: MapPin, shortcut: "Ctrl + Alt + T", permission: "orders:read" },
+      { label: "Weight Reconciliation", to: `${root}/module/weight-reconciliation`, icon: Scale, permission: "orders:read" },
     ],
   },
   {
     label: "Network",
-    items: [{ label: "Users", to: `${root}/module/users`, icon: Users }],
+    items: [{ label: "Users", to: `${root}/module/users`, icon: Users, permission: "team:manage" }],
   },
   {
     label: "Finance",
@@ -81,25 +83,25 @@ export const merchantNavigation: MerchantNavSection[] = [
       {
         label: "Rate Cards",
         icon: ReceiptText,
-        children: [{ label: "My Rate Card", to: `${root}/module/rate-cards`, icon: ReceiptText }],
+        children: [{ label: "My Rate Card", to: `${root}/module/rate-cards`, icon: ReceiptText, permission: "orders:read" }],
       },
-      { label: "Rate Calculator", to: `${root}/module/rate-calculator`, icon: Calculator },
+      { label: "Rate Calculator", to: `${root}/module/rate-calculator`, icon: Calculator, permission: "orders:read" },
       {
         label: "Billings & Payments",
         icon: Landmark,
         children: [
-          { label: "Wallet", to: `${root}/wallet`, icon: Wallet },
-          { label: "Recharge Management", to: `${root}/module/recharge-management`, icon: Wallet },
-          { label: "Invoices", to: `${root}/module/invoices`, icon: FileText },
-          { label: "Billing & Statements", to: `${root}/module/billing-statements`, icon: Landmark },
+          { label: "Wallet", to: `${root}/wallet`, icon: Wallet, permission: "wallet:read" },
+          { label: "Recharge Management", to: `${root}/module/recharge-management`, icon: Wallet, permission: "wallet:read" },
+          { label: "Invoices", to: `${root}/module/invoices`, icon: FileText, permission: "wallet:read" },
+          { label: "Billing & Statements", to: `${root}/module/billing-statements`, icon: Landmark, permission: "wallet:read" },
         ],
       },
       {
         label: "Reports & Analytics",
         icon: BarChart3,
         children: [
-          { label: "Report & Analytics", to: `${root}/module/analytics`, icon: BarChart3 },
-          { label: "Transaction Report", to: `${root}/module/transactions`, icon: Activity },
+          { label: "Report & Analytics", to: `${root}/module/analytics`, icon: BarChart3, permission: "reports:read" },
+          { label: "Transaction Report", to: `${root}/module/transactions`, icon: Activity, permission: "wallet:read" },
         ],
       },
     ],
@@ -107,15 +109,15 @@ export const merchantNavigation: MerchantNavSection[] = [
   {
     label: "Integration",
     items: [
-      { label: "Ecom Channels", to: `${root}/integrations`, icon: Store },
-      { label: "Plugins", to: `${root}/integrations?tab=plugins`, icon: Plug },
+      { label: "Ecom Channels", to: `${root}/integrations`, icon: Store, permission: "integrations:read" },
+      { label: "Plugins", to: `${root}/integrations?tab=plugins`, icon: Plug, permission: "integrations:read" },
       {
         label: "API & Webhooks",
         icon: Code2,
         children: [
-          { label: "View API Keys", to: `${root}/developers`, icon: KeyRound },
-          { label: "Create API Key", to: `${root}/developers?create=1`, icon: FileKey2 },
-          { label: "Webhook Subscriptions", to: `${root}/module/webhooks`, icon: Webhook },
+          { label: "View API Keys", to: `${root}/developers`, icon: KeyRound, permission: "integrations:read" },
+          { label: "Create API Key", to: `${root}/developers?create=1`, icon: FileKey2, permission: "integrations:write" },
+          { label: "Webhook Subscriptions", to: `${root}/module/webhooks`, icon: Webhook, permission: "integrations:read" },
         ],
       },
     ],
@@ -123,15 +125,15 @@ export const merchantNavigation: MerchantNavSection[] = [
   {
     label: "Carrier Management",
     items: [
-      { label: "Carrier Selection", to: `${root}/module/carrier-selection`, icon: Truck },
-      { label: "Carrier Rules", to: `${root}/module/carrier-rules`, icon: ClipboardList },
+      { label: "Carrier Selection", to: `${root}/module/carrier-selection`, icon: Truck, permission: "settings:read" },
+      { label: "Carrier Rules", to: `${root}/module/carrier-rules`, icon: ClipboardList, permission: "settings:read" },
     ],
   },
   {
     label: "Location Management",
     items: [
-      { label: "Address Management", to: `${root}/module/addresses`, icon: MapPin },
-      { label: "Pincode Management", to: `${root}/module/pincodes`, icon: ShieldCheck },
+      { label: "Address Management", to: `${root}/module/addresses`, icon: MapPin, permission: "orders:read" },
+      { label: "Pincode Management", to: `${root}/module/pincodes`, icon: ShieldCheck, permission: "orders:read" },
     ],
   },
   {
@@ -141,15 +143,15 @@ export const merchantNavigation: MerchantNavSection[] = [
         label: "Settings",
         icon: Settings,
         children: [
-          { label: "Profile", to: `${root}/module/profile`, icon: UserRound },
-          { label: "Notifications", to: `${root}/module/notifications`, icon: Activity },
-          { label: "Activity Logs", to: `${root}/module/activity-logs`, icon: Activity },
-          { label: "Active Sessions", to: `${root}/module/active-sessions`, icon: ShieldCheck },
+          { label: "Profile", to: `${root}/module/profile`, icon: UserRound, permission: "settings:read" },
+          { label: "Notifications", to: `${root}/module/notifications`, icon: Activity, permission: "settings:read" },
+          { label: "Activity Logs", to: `${root}/module/activity-logs`, icon: Activity, permission: "reports:read" },
+          { label: "Active Sessions", to: `${root}/module/active-sessions`, icon: ShieldCheck, permission: "settings:read" },
         ],
       },
-      { label: "Label Configuration", to: `${root}/module/label-configuration`, icon: FileText },
-      { label: "Invoice Configuration", to: `${root}/module/invoice-configuration`, icon: FileText },
-      { label: "Support", to: `${root}/module/support`, icon: LifeBuoy },
+      { label: "Label Configuration", to: `${root}/module/label-configuration`, icon: FileText, permission: "settings:read" },
+      { label: "Invoice Configuration", to: `${root}/module/invoice-configuration`, icon: FileText, permission: "settings:read" },
+      { label: "Support", to: `${root}/module/support`, icon: LifeBuoy, permission: "support:read" },
     ],
   },
 ];

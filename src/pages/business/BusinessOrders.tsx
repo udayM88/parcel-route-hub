@@ -44,7 +44,7 @@ const label = (value: string | null) => (value || "created").replace(/_/g, " ").
 export default function BusinessOrders() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { business } = useBusinessAuth();
+  const { business, can } = useBusinessAuth();
   const isDemo = isBusinessDemoSession();
   const [orders, setOrders] = useState<MerchantOrder[]>(isDemo ? DEMO_ORDERS : []);
   const [loading, setLoading] = useState(!isDemo);
@@ -52,6 +52,7 @@ export default function BusinessOrders() {
   const requestedSearch = searchParams.get("search") || "";
   const [query, setQuery] = useState(requestedSearch);
   const [status, setStatus] = useState("all");
+  const mayCreate = can("orders:write");
 
   const load = useCallback(async () => {
     if (isDemo || !business) {
@@ -115,12 +116,12 @@ export default function BusinessOrders() {
       <PageSeo title="Orders | ViaSetu Merchant Console" description="Review merchant shipments in one secure workspace." path="/viasetuforbusinesses/orders" />
       <section className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div><h1 className="text-2xl font-extrabold tracking-tight md:text-3xl">Orders</h1><p className="mt-1 text-sm text-muted-foreground">Search and review shipments owned by this merchant account.</p></div>
-        <div className="flex gap-2"><Button variant="outline" onClick={exportCsv} disabled={!filtered.length}><Download />Export orders</Button><Button onClick={() => navigate("/viasetuforbusinesses/create-order")}><Plus />Create order</Button></div>
+        <div className="flex gap-2"><Button variant="outline" onClick={exportCsv} disabled={!filtered.length}><Download />Export orders</Button>{mayCreate ? <Button onClick={() => navigate("/viasetuforbusinesses/create-order")}><Plus />Create order</Button> : null}</div>
       </section>
 
       <Card className="merchant-bordered-card overflow-hidden">
         <CardHeader className="space-y-4 border-b pb-0">
-          <div className="flex gap-6 text-sm font-bold"><button type="button" className="border-b-2 border-primary px-1 pb-4 text-primary">Ecom orders</button><button type="button" disabled className="px-1 pb-4 text-muted-foreground/60">Hyperlocal orders <Badge variant="outline" className="ml-2">Planned</Badge></button></div>
+          <div className="flex gap-6 text-sm font-bold"><button type="button" className="border-b-2 border-primary px-1 pb-4 text-primary">Ecom orders</button></div>
           <div className="flex flex-col justify-between gap-3 pb-4 lg:flex-row lg:items-center">
             <div className="flex flex-1 flex-col gap-2 sm:flex-row">
               <div className="relative max-w-md flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" placeholder="Search order ID, AWB, receiver or pincode" aria-label="Search merchant orders" /></div>

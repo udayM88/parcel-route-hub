@@ -199,6 +199,13 @@ const pathIsActive = (pathname: string, item: MerchantNavItem) => {
 
 function SidebarNavigation({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
+  const { can } = useBusinessAuth();
+  const visibleNavigation = useMemo(() => merchantNavigation.map((section) => ({
+    ...section,
+    items: section.items
+      .map((item) => item.children ? { ...item, children: item.children.filter((child) => !child.permission || can(child.permission)) } : item)
+      .filter((item) => (!item.permission || can(item.permission)) && (!item.children || item.children.length > 0)),
+  })).filter((section) => section.items.length > 0), [can]);
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
     const activeGroups = merchantNavigation.flatMap((section) =>
       section.items.filter((item) => item.children?.some((child) => stripQuery(child.to || "") === location.pathname)).map((item) => item.label),
@@ -226,7 +233,7 @@ function SidebarNavigation({ onNavigate }: { onNavigate?: () => void }) {
 
       <ScrollArea className="min-h-0 flex-1">
         <nav className="flex flex-col gap-1 px-3 py-3" aria-label="Merchant console navigation">
-          {merchantNavigation.map((section) => (
+          {visibleNavigation.map((section) => (
             <div key={section.label} className="flex flex-col gap-1">
               <p className="merchant-nav-section px-3 pb-1 pt-4 text-[10px] font-extrabold uppercase tracking-[0.11em]">{section.label}</p>
               {section.items.map((item) => {
@@ -311,7 +318,7 @@ function SidebarNavigation({ onNavigate }: { onNavigate?: () => void }) {
 export default function BusinessConsoleLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { business } = useBusinessAuth();
+  const { business, access, can } = useBusinessAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [themeId, setThemeId] = useState<ThemeId>(() => {
@@ -329,22 +336,22 @@ export default function BusinessConsoleLayout() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "o") {
+      if (can("orders:write") && event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "o") {
         event.preventDefault();
         navigate(`${merchantRoot}/create-order`);
       }
-      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "a") {
+      if (can("orders:read") && event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "a") {
         event.preventDefault();
         navigate(`${merchantRoot}/orders`);
       }
-      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "t") {
+      if (can("orders:read") && event.ctrlKey && event.altKey && event.key.toLowerCase() === "t") {
         event.preventDefault();
         navigate(`${merchantRoot}/module/tracking`);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [navigate]);
+  }, [can, navigate]);
 
   const selectTheme = (id: ThemeId) => {
     setThemeId(id);
@@ -386,10 +393,10 @@ export default function BusinessConsoleLayout() {
           </div>
           <div className="flex-1" />
 
-          <form onSubmit={submitSearch} className="relative hidden w-full max-w-[220px] md:block">
+          {can("orders:read") ? <form onSubmit={submitSearch} className="relative hidden w-full max-w-[220px] md:block">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search orders, AWB..." className="h-10 rounded-[9px] pl-10 text-xs" aria-label="Search orders" />
-          </form>
+          </form> : null}
 
           <Badge variant="secondary" className={cn("merchant-environment hidden h-8 gap-1.5 border px-3 sm:inline-flex", isDemo ? "border-[#f3dcc7] bg-[#fff2e4] text-[#9a4f16]" : "bg-accent text-accent-foreground")}>
             <FlaskConical className="size-3.5" />
@@ -423,7 +430,7 @@ export default function BusinessConsoleLayout() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button
+          {can("settings:read") ? <Button
             variant="outline"
             size="icon"
             className="relative hidden size-10 rounded-lg border border-[#d9e3f2] sm:inline-flex"
@@ -432,7 +439,7 @@ export default function BusinessConsoleLayout() {
           >
             <Bell />
             <span className="absolute right-2 top-1.5 size-2 rounded-full bg-[#d35656] ring-2 ring-white" />
-          </Button>
+          </Button> : null}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -442,7 +449,7 @@ export default function BusinessConsoleLayout() {
                 </Avatar>
                 <span className="hidden max-w-[180px] min-w-0 text-left xl:block">
                   <span className="block truncate text-xs font-extrabold">{business?.company_name || "Merchant"}</span>
-                  <span className="block truncate text-[10px] font-normal text-muted-foreground">Merchant admin</span>
+                  <span className="block truncate text-[10px] font-normal capitalize text-muted-foreground">{access?.role || "merchant"}</span>
                 </span>
                 <ChevronDown className="hidden sm:block" />
               </Button>
@@ -451,7 +458,7 @@ export default function BusinessConsoleLayout() {
               <DropdownMenuLabel className="truncate">{business?.email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuItem onSelect={() => navigate(`${merchantRoot}/module/profile`)}><ChevronLeft />Profile</DropdownMenuItem>
+                {can("settings:read") ? <DropdownMenuItem onSelect={() => navigate(`${merchantRoot}/module/profile`)}><ChevronLeft />Profile</DropdownMenuItem> : null}
                 <DropdownMenuItem onSelect={logout} className="text-destructive focus:text-destructive"><LogOut />Sign out</DropdownMenuItem>
               </DropdownMenuGroup>
             </DropdownMenuContent>

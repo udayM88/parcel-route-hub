@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { isBusinessDemoSession } from "@/lib/business-demo";
 import { supabase } from "@/integrations/supabase/client";
+import { useBusinessAuth } from "@/contexts/useBusinessAuth";
 
 type SavedAddress = {
   id: string;
@@ -23,6 +24,7 @@ type SavedAddress = {
   pincode: string;
   use_count: number | null;
   created_at: string;
+  business_account_id?: string | null;
 };
 
 const DEMO_ADDRESSES: SavedAddress[] = [{
@@ -43,7 +45,9 @@ const DEMO_ADDRESSES: SavedAddress[] = [{
 const initialForm = { label: "Warehouse", name: "", phone: "", flat_no: "", address: "", city: "", state: "", pincode: "" };
 
 export default function BusinessAddressesPanel() {
+  const { business, can } = useBusinessAuth();
   const isDemo = isBusinessDemoSession();
+  const mayWrite = can("orders:write");
   const [addresses, setAddresses] = useState<SavedAddress[]>(isDemo ? DEMO_ADDRESSES : []);
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(!isDemo);
@@ -63,8 +67,8 @@ export default function BusinessAddressesPanel() {
       if (authError || !authData.user) throw new Error("Your session has expired. Please sign in again.");
       const { data, error: queryError } = await supabase
         .from("saved_addresses")
-        .select("id,user_id,label,name,phone,flat_no,address,city,state,pincode,use_count,created_at")
-        .eq("user_id", authData.user.id)
+        .select("id,user_id,business_account_id,label,name,phone,flat_no,address,city,state,pincode,use_count,created_at")
+        .or(`business_account_id.eq.${business?.id},user_id.eq.${authData.user.id}`)
         .order("created_at", { ascending: false });
       if (queryError) throw queryError;
       setAddresses((data as SavedAddress[]) || []);
@@ -73,7 +77,7 @@ export default function BusinessAddressesPanel() {
     } finally {
       setLoading(false);
     }
-  }, [isDemo]);
+  }, [business?.id, isDemo]);
 
   useEffect(() => {
     void load();
@@ -83,6 +87,7 @@ export default function BusinessAddressesPanel() {
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
+    if (!mayWrite) { setError("Your role has read-only access to pickup addresses."); return; }
     if (!form.name.trim() || !/^\d{10}$/.test(form.phone) || !form.address.trim() || !form.city.trim() || !form.state.trim() || !/^\d{6}$/.test(form.pincode)) {
       setError("Enter a name, 10-digit phone, complete address and 6-digit pincode.");
       return;
@@ -100,8 +105,8 @@ export default function BusinessAddressesPanel() {
       if (authError || !authData.user) throw new Error("Your session has expired. Please sign in again.");
       const { data, error: insertError } = await supabase
         .from("saved_addresses")
-        .insert({ user_id: authData.user.id, ...form })
-        .select("id,user_id,label,name,phone,flat_no,address,city,state,pincode,use_count,created_at")
+        .insert({ user_id: authData.user.id, business_account_id: business?.id || null, ...form })
+        .select("id,user_id,business_account_id,label,name,phone,flat_no,address,city,state,pincode,use_count,created_at")
         .single();
       if (insertError) throw insertError;
       setAddresses((current) => [data as SavedAddress, ...current]);
@@ -114,13 +119,14 @@ export default function BusinessAddressesPanel() {
   };
 
   const remove = async (address: SavedAddress) => {
+    if (!mayWrite) { setError("Your role has read-only access to pickup addresses."); return; }
     setDeleting(address.id);
     setError("");
     try {
       if (!isDemo) {
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError || !authData.user) throw new Error("Your session has expired. Please sign in again.");
-        const { error: deleteError } = await supabase.from("saved_addresses").delete().eq("id", address.id).eq("user_id", authData.user.id);
+        const { error: deleteError } = await supabase.from("saved_addresses").delete().eq("id", address.id);
         if (deleteError) throw deleteError;
       }
       setAddresses((current) => current.filter((item) => item.id !== address.id));
@@ -145,12 +151,12 @@ export default function BusinessAddressesPanel() {
             {!loading && addresses.length === 0 ? <div className="col-span-full grid min-h-64 place-items-center rounded-xl border border-dashed bg-muted/20 text-center"><div><MapPin className="mx-auto mb-3 size-9 text-primary/60" /><p className="font-bold">No saved addresses</p><p className="mt-1 text-sm text-muted-foreground">Add your first pickup or return location.</p></div></div> : null}
             {addresses.map((address) => {
               const Icon = iconFor(address.label);
-              return <div key={address.id} className="rounded-xl border bg-card p-4 transition hover:border-primary/35"><div className="flex items-start justify-between gap-3"><span className="grid size-10 place-items-center rounded-xl bg-accent text-primary"><Icon className="size-5" /></span><Button variant="ghost" size="icon" onClick={() => void remove(address)} disabled={deleting === address.id} aria-label={`Remove ${address.label || "address"}`}>{deleting === address.id ? <Loader2 className="animate-spin" /> : <Trash2 />}</Button></div><div className="mt-3 flex items-center gap-2"><p className="font-extrabold">{address.name}</p><Badge variant="secondary">{address.label || "Address"}</Badge></div><p className="mt-2 text-sm leading-6 text-muted-foreground">{[address.flat_no, address.address, address.city, address.state, address.pincode].filter(Boolean).join(", ")}</p><p className="mt-2 text-xs font-semibold">+91 {address.phone}</p></div>;
+              return <div key={address.id} className="rounded-xl border bg-card p-4 transition hover:border-primary/35"><div className="flex items-start justify-between gap-3"><span className="grid size-10 place-items-center rounded-xl bg-accent text-primary"><Icon className="size-5" /></span>{mayWrite ? <Button variant="ghost" size="icon" onClick={() => void remove(address)} disabled={deleting === address.id} aria-label={`Remove ${address.label || "address"}`}>{deleting === address.id ? <Loader2 className="animate-spin" /> : <Trash2 />}</Button> : null}</div><div className="mt-3 flex items-center gap-2"><p className="font-extrabold">{address.name}</p><Badge variant="secondary">{address.label || "Address"}</Badge></div><p className="mt-2 text-sm leading-6 text-muted-foreground">{[address.flat_no, address.address, address.city, address.state, address.pincode].filter(Boolean).join(", ")}</p><p className="mt-2 text-xs font-semibold">+91 {address.phone}</p></div>;
             })}
           </CardContent>
         </Card>
 
-        <Card className="merchant-surface merchant-bordered-card">
+        {mayWrite ? <Card className="merchant-surface merchant-bordered-card">
           <form onSubmit={save}>
             <CardHeader><CardTitle className="flex items-center gap-2"><Plus className="size-5 text-primary" />Add an address</CardTitle><CardDescription>Use a dispatch-ready pickup or return location.</CardDescription></CardHeader>
             <CardContent className="space-y-4">
@@ -162,7 +168,7 @@ export default function BusinessAddressesPanel() {
             </CardContent>
             <CardFooter className="justify-end border-t pt-4"><Button type="submit" disabled={saving}>{saving ? <Loader2 className="animate-spin" /> : <Plus />}Save address</Button></CardFooter>
           </form>
-        </Card>
+        </Card> : <Card className="merchant-surface merchant-bordered-card"><CardHeader><CardTitle>Shared address book</CardTitle><CardDescription>Your role can use saved locations but cannot add or remove them.</CardDescription></CardHeader></Card>}
       </div>
     </div>
   );

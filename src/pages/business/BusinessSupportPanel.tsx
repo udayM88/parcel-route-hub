@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { isBusinessDemoSession } from "@/lib/business-demo";
 import { supabase } from "@/integrations/supabase/client";
+import { useBusinessAuth } from "@/contexts/useBusinessAuth";
 
 type SupportTicket = {
   id: string;
@@ -22,6 +23,7 @@ type SupportTicket = {
   status: string;
   created_at: string;
   updated_at: string;
+  business_account_id?: string | null;
 };
 
 type TicketMessage = {
@@ -59,7 +61,10 @@ const formatDate = (value: string) => new Intl.DateTimeFormat("en-IN", {
 const statusLabel = (status: string) => status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 export default function BusinessSupportPanel() {
+  const { business, can } = useBusinessAuth();
   const isDemo = isBusinessDemoSession();
+  const mayRead = can("support:read");
+  const mayWrite = can("support:write");
   const [tickets, setTickets] = useState<SupportTicket[]>(isDemo ? DEMO_TICKETS : []);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [messages, setMessages] = useState<TicketMessage[]>([]);
@@ -87,8 +92,8 @@ export default function BusinessSupportPanel() {
 
       const { data, error: queryError } = await supabase
         .from("support_tickets")
-        .select("id,user_id,booking_id,subject,description,category,priority,status,created_at,updated_at")
-        .eq("user_id", authData.user.id)
+        .select("id,user_id,business_account_id,booking_id,subject,description,category,priority,status,created_at,updated_at")
+        .or(`business_account_id.eq.${business?.id},user_id.eq.${authData.user.id}`)
         .order("created_at", { ascending: false });
       if (queryError) throw queryError;
       setTickets((data as SupportTicket[]) || []);
@@ -97,7 +102,7 @@ export default function BusinessSupportPanel() {
     } finally {
       setLoading(false);
     }
-  }, [isDemo]);
+  }, [business?.id, isDemo]);
 
   useEffect(() => {
     void loadTickets();
@@ -143,6 +148,7 @@ export default function BusinessSupportPanel() {
 
   const createTicket = async (event: FormEvent) => {
     event.preventDefault();
+    if (!mayWrite) { setError("Your role has read-only support access."); return; }
     if (subject.trim().length < 5 || description.trim().length < 10) {
       setError("Add a clear subject and at least 10 characters of detail.");
       return;
@@ -180,12 +186,13 @@ export default function BusinessSupportPanel() {
         .from("support_tickets")
         .insert({
           user_id: authData.user.id,
+          business_account_id: business?.id || null,
           subject: subject.trim(),
           description: description.trim(),
           category,
           priority,
         })
-        .select("id,user_id,booking_id,subject,description,category,priority,status,created_at,updated_at")
+        .select("id,user_id,business_account_id,booking_id,subject,description,category,priority,status,created_at,updated_at")
         .single();
       if (insertError) throw insertError;
       const ticket = data as SupportTicket;
@@ -202,6 +209,7 @@ export default function BusinessSupportPanel() {
 
   const sendReply = async (event: FormEvent) => {
     event.preventDefault();
+    if (!mayWrite) { setError("Your role cannot reply to support tickets."); return; }
     if (!selectedTicket || reply.trim().length < 2) return;
     setReplying(true);
     setError("");
@@ -244,6 +252,8 @@ export default function BusinessSupportPanel() {
   const openCount = tickets.filter((ticket) => ticket.status === "open").length;
   const resolvedCount = tickets.filter((ticket) => ticket.status === "resolved").length;
 
+  if (!mayRead) return <Alert className="border-amber-200 bg-amber-50/80"><LifeBuoy /><AlertTitle>Support access required</AlertTitle><AlertDescription>Your merchant role does not include support tickets.</AlertDescription></Alert>;
+
   return (
     <div className="space-y-4">
       {isDemo ? (
@@ -285,7 +295,7 @@ export default function BusinessSupportPanel() {
           </CardContent>
         </Card>
 
-        <Card className="merchant-surface merchant-bordered-card">
+        {mayWrite ? <Card className="merchant-surface merchant-bordered-card">
           <form onSubmit={createTicket}>
             <CardHeader><CardTitle className="flex items-center gap-2"><Plus className="size-5 text-primary" />Create a ticket</CardTitle><CardDescription>Share the order or account issue with the support team.</CardDescription></CardHeader>
             <CardContent className="space-y-4">
@@ -298,7 +308,7 @@ export default function BusinessSupportPanel() {
             </CardContent>
             <CardFooter className="justify-end border-t pt-4"><Button type="submit" disabled={saving}>{saving ? <Loader2 className="animate-spin" /> : <Plus />}Create ticket</Button></CardFooter>
           </form>
-        </Card>
+        </Card> : <Card className="merchant-surface merchant-bordered-card"><CardHeader><CardTitle>Read-only support access</CardTitle><CardDescription>You can review this merchant's support history. An administrator can grant reply access.</CardDescription></CardHeader></Card>}
       </div>
 
       {selectedTicket ? (
@@ -308,7 +318,7 @@ export default function BusinessSupportPanel() {
             <div className="rounded-xl border bg-muted/25 p-4"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Original request</p><p className="mt-2 text-sm leading-6">{selectedTicket.description}</p></div>
             {messages.map((message) => <div key={message.id} className={`max-w-[85%] rounded-xl border p-3 ${message.sender_type === "admin" ? "bg-accent/50" : "ml-auto bg-primary text-primary-foreground"}`}><p className="text-xs font-bold opacity-75">{message.sender_type === "admin" ? "ViaSetu support" : "You"}</p><p className="mt-1 text-sm">{message.message}</p><p className="mt-2 text-[11px] opacity-65">{formatDate(message.created_at)}</p></div>)}
           </CardContent>
-          <CardFooter className="border-t pt-4"><form onSubmit={sendReply} className="flex w-full flex-col gap-2 sm:flex-row"><Input value={reply} onChange={(event) => setReply(event.target.value)} maxLength={2000} placeholder="Write a reply" aria-label="Support reply" /><Button type="submit" disabled={replying || reply.trim().length < 2}>{replying ? <Loader2 className="animate-spin" /> : <Send />}Send reply</Button></form></CardFooter>
+          {mayWrite ? <CardFooter className="border-t pt-4"><form onSubmit={sendReply} className="flex w-full flex-col gap-2 sm:flex-row"><Input value={reply} onChange={(event) => setReply(event.target.value)} maxLength={2000} placeholder="Write a reply" aria-label="Support reply" /><Button type="submit" disabled={replying || reply.trim().length < 2}>{replying ? <Loader2 className="animate-spin" /> : <Send />}Send reply</Button></form></CardFooter> : null}
         </Card>
       ) : null}
     </div>

@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import {
   Activity, CheckCircle2, CircleDollarSign, Download, FileSpreadsheet, FileText, Globe2,
   Loader2, MapPinCheck, PackageOpen, Plus, RefreshCw, Save, Scale, Send, Settings2,
-  ShieldCheck, Trash2, Truck, Upload, UserRound, Users, Webhook,
+  ShieldCheck, Trash2, Truck, Upload, Webhook,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -20,6 +20,7 @@ import { CURRENT_ENV } from "@/config/environment";
 import { supabase } from "@/integrations/supabase/client";
 import { isBusinessDemoSession } from "@/lib/business-demo";
 import { PARTNER_REGISTRY } from "@/lib/partnerSettings";
+import BusinessUsersPanel from "@/pages/business/BusinessUsersPanel";
 
 type JsonMap = Record<string, unknown>;
 type Booking = {
@@ -80,8 +81,9 @@ function useBookings() {
 
 type SettingField = { key: string; label: string; description: string; type: "switch" | "text" | "select"; options?: string[] };
 function SettingsEditor({ category, title, description, fields, defaults }: { category: string; title: string; description: string; fields: SettingField[]; defaults: JsonMap }) {
-  const { business } = useBusinessAuth();
+  const { business, can } = useBusinessAuth();
   const demo = isBusinessDemoSession();
+  const mayWrite = can("settings:write");
   const initialDefaults = useRef(defaults).current;
   const [values, setValues] = useState<JsonMap>(initialDefaults);
   const [loading, setLoading] = useState(!demo);
@@ -108,8 +110,8 @@ function SettingsEditor({ category, title, description, fields, defaults }: { ca
   };
   if (loading) return <ModuleLoading />;
   return <Card className="merchant-bordered-card"><CardHeader><CardTitle className="flex items-center gap-2"><Settings2 className="size-5 text-primary" />{title}</CardTitle><CardDescription>{description}</CardDescription></CardHeader><CardContent className="space-y-3">
-    {fields.map((field) => <div key={field.key} className="flex flex-col justify-between gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center"><div><Label htmlFor={field.key} className="font-bold">{field.label}</Label><p className="mt-1 text-xs text-muted-foreground">{field.description}</p></div>{field.type === "switch" ? <Switch id={field.key} checked={Boolean(values[field.key])} onCheckedChange={(checked) => setValues((current) => ({ ...current, [field.key]: checked }))} /> : field.type === "select" ? <Select value={String(values[field.key] || "")} onValueChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))}><SelectTrigger className="sm:w-64"><SelectValue /></SelectTrigger><SelectContent>{field.options?.map((option) => <SelectItem key={option} value={option}>{human(option)}</SelectItem>)}</SelectContent></Select> : <Input id={field.key} className="sm:w-80" value={String(values[field.key] || "")} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}</div>)}
-    <div className="flex justify-end pt-2"><Button onClick={save} disabled={saving}>{saving ? <Loader2 className="animate-spin" /> : <Save />}Save changes</Button></div>
+    {fields.map((field) => <div key={field.key} className="flex flex-col justify-between gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center"><div><Label htmlFor={field.key} className="font-bold">{field.label}</Label><p className="mt-1 text-xs text-muted-foreground">{field.description}</p></div>{field.type === "switch" ? <Switch id={field.key} disabled={!mayWrite} checked={Boolean(values[field.key])} onCheckedChange={(checked) => setValues((current) => ({ ...current, [field.key]: checked }))} /> : field.type === "select" ? <Select disabled={!mayWrite} value={String(values[field.key] || "")} onValueChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))}><SelectTrigger className="sm:w-64"><SelectValue /></SelectTrigger><SelectContent>{field.options?.map((option) => <SelectItem key={option} value={option}>{human(option)}</SelectItem>)}</SelectContent></Select> : <Input id={field.key} disabled={!mayWrite} className="sm:w-80" value={String(values[field.key] || "")} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}</div>)}
+    <div className="flex justify-end pt-2">{mayWrite ? <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="animate-spin" /> : <Save />}Save changes</Button> : <Badge variant="outline">Read-only role</Badge>}</div>
   </CardContent></Card>;
 }
 
@@ -167,11 +169,6 @@ function WeightPanel() {
   return <Card className="merchant-bordered-card overflow-hidden"><CardHeader className="flex-row items-center justify-between"><div><CardTitle>Shipment weights</CardTitle><CardDescription>Declared, volumetric and chargeable weights from live merchant bookings.</CardDescription></div><Button variant="outline" onClick={() => void load()}><RefreshCw />Refresh</Button></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Order / AWB</TableHead><TableHead>Courier</TableHead><TableHead>Declared</TableHead><TableHead>Volumetric</TableHead><TableHead>Chargeable</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{weighted.map((row) => <TableRow key={row.id}><TableCell><p className="font-semibold">{row.id.slice(0, 12)}</p><p className="text-xs text-muted-foreground">{row.tracking_id || row.prayog_awb || "AWB pending"}</p></TableCell><TableCell>{row.courier_name}</TableCell><TableCell>{((row.dead_weight_g || 0) / 1000).toFixed(2)} kg</TableCell><TableCell>{((row.volumetric_weight_g || 0) / 1000).toFixed(2)} kg</TableCell><TableCell className="font-bold">{((row.chargeable_weight_g || 0) / 1000).toFixed(2)} kg</TableCell><TableCell><Badge variant="outline">{human(row.status)}</Badge></TableCell></TableRow>)}{!weighted.length ? <TableRow><TableCell colSpan={6}><EmptyState icon={Scale} title="No weighted shipments" description="Weight records will appear after the merchant creates shipments." /></TableCell></TableRow> : null}</TableBody></Table></CardContent></Card>;
 }
 
-function UsersPanel() {
-  const { business } = useBusinessAuth();
-  return <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]"><Card className="merchant-bordered-card"><CardHeader><CardTitle className="flex items-center gap-2"><Users className="size-5 text-primary" />Merchant access</CardTitle><CardDescription>The current account owner is the active merchant administrator.</CardDescription></CardHeader><CardContent><div className="flex flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center"><span className="grid size-11 place-items-center rounded-full bg-accent text-primary"><UserRound /></span><div className="min-w-0 flex-1"><p className="font-extrabold">{business?.contact_person || "Merchant owner"}</p><p className="truncate text-sm text-muted-foreground">{business?.email}</p></div><Badge>Owner · Active</Badge></div></CardContent></Card><Card className="merchant-surface merchant-bordered-card"><CardHeader><CardTitle>Access model</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><p className="flex items-center gap-2"><ShieldCheck className="size-4 text-emerald-600" />Tenant-isolated merchant account</p><p className="flex items-center gap-2"><ShieldCheck className="size-4 text-emerald-600" />Authenticated owner access</p><p className="text-muted-foreground">Additional role-based team invitations will require an explicit user invitation and acceptance workflow.</p></CardContent></Card></div>;
-}
-
 function InvoicePanel() {
   const { business } = useBusinessAuth();
   const demo = isBusinessDemoSession();
@@ -193,8 +190,9 @@ function InvoicePanel() {
 }
 
 function WebhooksPanel() {
-  const { business } = useBusinessAuth();
+  const { business, can } = useBusinessAuth();
   const demo = isBusinessDemoSession();
+  const mayWrite = can("integrations:write");
   const [rows, setRows] = useState<WebhookRow[]>([]);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
@@ -217,7 +215,7 @@ function WebhooksPanel() {
   const update = async (row: WebhookRow, changes: Partial<WebhookRow>) => { if (demo) { setRows((current) => current.map((item) => item.id === row.id ? { ...item, ...changes } : item)); return; } const { error } = await db.from("merchant_webhook_subscriptions").update(changes).eq("id", row.id).eq("business_account_id", business?.id); if (error) toast.error(error.message); else await load(); };
   const remove = async (row: WebhookRow) => { if (demo) { setRows((current) => current.filter((item) => item.id !== row.id)); return; } const { error } = await db.from("merchant_webhook_subscriptions").delete().eq("id", row.id).eq("business_account_id", business?.id); if (error) toast.error(error.message); else { toast.success("Webhook removed"); await load(); } };
   const test = async (row: WebhookRow) => { if (demo) { toast.success("Sample webhook test accepted"); return; } setBusy(true); const { data, error } = await supabase.functions.invoke("business-webhook-test", { body: { subscription_id: row.id } }); setBusy(false); if (error || !data?.success) toast.error(data?.error || error?.message || "Test delivery failed"); else { toast.success(`Endpoint returned HTTP ${data.status}`); await load(); } };
-  return <div className="space-y-4"><Card className="merchant-bordered-card"><CardHeader><CardTitle className="flex items-center gap-2"><Webhook className="size-5 text-primary" />Add webhook endpoint</CardTitle><CardDescription>Shipment status events are signed with HMAC SHA-256 in the X-ViaSetu-Signature header.</CardDescription></CardHeader><CardContent className="flex flex-col gap-3 sm:flex-row"><Input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://store.example.com/webhooks/viasetu" /><Button onClick={add} disabled={busy}><Plus />Add endpoint</Button></CardContent></Card>{rows.map((row) => <Card key={row.id} className="merchant-bordered-card"><CardContent className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"><div className="min-w-0"><div className="flex items-center gap-2"><Globe2 className="size-4 text-primary" /><p className="truncate font-bold">{row.endpoint_url}</p></div><p className="mt-2 break-all font-mono text-xs text-muted-foreground">Secret: {row.signing_secret}</p><p className="mt-1 text-xs text-muted-foreground">{row.last_tested_at ? `Last test ${when(row.last_tested_at)} · HTTP ${row.last_test_status}` : "Not tested yet"}{row.last_delivery_at ? ` · Last live delivery HTTP ${row.last_delivery_status}` : ""}</p></div><div className="flex items-center gap-2"><Switch checked={row.is_active} onCheckedChange={(checked) => void update(row, { is_active: checked })} /><Button variant="outline" size="sm" onClick={() => void test(row)} disabled={busy}><Send />Test</Button><Button variant="ghost" size="icon" onClick={() => void remove(row)} aria-label="Delete webhook"><Trash2 /></Button></div></CardContent></Card>)}{!rows.length ? <Card><EmptyState icon={Webhook} title="No webhook endpoints" description="Add an HTTPS endpoint to receive signed shipment status events." /></Card> : null}</div>;
+  return <div className="space-y-4">{mayWrite ? <Card className="merchant-bordered-card"><CardHeader><CardTitle className="flex items-center gap-2"><Webhook className="size-5 text-primary" />Add webhook endpoint</CardTitle><CardDescription>Shipment status events are signed with HMAC SHA-256 in the X-ViaSetu-Signature header.</CardDescription></CardHeader><CardContent className="flex flex-col gap-3 sm:flex-row"><Input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://store.example.com/webhooks/viasetu" /><Button onClick={add} disabled={busy}><Plus />Add endpoint</Button></CardContent></Card> : <Alert><ShieldCheck /><AlertTitle>Read-only integration access</AlertTitle><AlertDescription>You can inspect endpoints but cannot change or test them.</AlertDescription></Alert>}{rows.map((row) => <Card key={row.id} className="merchant-bordered-card"><CardContent className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"><div className="min-w-0"><div className="flex items-center gap-2"><Globe2 className="size-4 text-primary" /><p className="truncate font-bold">{row.endpoint_url}</p></div><p className="mt-2 break-all font-mono text-xs text-muted-foreground">Secret: {row.signing_secret}</p><p className="mt-1 text-xs text-muted-foreground">{row.last_tested_at ? `Last test ${when(row.last_tested_at)} · HTTP ${row.last_test_status}` : "Not tested yet"}{row.last_delivery_at ? ` · Last live delivery HTTP ${row.last_delivery_status}` : ""}</p></div>{mayWrite ? <div className="flex items-center gap-2"><Switch checked={row.is_active} onCheckedChange={(checked) => void update(row, { is_active: checked })} /><Button variant="outline" size="sm" onClick={() => void test(row)} disabled={busy}><Send />Test</Button><Button variant="ghost" size="icon" onClick={() => void remove(row)} aria-label="Delete webhook"><Trash2 /></Button></div> : null}</CardContent></Card>)}{!rows.length ? <Card><EmptyState icon={Webhook} title="No webhook endpoints" description="Add an HTTPS endpoint to receive signed shipment status events." /></Card> : null}</div>;
 }
 
 function PincodePanel() {
@@ -280,7 +278,7 @@ export default function BusinessActivatedModule({ module }: { module: string }) 
   if (module === "cod-orders") return <CodPanel dashboard={false} />;
   if (module === "cod-dashboard") return <CodPanel dashboard />;
   if (module === "weight-reconciliation") return <WeightPanel />;
-  if (module === "users") return <UsersPanel />;
+  if (module === "users") return <BusinessUsersPanel />;
   if (module === "invoices") return <InvoicePanel />;
   if (module === "webhooks") return <WebhooksPanel />;
   if (module === "pincodes") return <PincodePanel />;

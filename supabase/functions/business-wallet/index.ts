@@ -6,6 +6,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
 import { walletApply } from "../_shared/wallet.ts";
+import { merchantCan, resolveMerchantAccess } from "../_shared/merchant-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,9 +58,11 @@ Deno.serve(async (req) => {
       return json({ success: true, balance: r.balance });
     }
 
-    const { data: biz } = await admin.from("business_accounts").select("id,status,company_name")
-      .eq("user_id", u.user.id).eq("is_active", true).maybeSingle();
-    if (!biz || biz.status !== "approved") return json({ error: "Business account not approved" }, 403);
+    const access = await resolveMerchantAccess(admin, u.user);
+    if (!merchantCan(access, "wallet:manage")) return json({ error: "Business account not approved or wallet permission denied" }, 403);
+    const { data: biz } = await admin.from("business_accounts").select("id,company_name")
+      .eq("id", access!.business_account_id).single();
+    if (!biz) return json({ error: "Business account not found" }, 404);
 
     const env = getEnvironmentFromRequest(req);
     const rz = getRazorpayConfig(env);

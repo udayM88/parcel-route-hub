@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isAllowedWebhookUrl } from "../_shared/webhook-security.ts";
+import { merchantCan, resolveMerchantAccess } from "../_shared/merchant-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,12 +42,11 @@ Deno.serve(async (req) => {
     if (!subscriptionId) return json({ error: "subscription_id required" }, 400);
 
     const admin = createClient(projectUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: business } = await admin.from("business_accounts").select("id")
-      .eq("user_id", authData.user.id).eq("status", "approved").eq("is_active", true).maybeSingle();
-    if (!business) return json({ error: "Approved merchant account required" }, 403);
+    const access = await resolveMerchantAccess(admin, authData.user);
+    if (!merchantCan(access, "integrations:write")) return json({ error: "Approved merchant account and integration permission required" }, 403);
 
     const { data: subscription } = await admin.from("merchant_webhook_subscriptions").select("*")
-      .eq("id", subscriptionId).eq("business_account_id", business.id).maybeSingle();
+      .eq("id", subscriptionId).eq("business_account_id", access!.business_account_id).maybeSingle();
     if (!subscription) return json({ error: "Webhook endpoint not found" }, 404);
     if (!subscription.is_active) return json({ error: "Enable the endpoint before testing it" }, 409);
     if (!isAllowedWebhookUrl(subscription.endpoint_url)) return json({ error: "Webhook URL must be a public HTTPS endpoint" }, 400);
