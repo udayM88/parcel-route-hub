@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import RichTextEditor from '@/components/admin/cms/RichTextEditor';
 import MediaUpload, { uploadCmsImage } from '@/components/admin/cms/MediaUpload';
@@ -34,6 +33,10 @@ export default function ContentEditor({ type }: Props) {
   });
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [authors, setAuthors] = useState<Array<{ id: string; name: string }>>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [authorsLoading, setAuthorsLoading] = useState(true);
+  const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);
+  const [authorLoadError, setAuthorLoadError] = useState<string | null>(null);
   const [catDialogOpen, setCatDialogOpen] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [creatingCat, setCreatingCat] = useState(false);
@@ -42,16 +45,41 @@ export default function ContentEditor({ type }: Props) {
   const [creatingAuthor, setCreatingAuthor] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const loadCategories = () =>
-    supabase.from('cms_categories').select('id,name').order('name').then(({ data }) => setCategories(data || []));
-  const loadAuthors = () =>
-    supabase.from('cms_authors').select('id,name').order('name').then(({ data }) => setAuthors(data || []));
+  const loadCategories = useCallback(async () => {
+    setCategoriesLoading(true);
+    setCategoryLoadError(null);
+    try {
+      const { data: rows, error } = await supabase.from('cms_categories').select('id,name').order('name');
+      if (error) throw error;
+      setCategories(rows || []);
+    } catch (error) {
+      setCategories([]);
+      setCategoryLoadError(error instanceof Error ? error.message : 'Categories could not be loaded.');
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }, []);
+
+  const loadAuthors = useCallback(async () => {
+    setAuthorsLoading(true);
+    setAuthorLoadError(null);
+    try {
+      const { data: rows, error } = await supabase.from('cms_authors').select('id,name').order('name');
+      if (error) throw error;
+      setAuthors(rows || []);
+    } catch (error) {
+      setAuthors([]);
+      setAuthorLoadError(error instanceof Error ? error.message : 'Authors could not be loaded.');
+    } finally {
+      setAuthorsLoading(false);
+    }
+  }, []);
 
 
   useEffect(() => {
-    loadCategories();
-    loadAuthors();
-  }, []);
+    void loadCategories();
+    void loadAuthors();
+  }, [loadAuthors, loadCategories]);
 
   const createAuthor = async () => {
     const name = newAuthorName.trim();
@@ -61,7 +89,8 @@ export default function ContentEditor({ type }: Props) {
       .insert({ name, slug: slugify(name) }).select('id,name').single();
     setCreatingAuthor(false);
     if (error) { toast.error(error.message); return; }
-    await loadAuthors();
+    setAuthors((current) => [...current.filter((author) => author.id !== row.id), row]
+      .sort((a, b) => a.name.localeCompare(b.name)));
     patch({ author_id: row.id });
     setNewAuthorName('');
     setAuthorDialogOpen(false);
@@ -77,7 +106,8 @@ export default function ContentEditor({ type }: Props) {
       .insert({ name, slug: slugify(name) }).select('id,name').single();
     setCreatingCat(false);
     if (error) { toast.error(error.message); return; }
-    await loadCategories();
+    setCategories((current) => [...current.filter((category) => category.id !== row.id), row]
+      .sort((a, b) => a.name.localeCompare(b.name)));
     patch({ category_id: row.id });
     setNewCatName('');
     setCatDialogOpen(false);
@@ -266,34 +296,62 @@ export default function ContentEditor({ type }: Props) {
               {type === 'post' && (
                 <>
                   <div>
-                    <Label>Category</Label>
+                    <Label htmlFor="cms-category">Category</Label>
                     <div className="flex gap-1">
-                      <Select value={data.category_id || 'none'} onValueChange={(v) => patch({ category_id: v === 'none' ? null : v })}>
-                        <SelectTrigger className="flex-1"><SelectValue placeholder="None" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <select
+                        id="cms-category"
+                        data-testid="cms-category-select"
+                        value={data.category_id || 'none'}
+                        onChange={(event) => patch({ category_id: event.target.value === 'none' ? null : event.target.value })}
+                        disabled={categoriesLoading}
+                        aria-invalid={Boolean(categoryLoadError)}
+                        className="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        <option value="none">{categoriesLoading ? 'Loading categories…' : 'None'}</option>
+                        {data.category_id && !categories.some((category) => category.id === data.category_id) && (
+                          <option value={data.category_id}>Current category (unavailable)</option>
+                        )}
+                        {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                      </select>
                       <Button type="button" variant="outline" size="icon" title="New category" onClick={() => setCatDialogOpen(true)}>
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
+                    {categoryLoadError && (
+                      <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-destructive" role="alert">
+                        <span>Categories could not be loaded.</span>
+                        <Button type="button" variant="link" size="sm" className="h-auto px-0 text-xs" onClick={() => void loadCategories()}>Retry</Button>
+                      </div>
+                    )}
                   </div>
                   <div>
-                    <Label>Author</Label>
+                    <Label htmlFor="cms-author">Author</Label>
                     <div className="flex gap-1">
-                      <Select value={data.author_id || 'none'} onValueChange={(v) => patch({ author_id: v === 'none' ? null : v })}>
-                        <SelectTrigger className="flex-1"><SelectValue placeholder="None" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {authors.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <select
+                        id="cms-author"
+                        data-testid="cms-author-select"
+                        value={data.author_id || 'none'}
+                        onChange={(event) => patch({ author_id: event.target.value === 'none' ? null : event.target.value })}
+                        disabled={authorsLoading}
+                        aria-invalid={Boolean(authorLoadError)}
+                        className="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        <option value="none">{authorsLoading ? 'Loading authors…' : 'None'}</option>
+                        {data.author_id && !authors.some((author) => author.id === data.author_id) && (
+                          <option value={data.author_id}>Current author (unavailable)</option>
+                        )}
+                        {authors.map((author) => <option key={author.id} value={author.id}>{author.name}</option>)}
+                      </select>
                       <Button type="button" variant="outline" size="icon" title="New author" onClick={() => setAuthorDialogOpen(true)}>
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
+                    {authorLoadError && (
+                      <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-destructive" role="alert">
+                        <span>Authors could not be loaded.</span>
+                        <Button type="button" variant="link" size="sm" className="h-auto px-0 text-xs" onClick={() => void loadAuthors()}>Retry</Button>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <Label>Tags</Label>

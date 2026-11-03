@@ -231,6 +231,7 @@ The public login keeps the sample credentials operational without advertising a 
 - The reduced-motion class is applied and cleaned up by `AdminLayout`; public pages and non-CMS Admin/Ops routes are not changed.
 - The rich-text toolbar stays inside the editor instead of sticking beneath the global Admin header. Blog content scrolls in a dedicated, height-bounded writing area, preventing text from sliding underneath the toolbar or appearing to disappear during page scroll.
 - The text-colour control preserves the editor selection while its palette is open. It applies colour to an explicit selection or, when only the caret is present, to the current text block; the toolbar shows this as an `A` with a live colour underline rather than an ambiguous black dot.
+- The blog editor category and author fields use accessible native selects rather than animation/portal-dependent popups. They expose loading and read failures, provide an inline retry action, preserve an unavailable existing relation, immediately select newly created relations, and continue saving `category_id`/`author_id` through the existing content payload. A public-client read check on 2026-11-03 returned 14 categories and 3 authors, so this repair requires no database migration or production-row change.
 
 ## Merchant console functional audit (2026-10-29)
 
