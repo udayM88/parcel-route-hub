@@ -135,6 +135,7 @@ const BusinessDashboard = () => {
           .from("bookings")
           .select(BOOKING_COLUMNS)
           .eq("business_account_id", business.id)
+          .not("status", "in", "(PENDING_PAYMENT,PAYMENT_ABANDONED)")
           .order("created_at", { ascending: false })
           .limit(500),
         can("wallet:read") ? supabase
