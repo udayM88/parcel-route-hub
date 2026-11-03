@@ -66,6 +66,7 @@ export default function BusinessOrders() {
         .from("bookings")
         .select("id,created_at,tracking_id,prayog_awb,sender_name,sender_city,sender_pincode,receiver_name,receiver_city,receiver_pincode,courier_name,courier_price,status,payment_status,booking_source,service_code")
         .eq("business_account_id", business.id)
+          .not("status", "in", "(PENDING_PAYMENT,PAYMENT_ABANDONED)")
         .order("created_at", { ascending: false })
         .limit(500);
       if (queryError) throw queryError;

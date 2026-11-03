@@ -49,6 +49,7 @@ export default function BusinessAnalyticsPanel() {
         .from("bookings")
         .select("id,created_at,status,courier_name,courier_price,receiver_city")
         .eq("business_account_id", business.id)
+          .not("status", "in", "(PENDING_PAYMENT,PAYMENT_ABANDONED)")
         .order("created_at", { ascending: false })
         .limit(1000);
       if (queryError) throw queryError;
