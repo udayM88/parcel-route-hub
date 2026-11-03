@@ -67,8 +67,8 @@ export default function BusinessAddressesPanel() {
       if (authError || !authData.user) throw new Error("Your session has expired. Please sign in again.");
       const { data, error: queryError } = await supabase
         .from("saved_addresses")
-        .select("id,user_id,business_account_id,label,name,phone,flat_no,address,city,state,pincode,use_count,created_at")
-        .or(`business_account_id.eq.${business?.id},user_id.eq.${authData.user.id}`)
+        .select("id,user_id,label,name,phone,flat_no,address,city,state,pincode,use_count,created_at")
+        .eq("user_id", authData.user.id)
         .order("created_at", { ascending: false });
       if (queryError) throw queryError;
       setAddresses((data as SavedAddress[]) || []);
@@ -105,8 +105,8 @@ export default function BusinessAddressesPanel() {
       if (authError || !authData.user) throw new Error("Your session has expired. Please sign in again.");
       const { data, error: insertError } = await supabase
         .from("saved_addresses")
-        .insert({ user_id: authData.user.id, business_account_id: business?.id || null, ...form })
-        .select("id,user_id,business_account_id,label,name,phone,flat_no,address,city,state,pincode,use_count,created_at")
+        .insert({ user_id: authData.user.id, ...form })
+        .select("id,user_id,label,name,phone,flat_no,address,city,state,pincode,use_count,created_at")
         .single();
       if (insertError) throw insertError;
       setAddresses((current) => [data as SavedAddress, ...current]);

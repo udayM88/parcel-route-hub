@@ -92,8 +92,8 @@ export default function BusinessSupportPanel() {
 
       const { data, error: queryError } = await supabase
         .from("support_tickets")
-        .select("id,user_id,business_account_id,booking_id,subject,description,category,priority,status,created_at,updated_at")
-        .or(`business_account_id.eq.${business?.id},user_id.eq.${authData.user.id}`)
+        .select("id,user_id,booking_id,subject,description,category,priority,status,created_at,updated_at")
+        .eq("user_id", authData.user.id)
         .order("created_at", { ascending: false });
       if (queryError) throw queryError;
       setTickets((data as SupportTicket[]) || []);
@@ -186,13 +186,12 @@ export default function BusinessSupportPanel() {
         .from("support_tickets")
         .insert({
           user_id: authData.user.id,
-          business_account_id: business?.id || null,
           subject: subject.trim(),
           description: description.trim(),
           category,
           priority,
         })
-        .select("id,user_id,business_account_id,booking_id,subject,description,category,priority,status,created_at,updated_at")
+        .select("id,user_id,booking_id,subject,description,category,priority,status,created_at,updated_at")
         .single();
       if (insertError) throw insertError;
       const ticket = data as SupportTicket;
