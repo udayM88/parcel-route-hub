@@ -9,7 +9,7 @@
 //   label            { booking_id, box_index? }
 //   cancel           { booking_id, reason? }
 //   wallet           {}  -> current balance
-// Prices are always computed server-side (courier rate + business margin, 18% GST on top).
+// Prices are computed server-side (displayed consumer rate + ₹15 per box, then merchant GST).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolvePartnerKey } from "../_shared/partner-key.ts";
 
@@ -27,7 +27,9 @@ const err = (
   headers: Record<string, string> = {},
 ) => json({ success: false, error: { code, message, ...extra } }, status, headers);
 
-const BUSINESS_FLAT_MARGIN = 15;
+const CONSUMER_MARGIN_PCT = 1;
+const CONSUMER_PLATFORM_FEE = 25;
+const BUSINESS_PREMIUM_OVER_CONSUMER = 15;
 const GST_RATE = 0.18;
 const ACTION_SCOPES: Record<string, string> = {
   rates: "rates:read",
@@ -70,7 +72,12 @@ function parseBoxes(raw: unknown): Box[] | string {
 }
 
 export function priceFor(rates: number[]) {
-  const nets = rates.map((r) => Math.round(r) + BUSINESS_FLAT_MARGIN);
+  const nets = rates.map((r) => {
+    const rate = Math.round(Number(r) || 0);
+    const consumerNet = rate * (1 + CONSUMER_MARGIN_PCT) + CONSUMER_PLATFORM_FEE;
+    const consumerDisplayed = Math.round(consumerNet * (1 + GST_RATE));
+    return consumerDisplayed + BUSINESS_PREMIUM_OVER_CONSUMER;
+  });
   const net = nets.reduce((a, b) => a + b, 0);
   const total = Math.round(net * (1 + GST_RATE));
   return { net, gst: total - net, total };

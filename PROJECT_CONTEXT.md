@@ -1,6 +1,6 @@
 # ViaSetu Project Context and Handoff
 
-Last updated: 2026-11-05 (Asia/Kolkata)
+Last updated: 2026-11-10 (Asia/Kolkata)
 
 This file is the persistent project handoff. Read it before making changes and update it after any material feature, database, architecture, deployment, or operational change. Do not store passwords, service-role keys, OAuth tokens, customer PII, or other secrets here.
 
@@ -57,6 +57,14 @@ Implemented routes and areas include:
 - Finance/transaction and analytics views based on existing tenant data.
 - Address Management using `saved_addresses` with authenticated owner-only policies.
 - Local-only sample account and sample datasets for safe UI/E2E verification.
+
+## Merchant quote pricing and comparison UI (2026-11-10)
+
+- The merchant GST-exclusive quote is defined as the regular displayed consumer quote plus ₹15 per box. With courier rate `r`, the displayed consumer quote is `round((r × 2 + ₹25) × 1.18)` and the merchant net is that displayed amount plus ₹15.
+- Merchant quote cards display the partner logo, partner/service name, rating and review count when available, delivery ETA, applicable service capabilities, and the merchant amount labelled `(GST excluded)`.
+- GST remains 18% and is shown separately in the review/payment breakdown. The final payable amount still includes GST.
+- The same formula is enforced in `src/lib/pricing.ts`, `business-create-shipment`, and `merchant-api` to prevent client/server payment mismatches. This is a code-only change with no database migration or existing-row rewrite.
+- The Edge Function changes are not live until the relevant functions are explicitly deployed; do not deploy them implicitly during local UI work.
 
 ## Existing data remains authoritative
 

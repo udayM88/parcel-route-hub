@@ -48,11 +48,13 @@ describe('saved order accounting', () => {
     expect(result.platformRevenue).toBe(108);
     expect(result.splitDifference).toBe(0);
   });
-  test('business revenue excludes GST without changing the customer total', () => {
+  test('business net is exactly ₹15 above the regular displayed consumer rate', () => {
     const result = computePriceBreakdown(29, 'business');
-    expect(result.total).toBe(52);
-    expect(result.gst).toBe(8);
-    expect(result.platformFee).toBe(15);
+    const consumer = computePriceBreakdown(29, 'consumer');
+    expect(result.netAmount - consumer.total).toBe(15);
+    expect(result.total).toBe(133);
+    expect(result.gst).toBe(20);
+    expect(result.platformFee).toBe(84);
   });
   test('accounts Excel keeps the historical ₹98 total and corrected ₹29/₹54 split', async () => {
     const blob = buildAccountsWorkbook([{ ...saved, id: 'historical', tracking_id: null, courier_name: 'Urbanebolt', status: 'FAILED', payment_status: 'refunded', created_at: '2026-10-08T09:44:14Z' }], { rangeLabel: 'October' });

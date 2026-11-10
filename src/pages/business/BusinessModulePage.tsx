@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Building2, Calculator, Database, Loader2, Mail, MapPin, Phone, Search, ShieldCheck, ShieldX, Truck } from "lucide-react";
+import { Building2, Calculator, Clock3, Database, Loader2, Mail, MapPin, Phone, Search, ShieldCheck, ShieldX, Star, Truck } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,8 @@ import BusinessAnalyticsPanel from "@/pages/business/BusinessAnalyticsPanel";
 import BusinessAddressesPanel from "@/pages/business/BusinessAddressesPanel";
 import BusinessActivatedModule from "@/pages/business/BusinessActivatedModule";
 import type { MerchantPermission } from "@/lib/merchant-permissions";
+import { getPartnerLogo } from "@/config/partnerLogos";
+import { usePartnerRatings } from "@/hooks/usePartnerRatings";
 
 const modulePermission: Record<string, MerchantPermission> = {
   users: "team:manage", "bulk-booking": "orders:write", "cod-orders": "orders:read", "cod-dashboard": "reports:read",
@@ -42,7 +44,15 @@ type TrackingResult = {
   created_at: string;
 };
 
-type RateQuote = { partner: string; service: string; delivery: string; amount: number };
+type RateQuote = {
+  partnerCode: string;
+  partner: string;
+  service: string;
+  delivery: string;
+  amount: number;
+  rating?: number;
+  reviewCount?: number;
+};
 type ServiceabilityResponse = {
   is_serviceable?: boolean;
   partner?: {
@@ -76,6 +86,13 @@ function RateCalculatorPanel() {
   const [loading, setLoading] = useState(false);
   const [quotes, setQuotes] = useState<RateQuote[]>([]);
   const [message, setMessage] = useState("");
+  const ratingPartners = useMemo(
+    () => isDemo
+      ? []
+      : Array.from(new Map(quotes.map((quote) => [quote.partnerCode, { partner_code: quote.partnerCode, partner_name: quote.partner }])).values()),
+    [isDemo, quotes],
+  );
+  const { ratings } = usePartnerRatings(ratingPartners);
 
   const chargeableKg = computeChargeableKg(Number(weight) || 0, Number(length) || 0, Number(width) || 0, Number(height) || 0).chargeableKg;
   const valid = /^\d{6}$/.test(pickup) && /^\d{6}$/.test(delivery) && Number(weight) > 0;
@@ -88,9 +105,9 @@ function RateCalculatorPanel() {
     try {
       if (isDemo) {
         setQuotes([
-          { partner: "Delhivery", service: "Surface", delivery: "3-5 days", amount: 128 },
-          { partner: "XpressBees", service: "Standard", delivery: "2-4 days", amount: 142 },
-          { partner: "Shadowfax", service: "Express", delivery: "1-3 days", amount: 176 },
+          { partnerCode: "delhivery", partner: "Delhivery", service: "Surface", delivery: "3-5 days", amount: computeBusinessBreakdown([92]).net, rating: 4.5, reviewCount: 1284 },
+          { partnerCode: "xpressbees", partner: "XpressBees", service: "Standard", delivery: "2-4 days", amount: computeBusinessBreakdown([108]).net, rating: 4.4, reviewCount: 962 },
+          { partnerCode: "shadowfax", partner: "Shadowfax", service: "Express", delivery: "1-3 days", amount: computeBusinessBreakdown([138]).net, rating: 4.3, reviewCount: 746 },
         ]);
         return;
       }
@@ -111,10 +128,12 @@ function RateCalculatorPanel() {
         return (data.partner.services || []).map((service) => {
           const courierRate = Number(service.rate?.price?.amount || 0);
           return {
+            partnerCode: partner.code,
             partner: data.partner?.partner_name || partner.code,
             service: service.service_name || "Standard",
             delivery: service.delivery_label || (service.tat_days ? `${service.tat_days} days` : "ETA unavailable"),
-            amount: computeBusinessBreakdown([courierRate]).total,
+            amount: computeBusinessBreakdown([courierRate]).net,
+            rating: Number((data.partner as { rating?: number }).rating) || undefined,
           };
         });
       }));
@@ -156,11 +175,22 @@ function RateCalculatorPanel() {
         <CardFooter className="justify-end border-t pt-4"><Button onClick={calculate} disabled={!valid || loading}>{loading ? <Loader2 className="animate-spin" /> : <Calculator />}Calculate rates</Button></CardFooter>
       </Card>
       <Card className="merchant-surface merchant-bordered-card">
-        <CardHeader><CardTitle>Available services</CardTitle><CardDescription>{isDemo ? "Safe sample quotes for UI evaluation." : "Merchant prices inclusive of GST."}</CardDescription></CardHeader>
+        <CardHeader><CardTitle>Available services</CardTitle><CardDescription>Merchant rate is ₹15 above the regular consumer rate. GST is added separately at checkout.</CardDescription></CardHeader>
         <CardContent className="space-y-3">
           {!quotes.length && !message ? <div className="grid min-h-52 place-items-center text-center text-sm text-muted-foreground"><div><Truck className="mx-auto mb-3 size-9 text-primary/60" />Fill the form to compare courier services.</div></div> : null}
           {message ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{message}</p> : null}
-          {quotes.map((quote, index) => <div key={`${quote.partner}-${quote.service}`} className="flex items-center justify-between gap-3 rounded-xl border bg-card p-3"><div><p className="font-bold">{quote.partner}</p><p className="text-xs text-muted-foreground">{quote.service} · {quote.delivery}</p></div><div className="text-right"><p className="font-extrabold">₹{quote.amount.toLocaleString("en-IN")}</p>{index === 0 ? <Badge variant="secondary">Best price</Badge> : null}</div></div>)}
+          {quotes.map((quote, index) => {
+            const partnerRating = ratings.get(quote.partnerCode);
+            const rating = partnerRating?.rating || quote.rating || 4.0;
+            const reviewCount = partnerRating?.review_count || quote.reviewCount;
+            return <div key={`${quote.partner}-${quote.service}`} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="grid size-12 shrink-0 place-items-center rounded-xl border bg-white p-2"><img src={getPartnerLogo(quote.partnerCode, quote.partner)} alt={`${quote.partner} logo`} className="max-h-8 max-w-full object-contain" /></div>
+                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate font-bold">{quote.partner}</p><Badge variant="secondary">{quote.service}</Badge>{index === 0 ? <Badge>Best price</Badge> : null}</div><div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"><span className="flex items-center gap-1 font-semibold text-foreground"><Star className="size-3.5 fill-amber-400 text-amber-400" />{rating.toFixed(1)}{reviewCount ? ` (${reviewCount.toLocaleString("en-IN")})` : ""}</span><span className="flex items-center gap-1"><Clock3 className="size-3.5" />{quote.delivery}</span></div></div>
+              </div>
+              <div className="border-t pt-3 text-left sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 sm:text-right"><p className="text-xl font-extrabold">₹{quote.amount.toLocaleString("en-IN")}</p><p className="text-xs font-medium text-muted-foreground">(GST excluded)</p></div>
+            </div>;
+          })}
         </CardContent>
       </Card>
     </div>

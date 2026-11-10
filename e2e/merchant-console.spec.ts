@@ -81,6 +81,19 @@ test("merchant sample keeps writes isolated and core screens usable", async ({ p
   await page.getByPlaceholder("Dead weight (kg)").fill("0.5");
   await page.getByRole("button", { name: "Calculate rates" }).click();
   await expect(page.getByText("Best price")).toBeVisible();
+  await expect(page.getByText("(GST excluded)", { exact: true }).first()).toBeVisible();
+  await expect(page.getByAltText("Delhivery logo")).toBeVisible();
+
+  await page.goto(`${base}/book`);
+  await page.getByText("Pickup pincode", { exact: true }).locator("..").locator("input").fill("411001");
+  await page.getByText("Delivery pincode", { exact: true }).locator("..").locator("input").fill("560001");
+  await page.getByText("Weight (g)", { exact: true }).locator("..").locator("input").fill("500");
+  await page.getByRole("button", { name: "Get courier rates" }).click();
+  await expect(page.getByRole("heading", { name: "Available couriers" })).toBeVisible();
+  await expect(page.getByAltText("Delhivery logo")).toBeVisible();
+  await expect(page.getByText("₹262", { exact: true })).toBeVisible();
+  await expect(page.getByText("(GST excluded)", { exact: true })).toHaveCount(3);
+  await expect(page.getByText(/4\.5\s*\(1,284\)/)).toBeVisible();
 
   await page.goto(`${base}/module/tracking`);
   await page.getByLabel("AWB or tracking ID").fill("VS-DEMO-AWB-1042");

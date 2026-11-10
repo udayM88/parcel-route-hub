@@ -9,13 +9,14 @@
 //   savings % = (retail - viasetu) / retail.
 //
 // BUSINESS shipments:
-//   price per box = courier API rate + ₹15 flat (ViaSetu revenue), ALL-INCLUSIVE.
+//   GST-exclusive price per box = the regular consumer displayed price + ₹15.
+//   GST is displayed separately and added only to the final payable amount.
 //   No retail strike-through / savings badge.
 
 export const CONSUMER_MARGIN_PCT = 1.00;   // 100% margin over courier rate
 export const CONSUMER_PLATFORM_FEE = 25;   // flat ₹25 platform fee (pre-GST, hidden from customer)
 export const RETAIL_MULTIPLIER = 4;        // struck-through "retail" price
-export const BUSINESS_FLAT_MARGIN = 15;    // ₹15 revenue per business shipment
+export const BUSINESS_PREMIUM_OVER_CONSUMER = 15; // per box, before GST
 export const GST_RATE = 0.18;
 
 export type AccountType = 'consumer' | 'business';
@@ -44,10 +45,10 @@ export function computeRetailPrice(courierRate: number): number {
   return Math.round(rate * RETAIL_MULTIPLIER);
 }
 
-/** Net (GST-exclusive) business amount for a single box: courier rate + flat margin. */
+/** Net business amount for one box: regular consumer displayed price + ₹15, before business GST. */
 export function computeBusinessNet(courierRate: number): number {
-  const rate = Number(courierRate) || 0;
-  return Math.round(rate) + BUSINESS_FLAT_MARGIN;
+  const rate = Math.round(Number(courierRate) || 0);
+  return computeConsumerPrice(rate) + BUSINESS_PREMIUM_OVER_CONSUMER;
 }
 
 /** Business price for a single box, with 18% GST added on top of the net amount. */

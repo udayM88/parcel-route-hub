@@ -9,7 +9,7 @@ import { dispatchEmail } from "../_shared/notify-email.ts";
 // create one booking_boxes row per box, then fire the partner booking edge
 // function once per box so every box gets its own AWB / label.
 //
-// Pricing: (courier rate + ₹15 internal margin) per box, plus 18% GST on top.
+// Pricing: consumer displayed rate + ₹15 per box, plus merchant GST on top.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { bookingFunctionFor, resolvePartnerKey } from "../_shared/partner-key.ts";
 import { refundWalletBooking, walletApply, WALLET_PREFIX } from "../_shared/wallet.ts";
@@ -21,8 +21,17 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-environment",
 };
 
-const BUSINESS_FLAT_MARGIN = 15;
+const CONSUMER_MARGIN_PCT = 1;
+const CONSUMER_PLATFORM_FEE = 25;
+const BUSINESS_PREMIUM_OVER_CONSUMER = 15;
 const GST_RATE = 0.18;
+
+function businessNet(courierRate: number): number {
+  const rate = Number(courierRate) || 0;
+  const consumerNet = rate * (1 + CONSUMER_MARGIN_PCT) + CONSUMER_PLATFORM_FEE;
+  const consumerDisplayed = Math.round(consumerNet * (1 + GST_RATE));
+  return consumerDisplayed + BUSINESS_PREMIUM_OVER_CONSUMER;
+}
 
 function pickPartnerFn(partnerId: string, courierName: string): string | null {
   const key = resolvePartnerKey(partnerId, courierName);
@@ -152,10 +161,10 @@ Deno.serve(async (req) => {
     const payWithWallet = internal && rawBody._pay_with_wallet === true;
     const boxes: BoxInput[] = b.boxes;
 
-    // ── Pricing: (rate + ₹15) per box, then 18% GST on top ────────
+    // ── Pricing: displayed consumer rate + ₹15, then merchant GST ─
     const perBox = boxes.map((bx) => {
       const rate = Math.round(Number(bx.courier_rate) || 0);
-      const net = rate + BUSINESS_FLAT_MARGIN;
+      const net = businessNet(rate);
       return { rate, net, price: Math.round(net * (1 + GST_RATE)) };
     });
     const totalRate = perBox.reduce((s, p) => s + p.rate, 0);

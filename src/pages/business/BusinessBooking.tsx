@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Boxes, Loader2, Plus, Trash2, Truck, CheckCircle2, MapPin } from "lucide-react";
+import { ArrowLeft, Boxes, Clock3, Loader2, Plus, ShieldCheck, Star, Trash2, Truck, CheckCircle2, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinessAuth } from "@/contexts/useBusinessAuth";
 import PageSeo from "@/components/PageSeo";
@@ -19,6 +19,8 @@ import { CURRENT_ENV } from "@/config/environment";
 import { computeBusinessBreakdown, computeChargeableKg } from "@/lib/pricing";
 import { fetchBusinessCarrierRules, filterEnabledBusinessPartners } from "@/lib/partnerSettings";
 import { isBusinessDemoSession } from "@/lib/business-demo";
+import { getPartnerLogo } from "@/config/partnerLogos";
+import { usePartnerRatings } from "@/hooks/usePartnerRatings";
 
 const DIRECT_PARTNERS = [
   { code: "shadowfax", name: "Shadowfax", fn: "shadowfax-serviceability" },
@@ -40,7 +42,13 @@ type Quote = {
   serviceName: string;
   deliveryTime: string;
   boxRates: number[];
+  netPrice: number;
   totalPrice: number;
+  rating?: number;
+  reviewCount?: number;
+  isCod?: boolean;
+  insurance?: boolean;
+  pickup?: boolean;
 };
 
 const emptyParty: Party = { name: "", phone: "", address: "", city: "", state: "", pincode: "" };
@@ -91,6 +99,21 @@ const BusinessBooking = () => {
   const [showPayment, setShowPayment] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ bookingId: string; boxes: any[] } | null>(null);
+
+  const ratingPartners = useMemo(
+    () => isDemo
+      ? []
+      : Array.from(
+          new Map(
+            quotes.map((quote) => [
+              quote.partnerCode,
+              { partner_code: quote.partnerCode, partner_name: quote.partnerName },
+            ]),
+          ).values(),
+        ),
+    [isDemo, quotes],
+  );
+  const { ratings } = usePartnerRatings(ratingPartners);
 
   const chargeableKgs = useMemo(
     () =>
@@ -199,13 +222,14 @@ const BusinessBooking = () => {
     try {
       if (isDemo) {
         const samplePartners = [
-          { partnerId: "demo-delhivery", partnerCode: "delhivery", partnerName: "Delhivery", serviceCode: "surface", serviceName: "Surface", deliveryTime: "3-5 days", base: 92 },
-          { partnerId: "demo-xpressbees", partnerCode: "xpressbees", partnerName: "XpressBees", serviceCode: "standard", serviceName: "Standard", deliveryTime: "2-4 days", base: 108 },
-          { partnerId: "demo-shadowfax", partnerCode: "shadowfax", partnerName: "Shadowfax", serviceCode: "express", serviceName: "Express", deliveryTime: "1-3 days", base: 138 },
+          { partnerId: "demo-delhivery", partnerCode: "delhivery", partnerName: "Delhivery", serviceCode: "surface", serviceName: "Surface", deliveryTime: "3-5 days", base: 92, rating: 4.5, reviewCount: 1284, isCod: true, insurance: true, pickup: true },
+          { partnerId: "demo-xpressbees", partnerCode: "xpressbees", partnerName: "XpressBees", serviceCode: "standard", serviceName: "Standard", deliveryTime: "2-4 days", base: 108, rating: 4.4, reviewCount: 962, isCod: true, insurance: true, pickup: true },
+          { partnerId: "demo-shadowfax", partnerCode: "shadowfax", partnerName: "Shadowfax", serviceCode: "express", serviceName: "Express", deliveryTime: "1-3 days", base: 138, rating: 4.3, reviewCount: 746, isCod: true, insurance: false, pickup: true },
         ];
         const sampleQuotes = samplePartners.map((partner) => {
           const boxRates = chargeableKgs.map((kg) => Math.round(partner.base + Math.max(0, kg - 0.5) * 42));
-          return { ...partner, boxRates, totalPrice: computeBusinessBreakdown(boxRates).total };
+          const price = computeBusinessBreakdown(boxRates);
+          return { ...partner, boxRates, netPrice: price.net, totalPrice: price.total };
         });
         setQuotes(sampleQuotes);
         setStep(2);
@@ -254,17 +278,24 @@ const BusinessBooking = () => {
           if (!hit) return;
           rates.push(Math.round(hit.service.rate?.price?.amount || 0));
         }
+        const price = computeBusinessBreakdown(rates);
         combos.push({
-          partnerId: entry.partner.partner_id,
-          partnerCode: entry.partner.partner_code,
-          partnerName: entry.partner.partner_name,
+          partnerId: entry.partner.partner_id || key,
+          partnerCode: entry.partner.partner_code || key.split("::")[0],
+          partnerName: entry.partner.partner_name || key.split("::")[0],
           serviceCode: entry.service.service_code,
           serviceName: entry.service.service_name || "Standard",
           deliveryTime:
             entry.service.delivery_label ||
             (entry.service.tat_days ? `${entry.service.tat_days} days` : "2-5 days"),
           boxRates: rates,
-          totalPrice: computeBusinessBreakdown(rates).total,
+          netPrice: price.net,
+          totalPrice: price.total,
+          rating: Number(entry.partner.rating) || undefined,
+          reviewCount: Number(entry.partner.review_count) || undefined,
+          isCod: Boolean(entry.service.is_cod),
+          insurance: Boolean(entry.service.insurance),
+          pickup: entry.service.pickup !== false,
         });
       });
 
@@ -505,7 +536,7 @@ const BusinessBooking = () => {
     <div className="min-h-screen bg-muted/30">
       <PageSeo
         title="New Business Shipment | ViaSetu for Businesses"
-        description="Book multi-box business shipments with live courier rates, inclusive of GST."
+        description="Compare courier partners and book multi-box shipments with transparent GST-exclusive merchant rates."
         path="/viasetuforbusinesses/book"
       />
       <header className="bg-background border-b sticky top-0 z-40">
@@ -662,28 +693,48 @@ const BusinessBooking = () => {
                 <Truck className="h-4 w-4" /> Available couriers
               </CardTitle>
               <CardDescription>
-                {pickupPincode} → {deliveryPincode} · {boxes.length} box{boxes.length > 1 ? "es" : ""} · prices include GST
+                {pickupPincode} → {deliveryPincode} · {boxes.length} box{boxes.length > 1 ? "es" : ""}. Merchant rate is ₹15 above the regular consumer rate per box.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-3">
               {quotes.map((q) => {
                 const active = selected?.partnerId === q.partnerId && selected?.serviceCode === q.serviceCode;
+                const partnerRating = ratings.get(q.partnerCode);
+                const displayRating = partnerRating?.rating || q.rating || 4.0;
+                const reviewCount = partnerRating?.review_count || q.reviewCount;
                 return (
                   <button
+                    type="button"
                     key={`${q.partnerId}-${q.serviceCode}`}
                     onClick={() => setSelected(q)}
-                    className={`w-full text-left border rounded-lg p-3 transition-colors ${active ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}
+                    aria-pressed={active}
+                    className={`w-full rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${active ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20" : "bg-card hover:border-primary/40 hover:shadow-sm"}`}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{q.partnerName}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {q.serviceName} · {q.deliveryTime}
-                        </p>
+                    <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className="grid size-14 shrink-0 place-items-center rounded-xl border bg-white p-2">
+                          <img className="max-h-9 max-w-full object-contain" src={getPartnerLogo(q.partnerCode, q.partnerName)} alt={`${q.partnerName} logo`} />
+                        </div>
+                        <div className="min-w-0 space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate font-bold text-foreground">{q.partnerName}</p>
+                            <Badge variant="secondary" className="font-medium">{q.serviceName}</Badge>
+                            {active ? <Badge className="gap-1"><CheckCircle2 className="size-3" />Selected</Badge> : null}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1 font-semibold text-foreground"><Star className="size-3.5 fill-amber-400 text-amber-400" />{displayRating.toFixed(1)}{reviewCount ? <span className="font-normal text-muted-foreground">({reviewCount.toLocaleString("en-IN")})</span> : null}</span>
+                            <span className="flex items-center gap-1"><Clock3 className="size-3.5" />{q.deliveryTime}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {q.pickup ? <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">Doorstep pickup</span> : null}
+                            {q.isCod ? <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">COD available</span> : null}
+                            {q.insurance ? <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground"><ShieldCheck className="size-3" />Insurance</span> : null}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <p className="font-bold">₹{q.totalPrice}</p>
-                        <p className="text-[11px] text-muted-foreground">incl. GST</p>
+                      <div className="border-t pt-3 text-left sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0 sm:text-right">
+                        <p className="text-2xl font-extrabold tracking-tight">₹{q.netPrice.toLocaleString("en-IN")}</p>
+                        <p className="text-xs font-medium text-muted-foreground">(GST excluded)</p>
                       </div>
                     </div>
                   </button>
@@ -725,7 +776,7 @@ const BusinessBooking = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-1 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Shipping charges</span><span>₹{breakdown.net}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Shipping charges (GST excluded)</span><span>₹{breakdown.net}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">GST (18%)</span><span>₹{breakdown.gst}</span></div>
               <Separator className="my-2" />
               <div className="flex justify-between font-bold text-base"><span>Total payable</span><span>₹{breakdown.total}</span></div>
