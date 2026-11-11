@@ -54,14 +54,14 @@ const partners = [
     logo: shadowfaxLogo,
     tagline: "Last-Mile Delivery Specialist",
     description:
-      "Shadowfax is India's fastest-growing last-mile logistics platform, trusted by leading e-commerce and D2C brands. ViaSetu leverages Shadowfax for reliable RVP (Reverse Pickup), hyperlocal and metro-centric deliveries.",
+      "Shadowfax is India's fastest-growing last-mile logistics platform, trusted by leading e-commerce and D2C brands. ViaSetu uses Shadowfax for reliable doorstep pickup and delivery across India, including multi-box shipments.",
     highlights: [
       { icon: MapPin, text: "500+ Cities operational" },
       { icon: Zap, text: "Hyperlocal & instant delivery" },
-      { icon: Truck, text: "Reverse logistics (RVP)" },
+      { icon: Truck, text: "Doorstep pickup & delivery" },
       { icon: Star, text: "Real-time rider tracking" },
     ],
-    services: ["Hyperlocal", "Same-Day", "Reverse Pickup", "Metro Express"],
+    services: ["Standard Delivery", "Multi-Box", "Doorstep Pickup", "Pan-India"],
   },
   {
     name: "Xpressbees",
