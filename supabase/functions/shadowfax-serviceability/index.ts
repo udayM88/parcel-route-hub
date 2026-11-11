@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     const pickup_pincode = String(body.pickup_pincode || "").trim();
     const delivery_pincode = String(body.delivery_pincode || "").trim();
     const weight_kg = Number(body.weight_kg) || 1;
-    const dims = { length: Number(body.length_cm) || 10, width: Number(body.width_cm) || 10, height: Number(body.height_cm) || 10 };
+    const dims = { l: Number(body.length_cm) || 10, w: Number(body.width_cm) || 10, h: Number(body.height_cm) || 10 };
     if (!/^[1-9]\d{5}$/.test(pickup_pincode) || !/^[1-9]\d{5}$/.test(delivery_pincode)) {
       return json({ error: "Valid 6-digit pickup_pincode and delivery_pincode are required" }, 400);
     }
