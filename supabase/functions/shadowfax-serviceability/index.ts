@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
 
     const zone = String(quote.zone);
     const tat = TAT[zone] || TAT.roi;
-    const amount = Math.round(quote.total ?? quote.price ?? 0);
+    const amount = quote.price_with_fsc;
 
     return json({
       is_serviceable: true,
