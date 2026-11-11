@@ -1,9 +1,8 @@
 import { prepareCancellationQuote, refundCancelledBooking } from "../_shared/refund.ts";
 import { dispatchSms } from "../_shared/notify-sms.ts";
 import { dispatchEmail } from "../_shared/notify-email.ts";
-// Shadowfax Reverse Pickup — Cancel
-// Doc: POST /api/v2/clients/requests/mark_cancel
-// Allowed cancel_remarks: "Cancelled By Customer", "Incorrect/ Incomplete contact info", "Payment Issue"
+// Shadowfax Marketplace 360 — forward cancel. POST /api/v3/clients/orders/cancel/
+// request_id = AWB (parent AWB for multi-box orders) or client_order_id.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getEnvironmentFromRequest, getShadowfaxConfig, getRazorpayConfig } from "../_shared/environment.ts";
@@ -63,7 +62,7 @@ Deno.serve(async (req) => {
     console.log(`[shadowfax-cancel] Cancelling request_id=${requestId} reason="${remarks}"`);
 
     const response = await fetch(
-      `${sfxConfig.apiBaseUrl}/api/v2/clients/requests/mark_cancel`,
+      `${sfxConfig.apiBaseUrl}/api/v3/clients/orders/cancel/`,
       {
         method: "POST",
         headers: {
@@ -77,7 +76,9 @@ Deno.serve(async (req) => {
     const result = await response.json().catch(() => ({}));
     console.log("[shadowfax-cancel] Response:", JSON.stringify(result));
 
-    const apiOk = response.ok && (result?.responseCode === 200 || result?.responseCode === undefined);
+    const code = Number(result?.responseCode ?? result?.response_code ?? 200);
+    const msg = String(result?.responseMsg || result?.message || "").toLowerCase();
+    const apiOk = response.ok && code >= 200 && code < 300 && !msg.includes("fail") && !msg.includes("not ");
 
     if (!apiOk) {
       return new Response(

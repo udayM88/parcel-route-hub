@@ -1688,7 +1688,7 @@ const Booking = () => {
             }
           });
         }
-      }} awbNumber={confirmationData?.awbNumber || ""} labelUrl={confirmationData?.labelUrl} courierName={confirmationData?.courierName} isReversePickup={(confirmationData?.courierName || "").toLowerCase().includes("shadowfax")} bookingId={confirmationData?.bookingId} processing={confirmationData?.processing} />
+      }} awbNumber={confirmationData?.awbNumber || ""} labelUrl={confirmationData?.labelUrl} courierName={confirmationData?.courierName} bookingId={confirmationData?.bookingId} processing={confirmationData?.processing} />
       </div>
     </PageBackground>;
 };

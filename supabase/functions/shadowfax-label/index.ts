@@ -1,9 +1,9 @@
-// Shadowfax Reverse Pickup — Label generator (in-house)
-// Shadowfax does NOT expose a shipping-label endpoint, so we build a printable
-// HTML label from the booking row. Returns a data: URL that the frontend can
-// open in a new tab and Save as PDF / print.
+// Shadowfax Marketplace 360 — shipping label.
+// Primary: official PDF via POST /client/generate_label/ (pre-pickup only, URL valid 2 days).
+// Fallback: ViaSetu-branded printable HTML label built from the booking row.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { sfxConfigFromRequest, sfxFetch } from "../_shared/shadowfax.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -177,6 +177,20 @@ Deno.serve(async (req) => {
           box_count: b.box_count,
         };
       }
+    }
+
+    const labelAwb = labelRow.prayog_awb || labelRow.tracking_id;
+    const { base, token } = sfxConfigFromRequest(req);
+    if (labelAwb && token) {
+      const r = await sfxFetch(base, token, "/client/generate_label/", { body: { awb_number: String(labelAwb), file_type: "pdf" } });
+      const url = r.data?.data?.label_url || r.data?.label_url;
+      if (r.ok && url) {
+        return new Response(
+          JSON.stringify({ success: true, label_url: url, format: "pdf", source: "shadowfax" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      console.warn("[shadowfax-label] official label unavailable, using fallback:", r.status, r.raw.slice(0, 300));
     }
 
     const html = buildLabelHtml(labelRow);

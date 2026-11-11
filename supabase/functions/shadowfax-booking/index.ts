@@ -1,179 +1,126 @@
-// Shadowfax Reverse Pickup (Seller Delivery) — Booking
-// Doc: https://sfxreversepickupsellerdelivery.docs.apiary.io/
-// Two-step flow: (1) generate AWB, (2) create pickup request using that AWB
-// as client_request_id.
-
-import { getEnvironmentFromRequest, getShadowfaxConfig } from "../_shared/environment.ts";
+// Shadowfax Marketplace 360 — forward order booking.
+// Single parcel: POST /v3/clients/orders/ (order_type marketplace, prepaid).
+// Multi-parcel: POST /v2/clients/orders/ (MPS) with package_details → one parent AWB
+// plus one child AWB per box. Rejections arrive as HTTP 200 + message "Failure".
+import { sfxAccepted, sfxConfigFromRequest, sfxError, sfxFetch } from "../_shared/shadowfax.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-environment",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-environment, x-internal-key, x-prayog-auth",
 };
+const json = (b: unknown, status = 200) =>
+  new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-function num(v: any, fallback = 0): number {
-  const n = typeof v === "string" ? parseFloat(v) : Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
+const num = (v: any, f = 0) => { const n = typeof v === "string" ? parseFloat(v) : Number(v); return Number.isFinite(n) ? n : f; };
+const phone = (v: any) => String(v || "").replace(/\D/g, "").slice(-10);
+const pin = (v: any) => parseInt(String(v || "").replace(/\D/g, ""), 10) || 0;
+const volKg = (l: number, w: number, h: number) => Math.round(((l * w * h) / 5000) * 1000) / 1000;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-
   try {
-    const env = getEnvironmentFromRequest(req);
-    const { apiBaseUrl, token } = getShadowfaxConfig(env);
+    const { base, token } = sfxConfigFromRequest(req);
+    if (!token) return json({ success: false, error: "Shadowfax API token not configured" }, 500);
 
-    if (!token) {
-      return new Response(
-        JSON.stringify({ error: "Shadowfax API token not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    const b = await req.json();
+    const required = ["order_id", "sender_name", "sender_phone", "sender_address", "sender_pincode", "receiver_name", "receiver_phone", "receiver_address", "receiver_pincode"];
+    const missing = required.filter((k) => !String(b[k] ?? "").trim());
+    if (missing.length) return json({ success: false, error: `Missing required fields: ${missing.join(", ")}` }, 400);
+    if (phone(b.sender_phone).length !== 10 || phone(b.receiver_phone).length !== 10) {
+      return json({ success: false, error: "Sender and receiver phone must be 10 digits" }, 400);
     }
 
-    const body = await req.json();
-    const {
-      order_id,
-      sender_name, sender_phone, sender_address, sender_pincode, sender_city,
-      receiver_name, receiver_phone, receiver_address, receiver_pincode, receiver_city,
-      package_weight, goods_type, shipment_value,
-      length, width, height,
-    } = body;
+    const orderId = String(b.order_id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 100);
+    const value = Math.max(1, num(b.shipment_value, 0));
+    if (value >= 50000) return json({ success: false, error: "Shipments worth ₹50,000 or more need an e-way bill; book manually." }, 400);
 
-    if (!order_id || !sender_name || !receiver_name) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields: order_id, sender_name, receiver_name" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    const authHeaders = {
-      "Content-Type": "application/json",
-      Authorization: `Token ${token}`,
+    const seller = {
+      name: String(b.sender_name).slice(0, 100),
+      contact: phone(b.sender_phone),
+      address_line_1: String(b.sender_address).slice(0, 250),
+      city: String(b.sender_city || "").slice(0, 50) || "NA",
+      pincode: pin(b.sender_pincode),
     };
+    const boxes: any[] = Array.isArray(b.boxes) ? b.boxes.filter(Boolean) : [];
+    const isMps = boxes.length > 1;
 
-    // ─── Step A: Generate AWB ───
-    const awbRes = await fetch(`${apiBaseUrl}/api/v3/clients/orders/generate_awb/`, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify({ count: 1 }),
-    });
-    const awbData = await awbRes.json().catch(() => ({}));
-    console.log("[shadowfax-booking] AWB generate response:", JSON.stringify(awbData));
+    const weightKg = num(b.package_weight, 0.5);
+    const L = num(b.length, 10), W = num(b.width, 10), H = num(b.height, 10);
+    const totalActual = isMps ? boxes.reduce((s, x) => s + num(x.weight_kg, 0.5), 0) : weightKg;
+    const totalVol = isMps
+      ? boxes.reduce((s, x) => s + volKg(num(x.length_cm, 10), num(x.width_cm, 10), num(x.height_cm, 10)), 0)
+      : volKg(L, W, H);
 
-    const awbNumber: string | undefined = Array.isArray(awbData?.awb_numbers)
-      ? awbData.awb_numbers[0]
-      : undefined;
-
-    if (!awbRes.ok || !awbNumber) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          step: "generate_awb",
-          error: awbData?.message || awbData?.detail || "Failed to generate Shadowfax AWB",
-          shadowfax_response: awbData,
-        }),
-        { status: awbRes.status || 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    // ─── Step B: Create pickup request ───
-    const weightKg = num(package_weight, 1);
-    const actualWeightG = Math.max(1, Math.round(weightKg * 1000));
-    const L = num(length, 10), B = num(width, 10), H = num(height, 10);
-    const volumetricWeightG = Math.max(1, Math.round((L * B * H * 1000) / 5000)); // grams
-
-    const totalAmount = num(shipment_value, 0);
-    const priceExcl = totalAmount > 0 ? Math.round(totalAmount / 1.18) : 0;
-
-    const orderIdStr = String(order_id).slice(0, 100);
-    const payload = {
-      client_order_id: orderIdStr,
-      client_order_number: orderIdStr,
-      client_request_id: awbNumber,
-      total_amount: totalAmount,
-      price: priceExcl,
-      eway_bill: "",
-      address_attributes: {
-        // Pickup customer = our sender
-        name: sender_name,
-        phone_number: String(sender_phone || ""),
-        alternate_contact: String(sender_phone || ""),
-        address_line: sender_address || "",
-        city: sender_city || "",
-        country: "India",
-        pincode: Number(sender_pincode) || 0,
-        latitude: "0",
-        longitude: "0",
+    const payload: Record<string, unknown> = {
+      order_type: "marketplace",
+      customer_details: {
+        name: String(b.receiver_name).slice(0, 100),
+        contact: phone(b.receiver_phone),
+        address_line_1: String(b.receiver_address).slice(0, 250),
+        city: String(b.receiver_city || "").slice(0, 50) || "NA",
+        state: String(b.receiver_state || "").slice(0, 40) || undefined,
+        pincode: pin(b.receiver_pincode),
       },
-      weight_details: {
-        actual_weight: actualWeightG,
-        volumetric_weight: volumetricWeightG,
+      order_details: {
+        client_order_id: orderId,
+        product_value: value,
+        payment_mode: "prepaid",
+        cod_amount: 0,
+        order_service: "Regular",
+        actual_weight: Math.round(totalActual * 1000) / 1000,
+        volumetric_weight: Math.round(totalVol * 1000) / 1000,
+        ...(isMps ? { package_count: boxes.length } : {}),
       },
-      seller_attributes: {
-        // Drop seller = our receiver
-        name: receiver_name,
-        address_line: receiver_address || "",
-        city: receiver_city || "",
-        email: "noreply@viasetu.com",
-        pincode: String(receiver_pincode || ""),
-        phone: String(receiver_phone || ""),
-        unique_code: "VIASETU",
-      },
-      skus_attributes: [
-        {
-          name: goods_type || "Package",
-          client_sku_id: String(order_id),
-          price: totalAmount,
-          brand: "ViaSetu",
-          category: goods_type || "General",
-          return_reason: "Reverse Pickup",
-          qc_required: "false",
-          hsn_code: "00000000",
-          invoice_id: String(order_id),
-        },
-      ],
+      pickup_details: { pickup_type: "seller", ...seller },
+      return_details: { return_type: "seller", ...seller },
+      product_details: [{
+        sku_name: String(b.goods_type || "Package").slice(0, 100),
+        sku_id: orderId,
+        price: value,
+        category: String(b.goods_type || "General").slice(0, 200),
+        invoice_no: orderId.slice(0, 50),
+      }],
     };
-
-    console.log("[shadowfax-booking] Order create payload:", JSON.stringify(payload));
-
-    const createRes = await fetch(`${apiBaseUrl}/api/v3/clients/requests`, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify(payload),
-    });
-    const createData = await createRes.json().catch(() => ({}));
-    console.log("[shadowfax-booking] Order create response:", JSON.stringify(createData));
-
-    const respAwb = createData?.awb_number || awbNumber;
-    const respClientReqId = createData?.client_request_id || awbNumber;
-
-    if (!createRes.ok || !respAwb) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          step: "create_request",
-          error: createData?.message || createData?.detail || "Shadowfax order creation failed",
-          shadowfax_response: createData,
-        }),
-        { status: createRes.status || 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    if (isMps) {
+      const per = Math.round((value / boxes.length) * 100) / 100;
+      payload.package_details = boxes.map((x, i) => ({
+        package_id: `${orderId}-${String(x.box_index ?? i + 1).padStart(2, "0")}`,
+        actual_weight: num(x.weight_kg, 0.5),
+        volumetric_weight: volKg(num(x.length_cm, 10), num(x.width_cm, 10), num(x.height_cm, 10)),
+        product_value: per,
+      }));
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        orderId: createData?.client_order_number || order_id,
-        awbNumber: respAwb,
-        clientRequestId: respClientReqId,
-        status: createData?.status || "New",
-        shadowfax_response: createData,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    const path = isMps ? "/v2/clients/orders/" : "/v3/clients/orders/";
+    console.log(`[shadowfax-booking] POST ${path}`, JSON.stringify(payload));
+    const r = await sfxFetch(base, token, path, { body: payload, timeoutMs: 30000 });
+    console.log("[shadowfax-booking] response:", r.status, r.raw.slice(0, 2000));
+
+    const data = r.data?.data || r.data || {};
+    const awb = data.awb_number || r.data?.awb_number;
+    if (!sfxAccepted(r) && !(r.ok && awb && !String(r.data?.message || "").toLowerCase().includes("fail"))) {
+      return json({ success: false, step: "create_order", error: sfxError(r), shadowfax_response: r.data }, r.ok ? 422 : (r.status || 502));
+    }
+    if (!awb) return json({ success: false, step: "create_order", error: "Shadowfax returned no AWB", shadowfax_response: r.data }, 502);
+
+    const pkg: any[] = Array.isArray(data.package_details) ? data.package_details : (r.data?.package_details || []);
+    const packages = pkg.map((p: any, i: number) => ({
+      box_index: boxes[i]?.box_index ?? i + 1,
+      package_id: p.package_id,
+      awb_number: p.awb_number || p.awb || null,
+    }));
+
+    return json({
+      success: true,
+      orderId,               // Shadowfax keys orders by our client_order_id
+      awbNumber: String(awb),
+      partnerOrderId: data.id ? String(data.id) : orderId,
+      packages,
+      status: data.status || "new",
+      shadowfax_response: r.data,
+    });
   } catch (err) {
     console.error("[shadowfax-booking] error:", err);
-    return new Response(
-      JSON.stringify({ error: "Internal server error", details: String(err) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return json({ success: false, error: "Internal server error", details: String(err) }, 500);
   }
 });

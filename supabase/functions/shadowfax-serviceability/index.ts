@@ -1,242 +1,114 @@
+// Shadowfax Marketplace 360 — forward serviceability + price.
+// Coverage: live Shadowfax serviceability API only (both pincodes must be listed).
+// Price: SFX_Ratecard.xlsx "Standard Express" forward rates via _shared/rate-cards.ts
+// (first 500g + additional 500g, 30% FSC, dead vs L*B*H/5000 whichever higher).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
 import { isPartnerEnabled, partnerDisabledResponse } from "../_shared/partner-toggle.ts";
+import { quoteFromCard, type PinInfo } from "../_shared/rate-cards.ts";
+import { sfxConfigFromRequest, sfxServiceablePins } from "../_shared/shadowfax.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-environment",
 };
+const json = (b: unknown, status = 200) =>
+  new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-// Shadowfax Rate Card (RVP = Reverse Pickup = 1.7x of Forward rates)
-// Forward rates per 500g slab
-const RATE_CARD = {
-  standard: {
-    // category: { first500g, additional500g, tatDays, fscPercent }
-    intracity:    { first: 33, additional: 28, tat: "1-2 Days", tatDays: 2, fsc: 0.30 },
-    within_zone:  { first: 39, additional: 31, tat: "2-3 Days", tatDays: 3, fsc: 0.30 },
-    metro:        { first: 55, additional: 45, tat: "3-4 Days", tatDays: 4, fsc: 0.30 },
-    roi:          { first: 60, additional: 49, tat: "5-6 Days", tatDays: 6, fsc: 0.30 },
-    special_zone: { first: 72, additional: 58, tat: "7-8 Days", tatDays: 8, fsc: 0.30 },
-  },
-  express: {
-    intracity_sdd:  { first: 45, additional: 37, tat: "Same Day", tatDays: 0, fsc: 0.10 },
-    intracity_ndd:  { first: 40, additional: 32, tat: "Next Day", tatDays: 1, fsc: 0.10 },
-    zonal_ndd:      { first: 42, additional: 34, tat: "Next Day", tatDays: 1, fsc: 0.10 },
-    intercity_air:  { first: 59, additional: 48, tat: "Next Day", tatDays: 1, fsc: 0.10 },
-  },
+const TAT: Record<string, { label: string; days: number }> = {
+  intracity: { label: "1-2 Days", days: 2 },
+  within_zone: { label: "2-3 Days", days: 3 },
+  metro: { label: "3-4 Days", days: 4 },
+  roi: { label: "5-6 Days", days: 6 },
+  special_zone: { label: "7-8 Days", days: 8 },
 };
 
-const RVP_MULTIPLIER = 1.7;
-
-// Metro cities list for zone detection
-const METRO_CITIES = new Set([
-  "delhi", "new delhi", "mumbai", "bangalore", "bengaluru", "chennai",
-  "kolkata", "hyderabad", "pune", "ahmedabad",
-]);
-
-// Special zone states (NE + J&K + remote)
-const SPECIAL_ZONE_STATES = new Set([
-  "assam", "arunachal pradesh", "manipur", "meghalaya", "mizoram",
-  "nagaland", "tripura", "sikkim", "jammu and kashmir", "ladakh",
-  "andaman and nicobar islands", "lakshadweep",
-]);
-
-interface ZoneResult {
-  standardCategory: string;
-  expressCategory: string | null;
-}
-
-function detectZone(
-  pickupCity: string, pickupState: string, pickupRegion: string,
-  deliveryCity: string, deliveryState: string, deliveryRegion: string
-): ZoneResult {
-  const pCity = (pickupCity || "").toLowerCase().trim();
-  const dCity = (deliveryCity || "").toLowerCase().trim();
-  const pState = (pickupState || "").toLowerCase().trim();
-  const dState = (deliveryState || "").toLowerCase().trim();
-  const pRegion = (pickupRegion || "").toLowerCase().trim();
-  const dRegion = (deliveryRegion || "").toLowerCase().trim();
-
-  // Check special zone first
-  if (SPECIAL_ZONE_STATES.has(pState) || SPECIAL_ZONE_STATES.has(dState)) {
-    return { standardCategory: "special_zone", expressCategory: null };
-  }
-
-  // Intracity: same city
-  if (pCity && dCity && pCity === dCity) {
-    return { standardCategory: "intracity", expressCategory: "intracity_ndd" };
-  }
-
-  // Within zone: same state or same region
-  if (pState === dState || (pRegion && dRegion && pRegion === dRegion)) {
-    return { standardCategory: "within_zone", expressCategory: "zonal_ndd" };
-  }
-
-  // Metro: either city is a metro
-  if (METRO_CITIES.has(pCity) || METRO_CITIES.has(dCity)) {
-    return { standardCategory: "metro", expressCategory: "intercity_air" };
-  }
-
-  // ROI: everything else
-  return { standardCategory: "roi", expressCategory: "intercity_air" };
-}
-
-function calculatePrice(
-  rateEntry: { first: number; additional: number; fsc: number },
-  weightKg: number,
-  lengthCm: number, widthCm: number, heightCm: number
-): number {
-  // Volumetric weight: L*B*H / 5000
-  const volWeight = (lengthCm * widthCm * heightCm) / 5000;
-  const chargeableWeight = Math.max(weightKg, volWeight);
-
-  // Convert to grams for slab calculation
-  const weightG = chargeableWeight * 1000;
-  const slabs = Math.ceil(weightG / 500);
-
-  // First 500g + additional slabs
-  let forwardPrice = rateEntry.first;
-  if (slabs > 1) {
-    forwardPrice += (slabs - 1) * rateEntry.additional;
-  }
-
-  // Apply RVP multiplier (1.7x of forward)
-  let rvpPrice = forwardPrice * RVP_MULTIPLIER;
-
-  // Apply FSC (Fuel Surcharge) on freight
-  rvpPrice += rvpPrice * rateEntry.fsc;
-
-  return Math.round(rvpPrice);
+async function pinInfo(supabase: any, pin: string, city?: string, state?: string): Promise<PinInfo & { known: boolean }> {
+  if (city && state) return { pincode: pin, city, state, known: true };
+  const { data } = await supabase.from("shadowfax_pincodes").select("city, state").eq("pincode", pin).maybeSingle();
+  if (data?.city && data?.state) return { pincode: pin, city: data.city, state: data.state, known: true };
+  try {
+    const r = await fetch(`https://api.postalpincode.in/pincode/${pin}`, { signal: AbortSignal.timeout(6000) });
+    const j = await r.json();
+    const po = j?.[0]?.PostOffice?.[0];
+    if (po?.State) return { pincode: pin, city: po.District || po.Block || "", state: po.State, known: true };
+  } catch { /* ignore */ }
+  return { pincode: pin, city: "", state: "", known: false };
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-    if (!(await isPartnerEnabled("shadowfax"))) return partnerDisabledResponse("shadowfax", corsHeaders);
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (!(await isPartnerEnabled("shadowfax"))) return partnerDisabledResponse("shadowfax", corsHeaders);
 
   try {
     const body = await req.json();
-    const { pickup_pincode, delivery_pincode, weight_kg = 1, length_cm = 10, width_cm = 10, height_cm = 10 } = body;
-
-    if (!pickup_pincode || !delivery_pincode) {
-      return new Response(
-        JSON.stringify({ error: "pickup_pincode and delivery_pincode are required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const pickup_pincode = String(body.pickup_pincode || "").trim();
+    const delivery_pincode = String(body.delivery_pincode || "").trim();
+    const weight_kg = Number(body.weight_kg) || 1;
+    const dims = { l: Number(body.length_cm) || 10, w: Number(body.width_cm) || 10, h: Number(body.height_cm) || 10 };
+    if (!/^[1-9]\d{5}$/.test(pickup_pincode) || !/^[1-9]\d{5}$/.test(delivery_pincode)) {
+      return json({ error: "Valid 6-digit pickup_pincode and delivery_pincode are required" }, 400);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { base, token, env } = sfxConfigFromRequest(req);
+    if (!token) return json({ is_serviceable: false, error: "Shadowfax token not configured" });
 
-    // Check if both pincodes exist in shadowfax_pincodes table
-    const { data: pincodes, error } = await supabase
-      .from("shadowfax_pincodes")
-      .select("pincode, city, state, region, hub")
-      .in("pincode", [pickup_pincode, delivery_pincode])
-      .eq("is_active", true);
-
-    if (error) {
-      console.error("DB query error:", error);
-      return new Response(
-        JSON.stringify({ is_serviceable: false, error: "Database error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const pins = pickup_pincode === delivery_pincode ? [pickup_pincode] : [pickup_pincode, delivery_pincode];
+    const { serviceable, apiOk, result } = await sfxServiceablePins(base, token, pins);
+    if (!apiOk) {
+      console.warn("[shadowfax-serviceability] API not usable:", result.status, result.raw.slice(0, 300));
+      return json({ is_serviceable: false, error: "Shadowfax serviceability unavailable", details: result.data });
+    }
+    const pickupOk = serviceable.has(pickup_pincode);
+    const deliveryOk = serviceable.has(delivery_pincode);
+    if (!pickupOk || !deliveryOk) {
+      return json({ is_serviceable: false, pickup_serviceable: pickupOk, delivery_serviceable: deliveryOk });
     }
 
-    const pickupFound = pincodes?.find((p) => p.pincode === pickup_pincode);
-    const deliveryFound = pincodes?.find((p) => p.pincode === delivery_pincode);
-    const isServiceable = !!pickupFound && !!deliveryFound;
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const [p, d] = await Promise.all([
+      pinInfo(supabase, pickup_pincode, body.pickup_city, body.pickup_state),
+      pinInfo(supabase, delivery_pincode, body.delivery_city, body.delivery_state),
+    ]);
+    // Unknown state → can't rule out the special zone; price at the highest slab rather than under-charge.
+    const quote = quoteFromCard("shadowfax", "standard",
+      p.known ? p : { pincode: pickup_pincode, state: "assam" },
+      d.known ? d : { pincode: delivery_pincode, state: "assam" },
+      weight_kg, dims, { sfxTier: "standard" });
+    if (!quote) return json({ is_serviceable: false, error: "No rate card entry" });
 
-    if (!isServiceable) {
-      return new Response(
-        JSON.stringify({
-          is_serviceable: false,
-          pickup_serviceable: !!pickupFound,
-          delivery_serviceable: !!deliveryFound,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const zone = String(quote.zone);
+    const tat = TAT[zone] || TAT.roi;
+    const amount = quote.price_with_fsc;
 
-    // Detect zone
-    const zone = detectZone(
-      pickupFound.city, pickupFound.state, pickupFound.region,
-      deliveryFound.city, deliveryFound.state, deliveryFound.region
-    );
-
-    const stdRate = RATE_CARD.standard[zone.standardCategory as keyof typeof RATE_CARD.standard];
-    const stdPrice = calculatePrice(stdRate, weight_kg, length_cm, width_cm, height_cm);
-
-    const services: any[] = [
-      {
-        service_code: "sfx_standard",
-        service_name: "Shadowfax Standard",
-        tat_days: stdRate.tatDays,
-        tat_label: stdRate.tat,
-        delivery_modes: { express: false, standard: true },
-        is_cod: true,
-        pickup: true,
-        delivery: true,
-        insurance: false,
-        rate: {
-          rate_id: "sfx_rate_standard",
-          price: { amount: stdPrice, currency: "INR", type: "calculated" },
-          description: `RVP Standard (${zone.standardCategory.replace("_", " ")})`,
-        },
-      },
-    ];
-
-    // Add express service if available for this zone
-    if (zone.expressCategory) {
-      const expRate = RATE_CARD.express[zone.expressCategory as keyof typeof RATE_CARD.express];
-      if (expRate) {
-        const expPrice = calculatePrice(expRate, weight_kg, length_cm, width_cm, height_cm);
-        services.push({
-          service_code: "sfx_express",
-          service_name: "Shadowfax Express",
-          tat_days: expRate.tatDays,
-          tat_label: expRate.tat,
-          delivery_modes: { express: true, standard: false },
-          is_cod: true,
+    return json({
+      is_serviceable: true,
+      partner: {
+        partner_id: "shadowfax_direct",
+        partner_code: "shadowfax",
+        partner_name: "Shadowfax",
+        is_serviceable: true,
+        rating: 4.2,
+        services: [{
+          service_code: "sfx_standard",
+          service_name: "Shadowfax Standard",
+          tat_days: tat.days,
+          tat_label: tat.label,
+          delivery_modes: { express: false, standard: true },
+          is_cod: false,
           pickup: true,
           delivery: true,
           insurance: false,
           rate: {
-            rate_id: "sfx_rate_express",
-            price: { amount: expPrice, currency: "INR", type: "calculated" },
-            description: `RVP Express (${zone.expressCategory.replace("_", " ")})`,
+            rate_id: "sfx_rate_standard",
+            price: { amount, currency: "INR", type: "rate_card" },
+            description: `Forward Standard (${zone.replace("_", " ")})`,
           },
-        });
-      }
-    }
-
-    const partner = {
-      partner_id: "shadowfax_direct",
-      partner_code: "shadowfax",
-      partner_name: "Shadowfax",
-      is_serviceable: true,
-      rating: 4.2,
-      services,
-      metadata: {
-        pickup_hub: pickupFound.hub,
-        delivery_hub: deliveryFound.hub,
-        pickup_city: pickupFound.city,
-        delivery_city: deliveryFound.city,
-        zone: zone.standardCategory,
+        }],
+        metadata: { zone, environment: env, pickup_city: p.city, delivery_city: d.city, pickup_state: p.state, delivery_state: d.state, zone_estimated: !(p.known && d.known) },
       },
-    };
-
-    return new Response(
-      JSON.stringify({ is_serviceable: true, partner }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    });
   } catch (err) {
-    console.error("Serviceability error:", err);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    console.error("[shadowfax-serviceability] error:", err);
+    return json({ error: "Internal server error" }, 500);
   }
 });
