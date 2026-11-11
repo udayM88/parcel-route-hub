@@ -179,3 +179,6 @@ verify_jwt = false
 
 [functions.cancellation-quote]
 verify_jwt = false
+
+[functions.shadowfax-webhook]
+verify_jwt = false
