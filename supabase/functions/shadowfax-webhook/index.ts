@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
       .or(`prayog_awb.eq.${awb},tracking_id.eq.${awb}`).maybeSingle();
     if (!booking) { console.warn("[shadowfax-webhook] no booking for", awb); continue; }
 
-    const env = booking.environment === "sandbox" ? "sandbox" : "production";
+    const env = "production";
     const tr = await fetch(`${url}/functions/v1/shadowfax-tracking`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "x-environment": env },

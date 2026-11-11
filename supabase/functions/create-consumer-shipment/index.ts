@@ -152,7 +152,39 @@ Deno.serve(async (req) => {
 
     if (boxRows && boxRows.length > 1) {
       const results: any[] = [];
-      for (const box of boxRows) {
+      // Shadowfax supports true multi-package orders (MPS): one call, one parent
+      // AWB for cancellation/tracking, one child AWB per box for labels.
+      let sfxParentAwb: string | null = null;
+      if (partnerFn === "shadowfax-booking" && boxRows.every((b: any) => !b.tracking_id)) {
+        let payload: any = null; let errorMessage: string | null = null;
+        try {
+          const res = await fetch(`${supabaseUrl}/functions/v1/${partnerFn}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}`, "x-environment": env, "x-internal-key": serviceKey },
+            body: JSON.stringify({ ...partnerPayload, boxes: boxRows.map((b: any) => ({
+              box_index: b.box_index, weight_kg: Number(b.weight_kg) || partnerPayload.package_weight,
+              length_cm: Number(b.length_cm) || partnerPayload.length, width_cm: Number(b.width_cm) || partnerPayload.width,
+              height_cm: Number(b.height_cm) || partnerPayload.height,
+            })) }),
+          });
+          const text = await res.text();
+          try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
+          if (!(res.ok && payload?.success)) errorMessage = String(payload?.error || payload?.message || text).slice(0, 400);
+        } catch (e) { errorMessage = String((e as Error)?.message || e).slice(0, 400); }
+        if (!errorMessage) sfxParentAwb = String(payload.awbNumber);
+        for (const box of boxRows) {
+          const pk = (payload?.packages || []).find((p: any) => Number(p.box_index) === Number(box.box_index));
+          const awb = errorMessage ? null : (pk?.awb_number || sfxParentAwb);
+          await admin.from("booking_boxes").update({
+            status: errorMessage ? "failed" : "booked",
+            tracking_id: awb,
+            partner_order_id: errorMessage ? null : (pk?.package_id || orderId),
+            error_message: errorMessage,
+          }).eq("id", box.id);
+          results.push({ box_index: box.box_index, success: !errorMessage, tracking_id: awb, label_url: null, error: errorMessage });
+        }
+      }
+      for (const box of (sfxParentAwb !== null || results.length ? [] : boxRows)) {
         if (box.tracking_id) {
           results.push({ box_index: box.box_index, success: true, tracking_id: box.tracking_id, label_url: box.label_url });
           continue;
@@ -285,8 +317,8 @@ Deno.serve(async (req) => {
       const firstBooked = booked[0];
       const { data: updatedMulti } = await admin.from("bookings").update({
         status: "CREATED",
-        prayog_awb: firstBooked.tracking_id,
-        tracking_id: firstBooked.tracking_id,
+        prayog_awb: sfxParentAwb || firstBooked.tracking_id,
+        tracking_id: sfxParentAwb || firstBooked.tracking_id,
         label_url: firstBooked.label_url,
         prayog_order_id: orderId,
         partner_id: row.partner_id || partnerIdFromFn(partnerFn),
