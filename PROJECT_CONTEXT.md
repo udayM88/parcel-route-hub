@@ -300,3 +300,10 @@ npx playwright test --config=playwright.merchant.config.ts
 Local merchant URL while the development server is running:
 
 `http://127.0.0.1:4174/viasetuforbusinesses`
+
+## Shadowfax (Marketplace 360 forward) — Nov 2026
+- Old reverse-pickup (RVP, 1.7x) integration replaced by forward delivery via `_shared/shadowfax.ts` (dale.shadowfax.in / dale.staging.shadowfax.in, `Token` auth).
+- Serviceability: live `/v1/clients/serviceability/?service=marketplace` only; price from SFX_Ratecard.xlsx Standard forward card (rate-cards.ts, 30% FSC, no RVP multiplier). Unknown state → priced at special-zone slab.
+- Booking: `/v3/clients/orders/` single; multi-box uses MPS `/v2/clients/orders/` (parent AWB on booking, child AWB per box). Tracking v4, cancel v3, label `/client/generate_label/` with HTML fallback.
+- `shadowfax-webhook` re-verifies each callback via tracking API (callbacks are unsigned).
+- Status: staging rejects pickup pincodes (411005, 560058 "not serviceable"); serviceability API returns "Invalid Request". Pending Shadowfax account enablement. Partner toggle currently disabled.
