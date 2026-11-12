@@ -81,36 +81,43 @@ test("CMS text color, highlight and link preserve and format the selected text",
   await editor.fill("Compare express delivery service and parcel tracking service for your shipment.");
 
   await selectEditorText(page, "Compare");
-  await page.getByRole("button", { name: "Text color" }).tap();
+  await page.getByTestId("cms-heading-select").selectOption("h2");
+  await expect(editor.locator("h2")).toContainText("Compare express delivery service");
+  await page.getByTestId("cms-heading-select").selectOption("p");
+
+  await selectEditorText(page, "Compare");
+  await page.getByRole("button", { name: "Text color" }).click();
   await expect(page.getByRole("group", { name: "Text color choices" })).toBeVisible();
-  await page.getByRole("button", { name: "Use #ef4444 text color" }).tap();
+  await page.getByRole("button", { name: "Use #ef4444 text color" }).click();
   await expect(editor.locator("span", { hasText: "Compare" })).toHaveCSS("color", "rgb(239, 68, 68)");
 
   await selectEditorText(page, "express delivery service");
-  await page.getByRole("button", { name: "Highlight" }).tap();
+  await page.getByRole("button", { name: "Highlight" }).click();
   await expect(editor.locator("mark", { hasText: "express delivery service" })).toBeVisible();
 
   await selectEditorText(page, "parcel tracking service");
-  await page.getByRole("button", { name: "Link", exact: true }).tap();
-  await page.getByRole("textbox", { name: "URL" }).fill("https://www.viasetu.com/tracking");
-  await page.getByRole("button", { name: "Apply" }).tap();
+  await page.getByRole("button", { name: "Link", exact: true }).click();
+  await expect(page.getByTestId("cms-link-panel")).toBeVisible();
+  await page.getByRole("textbox", { name: "URL" }).fill("www.viasetu.com/tracking");
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByTestId("cms-link-panel")).toBeHidden();
   const trackingLink = editor.locator('a[href="https://www.viasetu.com/tracking"]');
   await expect(trackingLink).toHaveText("parcel tracking service");
 
   await selectEditorText(page, "parcel tracking service");
-  await page.getByRole("button", { name: "Highlight" }).tap();
+  await page.getByRole("button", { name: "Highlight" }).click();
   await expect(trackingLink.locator("mark")).toHaveText("parcel tracking service");
 
   await selectEditorText(page, "parcel tracking service");
-  await page.getByRole("button", { name: "Text color" }).tap();
-  await page.getByRole("button", { name: "Use #3b82f6 text color" }).tap();
+  await page.getByRole("button", { name: "Text color" }).click();
+  await page.getByRole("button", { name: "Use #3b82f6 text color" }).click();
   await expect(trackingLink.locator("span")).toHaveCSS("color", "rgb(59, 130, 246)");
 
   await trackingLink.click();
-  await page.getByRole("button", { name: "Link", exact: true }).tap();
+  await page.getByRole("button", { name: "Link", exact: true }).click();
   const urlInput = page.getByRole("textbox", { name: "URL" });
   await expect(urlInput).toHaveValue("https://www.viasetu.com/tracking");
   await urlInput.fill("https://www.viasetu.com/services/parcel-tracking");
-  await page.getByRole("button", { name: "Apply" }).tap();
+  await page.getByRole("button", { name: "Apply" }).click();
   await expect(editor.locator('a[href="https://www.viasetu.com/services/parcel-tracking"]')).toHaveText("parcel tracking service");
 });

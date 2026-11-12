@@ -242,6 +242,8 @@ const BusinessLogin = () => {
                     <button
                       type="button"
                       aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-pressed={showPassword}
+                      title={showPassword ? "Hide password" : "Show password"}
                       onClick={() => setShowPassword((visible) => !visible)}
                       className="absolute right-3 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-[#62788a] transition hover:bg-[#eef3f6] hover:text-[#102a43] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#20c9d7]"
                     >

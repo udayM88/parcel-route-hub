@@ -12,8 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
+import { normalizeCmsLinkHref } from '@/lib/cms/link';
 import {
   Bold, Italic, UnderlineIcon, Strikethrough, List, ListOrdered, Quote,
   Link as LinkIcon, Image as ImageIcon, Undo, Redo, Code, Code2,
@@ -108,7 +108,7 @@ export default function RichTextEditor({ value, onChange, onInsertImage }: Props
     setLinkOpen(true);
   };
 
-  const closeLinkDialog = () => {
+  const closeLinkEditor = () => {
     linkSelectionRef.current = null;
     setLinkOpen(false);
   };
@@ -117,17 +117,26 @@ export default function RichTextEditor({ value, onChange, onInsertImage }: Props
     const selection = linkSelectionRef.current ?? latestSelectionRef.current;
     restoreEditorSelection(selection);
 
-    if (!linkUrl) {
+    if (!linkUrl.trim()) {
       editor.chain().focus().unsetLink().run();
       setLinkOpen(false);
       linkSelectionRef.current = null;
       return;
     }
-    const attrs: Record<string, string | null> = { href: linkUrl, target: linkNewTab ? '_blank' : null };
+    const href = normalizeCmsLinkHref(linkUrl);
+    if (!href) {
+      toast.error('Enter a valid web, email, phone, anchor, or relative URL.');
+      return;
+    }
+    const attrs: Record<string, string | null> = { href, target: linkNewTab ? '_blank' : null };
     if (editor.state.selection.empty && editor.isActive('link')) {
       editor.chain().focus().extendMarkRange('link').setLink(attrs as { href: string }).run();
     } else if (editor.state.selection.empty) {
-      editor.chain().focus().insertContent(`<a href="${linkUrl}"${linkNewTab ? ' target="_blank" rel="noopener"' : ''}>${linkUrl}</a>`).run();
+      editor.chain().focus().insertContent({
+        type: 'text',
+        text: href,
+        marks: [{ type: 'link', attrs }],
+      }).run();
     } else {
       editor.chain().focus().setLink(attrs as { href: string }).run();
     }
@@ -213,18 +222,18 @@ export default function RichTextEditor({ value, onChange, onInsertImage }: Props
     <div className="border rounded-md bg-background cms-editor isolate overflow-hidden">
       <div className="cms-toolbar relative z-10 border-b bg-background">
        <div className="cms-toolbar-scroll flex items-center gap-0.5 p-2">
-        <Select value={headingValue} onValueChange={setHeading}>
-          <SelectTrigger onPointerDown={captureEditorSelection} className="h-9 w-[112px] shrink-0 text-xs sm:h-8"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="p">Paragraph</SelectItem>
-            <SelectItem value="h1">Heading 1</SelectItem>
-            <SelectItem value="h2">Heading 2</SelectItem>
-            <SelectItem value="h3">Heading 3</SelectItem>
-            <SelectItem value="h4">Heading 4</SelectItem>
-            <SelectItem value="h5">Heading 5</SelectItem>
-            <SelectItem value="h6">Heading 6</SelectItem>
-          </SelectContent>
-        </Select>
+        <label htmlFor="cms-heading-style" className="sr-only">Text style</label>
+        <select id="cms-heading-style" data-testid="cms-heading-select" value={headingValue}
+          onPointerDown={captureEditorSelection} onChange={(event) => setHeading(event.target.value)}
+          className="h-9 w-[112px] shrink-0 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 sm:h-8">
+          <option value="p">Paragraph</option>
+          <option value="h1">Heading 1</option>
+          <option value="h2">Heading 2</option>
+          <option value="h3">Heading 3</option>
+          <option value="h4">Heading 4</option>
+          <option value="h5">Heading 5</option>
+          <option value="h6">Heading 6</option>
+        </select>
         <Sep />
         <ToolBtn title="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="h-4 w-4" /></ToolBtn>
         <ToolBtn title="Italic" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-4 w-4" /></ToolBtn>
@@ -255,7 +264,7 @@ export default function RichTextEditor({ value, onChange, onInsertImage }: Props
         <ToolBtn title="Quote" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote className="h-4 w-4" /></ToolBtn>
         <ToolBtn title="Code block" active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()}><Code2 className="h-4 w-4" /></ToolBtn>
         <ToolBtn title="Horizontal rule" onClick={() => editor.chain().focus().setHorizontalRule().run()}><Minus className="h-4 w-4" /></ToolBtn>
-        <ToolBtn title="Link" active={editor.isActive('link')} onClick={openLink}><LinkIcon className="h-4 w-4" /></ToolBtn>
+        <ToolBtn title="Link" active={linkOpen || editor.isActive('link')} onClick={openLink}><LinkIcon className="h-4 w-4" /></ToolBtn>
         {editor.isActive('link') && (
           <ToolBtn title="Remove link" onClick={() => editor.chain().focus().unsetLink().run()}><Link2Off className="h-4 w-4" /></ToolBtn>
         )}
@@ -281,34 +290,33 @@ export default function RichTextEditor({ value, onChange, onInsertImage }: Props
             onPointerDown={(event) => event.preventDefault()} onClick={() => applyTextColor()}>Clear</button>
         </div>
        )}
-      </div>
-      <div className="cms-editor-scroll" aria-label="Blog content writing area">
-        <EditorContent editor={editor} />
-      </div>
-
-      <Dialog open={linkOpen} onOpenChange={(open) => {
-        if (open) setLinkOpen(true);
-        else closeLinkDialog();
-      }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Insert link</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label htmlFor="link-url">URL</Label>
-              <Input id="link-url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://example.com"
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyLink(); } }} autoFocus />
-            </div>
+       {linkOpen && (
+        <div data-testid="cms-link-panel" className="space-y-3 border-t bg-muted/30 p-3" role="group" aria-label="Insert link">
+          <div>
+            <Label htmlFor="link-url">URL</Label>
+            <Input id="link-url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://example.com" autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); applyLink(); }
+                if (e.key === 'Escape') { e.preventDefault(); closeLinkEditor(); }
+              }} />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Checkbox id="link-newtab" checked={linkNewTab} onCheckedChange={(v) => setLinkNewTab(!!v)} />
               <Label htmlFor="link-newtab" className="cursor-pointer">Open in new tab</Label>
             </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={closeLinkEditor}>Cancel</Button>
+              <Button type="button" size="sm" onClick={applyLink}>Apply</Button>
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeLinkDialog}>Cancel</Button>
-            <Button onClick={applyLink}>Apply</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+       )}
+      </div>
+      <div className="cms-editor-scroll" aria-label="Blog content writing area">
+        <EditorContent editor={editor} />
+      </div>
     </div>
   );
 }

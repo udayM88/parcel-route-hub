@@ -85,16 +85,22 @@ export default function ContentEditor({ type }: Props) {
     const name = newAuthorName.trim();
     if (!name) return;
     setCreatingAuthor(true);
-    const { data: row, error } = await supabase.from('cms_authors')
-      .insert({ name, slug: slugify(name) }).select('id,name').single();
-    setCreatingAuthor(false);
-    if (error) { toast.error(error.message); return; }
-    setAuthors((current) => [...current.filter((author) => author.id !== row.id), row]
-      .sort((a, b) => a.name.localeCompare(b.name)));
-    patch({ author_id: row.id });
-    setNewAuthorName('');
-    setAuthorDialogOpen(false);
-    toast.success('Author created');
+    try {
+      const { data: row, error } = await supabase.from('cms_authors')
+        .insert({ name, slug: slugify(name) }).select('id,name').single();
+      if (error) throw error;
+      if (!row) throw new Error('Author could not be created.');
+      setAuthors((current) => [...current.filter((author) => author.id !== row.id), row]
+        .sort((a, b) => a.name.localeCompare(b.name)));
+      patch({ author_id: row.id });
+      setNewAuthorName('');
+      setAuthorDialogOpen(false);
+      toast.success('Author created');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Author could not be created.');
+    } finally {
+      setCreatingAuthor(false);
+    }
   };
 
 
@@ -102,16 +108,22 @@ export default function ContentEditor({ type }: Props) {
     const name = newCatName.trim();
     if (!name) return;
     setCreatingCat(true);
-    const { data: row, error } = await supabase.from('cms_categories')
-      .insert({ name, slug: slugify(name) }).select('id,name').single();
-    setCreatingCat(false);
-    if (error) { toast.error(error.message); return; }
-    setCategories((current) => [...current.filter((category) => category.id !== row.id), row]
-      .sort((a, b) => a.name.localeCompare(b.name)));
-    patch({ category_id: row.id });
-    setNewCatName('');
-    setCatDialogOpen(false);
-    toast.success('Category created');
+    try {
+      const { data: row, error } = await supabase.from('cms_categories')
+        .insert({ name, slug: slugify(name) }).select('id,name').single();
+      if (error) throw error;
+      if (!row) throw new Error('Category could not be created.');
+      setCategories((current) => [...current.filter((category) => category.id !== row.id), row]
+        .sort((a, b) => a.name.localeCompare(b.name)));
+      patch({ category_id: row.id });
+      setNewCatName('');
+      setCatDialogOpen(false);
+      toast.success('Category created');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Category could not be created.');
+    } finally {
+      setCreatingCat(false);
+    }
   };
 
 
@@ -303,7 +315,7 @@ export default function ContentEditor({ type }: Props) {
                         data-testid="cms-category-select"
                         value={data.category_id || 'none'}
                         onChange={(event) => patch({ category_id: event.target.value === 'none' ? null : event.target.value })}
-                        disabled={categoriesLoading}
+                        aria-busy={categoriesLoading}
                         aria-invalid={Boolean(categoryLoadError)}
                         className="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
                       >
@@ -313,10 +325,29 @@ export default function ContentEditor({ type }: Props) {
                         )}
                         {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
                       </select>
-                      <Button type="button" variant="outline" size="icon" title="New category" onClick={() => setCatDialogOpen(true)}>
+                      <Button type="button" variant="outline" size="icon" title="New category" aria-label="New category"
+                        aria-expanded={catDialogOpen} aria-controls="cms-new-category"
+                        onClick={() => setCatDialogOpen((open) => !open)}>
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
+                    {catDialogOpen && (
+                      <div id="cms-new-category" data-testid="cms-new-category-panel"
+                        className="mt-2 space-y-2 rounded-md border bg-muted/30 p-3" role="group" aria-label="New category form">
+                        <Label htmlFor="cat-name">Category name</Label>
+                        <Input id="cat-name" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); void createCategory(); }
+                            if (e.key === 'Escape') { e.preventDefault(); setCatDialogOpen(false); }
+                          }} />
+                        <div className="flex justify-end gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={() => setCatDialogOpen(false)}>Cancel</Button>
+                          <Button type="button" size="sm" onClick={() => void createCategory()} disabled={creatingCat || !newCatName.trim()}>
+                            {creatingCat ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create'}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     {categoryLoadError && (
                       <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-destructive" role="alert">
                         <span>Categories could not be loaded.</span>
@@ -332,7 +363,7 @@ export default function ContentEditor({ type }: Props) {
                         data-testid="cms-author-select"
                         value={data.author_id || 'none'}
                         onChange={(event) => patch({ author_id: event.target.value === 'none' ? null : event.target.value })}
-                        disabled={authorsLoading}
+                        aria-busy={authorsLoading}
                         aria-invalid={Boolean(authorLoadError)}
                         className="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
                       >
@@ -342,10 +373,29 @@ export default function ContentEditor({ type }: Props) {
                         )}
                         {authors.map((author) => <option key={author.id} value={author.id}>{author.name}</option>)}
                       </select>
-                      <Button type="button" variant="outline" size="icon" title="New author" onClick={() => setAuthorDialogOpen(true)}>
+                      <Button type="button" variant="outline" size="icon" title="New author" aria-label="New author"
+                        aria-expanded={authorDialogOpen} aria-controls="cms-new-author"
+                        onClick={() => setAuthorDialogOpen((open) => !open)}>
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
+                    {authorDialogOpen && (
+                      <div id="cms-new-author" data-testid="cms-new-author-panel"
+                        className="mt-2 space-y-2 rounded-md border bg-muted/30 p-3" role="group" aria-label="New author form">
+                        <Label htmlFor="author-name">Author name</Label>
+                        <Input id="author-name" value={newAuthorName} onChange={(e) => setNewAuthorName(e.target.value)} autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); void createAuthor(); }
+                            if (e.key === 'Escape') { e.preventDefault(); setAuthorDialogOpen(false); }
+                          }} />
+                        <div className="flex justify-end gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={() => setAuthorDialogOpen(false)}>Cancel</Button>
+                          <Button type="button" size="sm" onClick={() => void createAuthor()} disabled={creatingAuthor || !newAuthorName.trim()}>
+                            {creatingAuthor ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create'}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     {authorLoadError && (
                       <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-destructive" role="alert">
                         <span>Authors could not be loaded.</span>
@@ -425,39 +475,6 @@ export default function ContentEditor({ type }: Props) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={catDialogOpen} onOpenChange={setCatDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>New category</DialogTitle></DialogHeader>
-          <div>
-            <Label htmlFor="cat-name">Name</Label>
-            <Input id="cat-name" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} autoFocus
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createCategory(); } }} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCatDialogOpen(false)}>Cancel</Button>
-            <Button onClick={createCategory} disabled={creatingCat || !newCatName.trim()}>
-              {creatingCat ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={authorDialogOpen} onOpenChange={setAuthorDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>New author</DialogTitle></DialogHeader>
-          <div>
-            <Label htmlFor="author-name">Name</Label>
-            <Input id="author-name" value={newAuthorName} onChange={(e) => setNewAuthorName(e.target.value)} autoFocus
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createAuthor(); } }} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAuthorDialogOpen(false)}>Cancel</Button>
-            <Button onClick={createAuthor} disabled={creatingAuthor || !newAuthorName.trim()}>
-              {creatingAuthor ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

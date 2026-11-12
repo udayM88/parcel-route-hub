@@ -1,8 +1,6 @@
-import { useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { analyzeSeo } from '@/lib/cms/seo-score';
 import type { CmsContent } from '@/lib/cms/types';
 import { CheckCircle2, AlertCircle, XCircle } from 'lucide-react';
@@ -14,11 +12,7 @@ interface Props {
 }
 
 export default function SEOPanel({ content, onChange }: Props) {
-  const analysis = useMemo(() => analyzeSeo(content), [
-    content.title, content.slug, content.body_html, content.excerpt,
-    content.meta_title, content.meta_description, content.focus_keyphrase,
-    content.featured_image_url, content.featured_image_alt,
-  ]);
+  const analysis = analyzeSeo(content);
   const ringColor = analysis.rating === 'good' ? 'text-green-600' : analysis.rating === 'ok' ? 'text-amber-600' : 'text-red-600';
 
   return (
@@ -71,30 +65,28 @@ export default function SEOPanel({ content, onChange }: Props) {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label>Schema Type</Label>
-            <Select value={content.schema_type || 'Article'} onValueChange={(v) => onChange({ schema_type: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Article">Article</SelectItem>
-                <SelectItem value="BlogPosting">BlogPosting</SelectItem>
-                <SelectItem value="WebPage">WebPage</SelectItem>
-                <SelectItem value="FAQPage">FAQPage</SelectItem>
-                <SelectItem value="Product">Product</SelectItem>
-                <SelectItem value="Organization">Organization</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="cms-schema-type">Schema Type</Label>
+            <select id="cms-schema-type" data-testid="cms-schema-select" value={content.schema_type || 'Article'}
+              onChange={(event) => onChange({ schema_type: event.target.value })}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+              <option value="Article">Article</option>
+              <option value="BlogPosting">BlogPosting</option>
+              <option value="WebPage">WebPage</option>
+              <option value="FAQPage">FAQPage</option>
+              <option value="Product">Product</option>
+              <option value="Organization">Organization</option>
+            </select>
           </div>
           <div>
-            <Label>Robots</Label>
-            <Select value={content.robots || 'index,follow'} onValueChange={(v) => onChange({ robots: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="index,follow">index, follow</SelectItem>
-                <SelectItem value="noindex,follow">noindex, follow</SelectItem>
-                <SelectItem value="index,nofollow">index, nofollow</SelectItem>
-                <SelectItem value="noindex,nofollow">noindex, nofollow</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="cms-robots">Robots</Label>
+            <select id="cms-robots" data-testid="cms-robots-select" value={content.robots || 'index,follow'}
+              onChange={(event) => onChange({ robots: event.target.value })}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+              <option value="index,follow">index, follow</option>
+              <option value="noindex,follow">noindex, follow</option>
+              <option value="index,nofollow">index, nofollow</option>
+              <option value="noindex,nofollow">noindex, nofollow</option>
+            </select>
           </div>
         </div>
 

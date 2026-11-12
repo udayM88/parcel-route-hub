@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import PasswordInput from "@/components/auth/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2 } from "lucide-react";
@@ -97,7 +97,7 @@ const BusinessResetPassword = () => {
           <form onSubmit={handleReset} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="newPassword">New Password</Label>
-              <Input id="newPassword" type="password" value={newPassword}
+              <PasswordInput id="newPassword" visibilityLabel="new password" autoComplete="new-password" value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)} required />
               <p className="text-xs text-muted-foreground">
                 Minimum 8 characters with uppercase, lowercase, number and special character
@@ -105,7 +105,7 @@ const BusinessResetPassword = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input id="confirmPassword" type="password" value={confirmPassword}
+              <PasswordInput id="confirmPassword" visibilityLabel="confirm password" autoComplete="new-password" value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)} required />
             </div>
             <Button type="submit" className="w-full" disabled={loading || !ready}>
