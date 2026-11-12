@@ -45,7 +45,6 @@ type Quote = {
   netPrice: number;
   totalPrice: number;
   rating?: number;
-  reviewCount?: number;
   isCod?: boolean;
   insurance?: boolean;
   pickup?: boolean;
@@ -222,9 +221,9 @@ const BusinessBooking = () => {
     try {
       if (isDemo) {
         const samplePartners = [
-          { partnerId: "demo-delhivery", partnerCode: "delhivery", partnerName: "Delhivery", serviceCode: "surface", serviceName: "Surface", deliveryTime: "3-5 days", base: 92, rating: 4.5, reviewCount: 1284, isCod: true, insurance: true, pickup: true },
-          { partnerId: "demo-xpressbees", partnerCode: "xpressbees", partnerName: "XpressBees", serviceCode: "standard", serviceName: "Standard", deliveryTime: "2-4 days", base: 108, rating: 4.4, reviewCount: 962, isCod: true, insurance: true, pickup: true },
-          { partnerId: "demo-shadowfax", partnerCode: "shadowfax", partnerName: "Shadowfax", serviceCode: "express", serviceName: "Express", deliveryTime: "1-3 days", base: 138, rating: 4.3, reviewCount: 746, isCod: true, insurance: false, pickup: true },
+          { partnerId: "demo-delhivery", partnerCode: "delhivery", partnerName: "Delhivery", serviceCode: "surface", serviceName: "Surface", deliveryTime: "3-5 days", base: 92, rating: 4.5, isCod: true, insurance: true, pickup: true },
+          { partnerId: "demo-xpressbees", partnerCode: "xpressbees", partnerName: "XpressBees", serviceCode: "standard", serviceName: "Standard", deliveryTime: "2-4 days", base: 108, rating: 4.4, isCod: true, insurance: true, pickup: true },
+          { partnerId: "demo-shadowfax", partnerCode: "shadowfax", partnerName: "Shadowfax", serviceCode: "express", serviceName: "Express", deliveryTime: "1-3 days", base: 138, rating: 4.3, isCod: true, insurance: false, pickup: true },
         ];
         const sampleQuotes = samplePartners.map((partner) => {
           const boxRates = chargeableKgs.map((kg) => Math.round(partner.base + Math.max(0, kg - 0.5) * 42));
@@ -292,7 +291,6 @@ const BusinessBooking = () => {
           netPrice: price.net,
           totalPrice: price.total,
           rating: Number(entry.partner.rating) || undefined,
-          reviewCount: Number(entry.partner.review_count) || undefined,
           isCod: Boolean(entry.service.is_cod),
           insurance: Boolean(entry.service.insurance),
           pickup: entry.service.pickup !== false,
@@ -701,7 +699,6 @@ const BusinessBooking = () => {
                 const active = selected?.partnerId === q.partnerId && selected?.serviceCode === q.serviceCode;
                 const partnerRating = ratings.get(q.partnerCode);
                 const displayRating = partnerRating?.rating || q.rating || 4.0;
-                const reviewCount = partnerRating?.review_count || q.reviewCount;
                 return (
                   <button
                     type="button"
@@ -722,7 +719,7 @@ const BusinessBooking = () => {
                             {active ? <Badge className="gap-1"><CheckCircle2 className="size-3" />Selected</Badge> : null}
                           </div>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1 font-semibold text-foreground"><Star className="size-3.5 fill-amber-400 text-amber-400" />{displayRating.toFixed(1)}{reviewCount ? <span className="font-normal text-muted-foreground">({reviewCount.toLocaleString("en-IN")})</span> : null}</span>
+                            <span className="flex items-center gap-1 font-semibold text-foreground"><Star className="size-3.5 fill-amber-400 text-amber-400" />{displayRating.toFixed(1)}</span>
                             <span className="flex items-center gap-1"><Clock3 className="size-3.5" />{q.deliveryTime}</span>
                           </div>
                           <div className="flex flex-wrap gap-1.5">

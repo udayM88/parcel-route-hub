@@ -93,7 +93,7 @@ test("merchant sample keeps writes isolated and core screens usable", async ({ p
   await expect(page.getByAltText("Delhivery logo")).toBeVisible();
   await expect(page.getByText("₹262", { exact: true })).toBeVisible();
   await expect(page.getByText("(GST excluded)", { exact: true })).toHaveCount(3);
-  await expect(page.getByText(/4\.5\s*\(1,284\)/)).toBeVisible();
+  await expect(page.getByText("4.5", { exact: true })).toBeVisible();
 
   await page.goto(`${base}/module/tracking`);
   await page.getByLabel("AWB or tracking ID").fill("VS-DEMO-AWB-1042");

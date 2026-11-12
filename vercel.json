@@ -8,6 +8,8 @@
   ],
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "https://tksfdvnogzsweteetjjw.supabase.co/functions/v1/generate-sitemap" },
+    { "source": "/tracking", "destination": "/tracking/index.html" },
+    { "source": "/blog", "destination": "/blog/index.html" },
     {
       "source": "/blog/:slug",
       "has": [
@@ -19,6 +21,9 @@
       ],
       "destination": "https://tksfdvnogzsweteetjjw.supabase.co/functions/v1/cms-prerender?slug=:slug"
     },
+    { "source": "/blog/:slug", "destination": "/blog/:slug/index.html" },
+    { "source": "/p/:slug", "destination": "/p/:slug/index.html" },
+    { "source": "/courier/:slug", "destination": "/courier/:slug/index.html" },
     { "source": "/__l5e/:path*", "destination": "https://viasetu1.lovable.app/__l5e/:path*" },
     { "source": "/((?!api/|__l5e/).*)", "destination": "/index.html" }
   ]

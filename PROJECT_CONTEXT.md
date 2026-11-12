@@ -1,6 +1,6 @@
 # ViaSetu Project Context and Handoff
 
-Last updated: 2026-11-10 (Asia/Kolkata)
+Last updated: 2026-11-12 (Asia/Kolkata)
 
 This file is the persistent project handoff. Read it before making changes and update it after any material feature, database, architecture, deployment, or operational change. Do not store passwords, service-role keys, OAuth tokens, customer PII, or other secrets here.
 
@@ -61,10 +61,20 @@ Implemented routes and areas include:
 ## Merchant quote pricing and comparison UI (2026-11-10)
 
 - The merchant GST-exclusive quote is defined as the regular displayed consumer quote plus ₹15 per box. With courier rate `r`, the displayed consumer quote is `round((r × 2 + ₹25) × 1.18)` and the merchant net is that displayed amount plus ₹15.
-- Merchant quote cards display the partner logo, partner/service name, rating and review count when available, delivery ETA, applicable service capabilities, and the merchant amount labelled `(GST excluded)`.
+- Merchant quote cards display the partner logo, partner/service name, star rating, delivery ETA, applicable service capabilities, and the merchant amount labelled `(GST excluded)`. Review-count totals are intentionally hidden to keep the comparison concise.
 - GST remains 18% and is shown separately in the review/payment breakdown. The final payable amount still includes GST.
 - The same formula is enforced in `src/lib/pricing.ts`, `business-create-shipment`, and `merchant-api` to prevent client/server payment mismatches. This is a code-only change with no database migration or existing-row rewrite.
 - The Edge Function changes are not live until the relevant functions are explicitly deployed; do not deploy them implicitly during local UI work.
+
+## Static SEO coverage for non-JavaScript crawlers (2026-11-12)
+
+- SEO audit exports reported 39 missing meta-description rows (33 unique normalized URLs) and 38 missing-H1 rows (32 unique normalized blog URLs); six rows in each report were trailing-slash duplicates.
+- The affected responses were the shared SPA shell with JavaScript rendering disabled, so crawlers saw the default title and no route-level description or H1 even though the rendered React pages contained them.
+- The Vite production build now writes route-specific static HTML entry files for `/tracking`, `/blog`, and every published CMS post/page/partner. These files contain the stored CMS title, meta description/excerpt, canonical, robots, social metadata, and a crawlable H1; React replaces the lightweight fallback content when JavaScript loads.
+- `vercel.json` sends those extensionless routes to the generated entry files before the SPA catch-all. The existing crawler-specific CMS prerender route remains first for its supported bots.
+- CMS metadata is fetched read-only with the existing publishable/anon key during the build. Incomplete CMS records are skipped explicitly rather than receiving invented metadata.
+- The initial `/tracking` search state now renders `PageSeo` client-side as well as after tracking data is found.
+- This is a build/output change only: no database migration, CMS-row rewrite, production data mutation, or Edge Function deployment is required.
 
 ## Existing data remains authoritative
 
