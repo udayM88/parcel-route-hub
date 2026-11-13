@@ -17,7 +17,7 @@ async function findAuthUserByEmail(admin: any, email: string): Promise<User | nu
   for (let page = 1; page <= 10; page += 1) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
     if (error) throw error;
-    const found = data.users.find((candidate) => candidate.email?.toLowerCase() === email);
+    const found = data.users.find((candidate: User) => candidate.email?.toLowerCase() === email);
     if (found) return found;
     if (data.users.length < 200) return null;
   }
