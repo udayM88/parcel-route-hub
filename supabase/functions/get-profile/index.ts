@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ profile }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching profile:", error);
     return new Response(
       JSON.stringify({ error: error.message }),

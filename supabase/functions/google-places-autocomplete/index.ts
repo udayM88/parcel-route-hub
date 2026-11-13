@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ predictions, status: 'OK' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),

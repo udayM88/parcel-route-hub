@@ -12,11 +12,12 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const roles = new Set(["admin", "operations", "finance", "support", "developer", "viewer"]);
 const statuses = new Set(["active", "suspended"]);
 
-async function findAuthUserByEmail(admin: ReturnType<typeof createClient>, email: string): Promise<User | null> {
+// deno-lint-ignore no-explicit-any
+async function findAuthUserByEmail(admin: any, email: string): Promise<User | null> {
   for (let page = 1; page <= 10; page += 1) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
     if (error) throw error;
-    const found = data.users.find((candidate) => candidate.email?.toLowerCase() === email);
+    const found = data.users.find((candidate: User) => candidate.email?.toLowerCase() === email);
     if (found) return found;
     if (data.users.length < 200) return null;
   }

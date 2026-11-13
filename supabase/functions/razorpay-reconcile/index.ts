@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
           if (batch.length === 0) continue;
           const { data, error } = await supabase.from("bookings").select(bookingColumns).in("payment_id", batch);
           if (error) throw error;
-          for (const booking of data || []) {
+          for (const booking of ((data || []) as any[])) {
             if (booking.payment_id) bookingMap.set(booking.payment_id, booking);
           }
         }
@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
           .lte("created_at", new Date(toSec * 1000).toISOString())
           .order("created_at", { ascending: true });
         if (periodError) throw periodError;
-        for (const booking of periodBookings || []) {
+        for (const booking of ((periodBookings || []) as any[])) {
           if (booking.payment_id && !bookingMap.has(booking.payment_id)) bookingMap.set(booking.payment_id, booking);
         }
         const bookings = Array.from(new Map(
@@ -260,7 +260,7 @@ Deno.serve(async (req) => {
             });
           }
         }
-        for (const booking of periodBookings || []) {
+        for (const booking of ((periodBookings || []) as any[])) {
           const status = String(booking.status || "").toLowerCase();
           if ((booking.payment_status === "refunded" || booking.payment_status === "refund_failed") && !booking.refund_id) {
             exceptions.push({
