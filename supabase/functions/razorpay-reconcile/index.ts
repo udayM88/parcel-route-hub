@@ -260,7 +260,7 @@ Deno.serve(async (req) => {
             });
           }
         }
-        for (const booking of periodBookings || []) {
+        for (const booking of ((periodBookings || []) as any[])) {
           const status = String(booking.status || "").toLowerCase();
           if ((booking.payment_status === "refunded" || booking.payment_status === "refund_failed") && !booking.refund_id) {
             exceptions.push({
