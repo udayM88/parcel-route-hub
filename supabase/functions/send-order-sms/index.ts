@@ -318,7 +318,7 @@ Deno.serve(async (req) => {
 
     const vars = buildVars(booking, extraVars);
     const varNames: string[] = Array.isArray(tpl.variables) ? tpl.variables : [];
-    const values = varNames.map((n) => String(vars[n] ?? "-").replace(/[|]/g, "/").slice(0, 30));
+    const values = varNames.map((n) => String((vars as Record<string, unknown>)[n] ?? "-").replace(/[|]/g, "/").slice(0, 30));
 
     const recipients = new Set<string>();
     if (overrideRecipient) recipients.add(overrideRecipient);
