@@ -212,7 +212,7 @@ Deno.serve(async (req) => {
       }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating Prayog booking:', error);
     return new Response(
       JSON.stringify({ 

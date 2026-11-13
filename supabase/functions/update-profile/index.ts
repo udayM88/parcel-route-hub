@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, profile }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating profile:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
