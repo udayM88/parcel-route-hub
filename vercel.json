@@ -16,7 +16,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i).*(facebookexternalhit|facebot|twitterbot|linkedinbot|whatsapp|slackbot|discordbot|telegrambot|googlebot|bingbot|yandex|duckduckbot|baiduspider|applebot|pinterest|redditbot|embedly|quora link preview|outbrain|vkshare|w3c_validator|skypeuripreview|nuzzel|bitlybot|tumblr|flipboard|nuzzel|qwantify|developers\\.google\\.com\\/\\+\\/web\\/snippet).*"
+          "value": "(?i).*(facebookexternalhit|facebot|twitterbot|linkedinbot|whatsapp|slackbot|discordbot|telegrambot|googlebot|bingbot|yandex|duckduckbot|baiduspider|applebot|pinterest|redditbot|ahrefsbot|ahrefssiteaudit|embedly|quora link preview|outbrain|vkshare|w3c_validator|skypeuripreview|nuzzel|bitlybot|tumblr|flipboard|nuzzel|qwantify|developers\\.google\\.com\\/\\+\\/web\\/snippet).*"
         }
       ],
       "destination": "https://tksfdvnogzsweteetjjw.supabase.co/functions/v1/cms-prerender?slug=:slug"

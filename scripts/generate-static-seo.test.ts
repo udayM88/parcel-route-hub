@@ -63,4 +63,26 @@ describe("static SEO route HTML", () => {
       assert.ok(routeIndex < fallbackIndex, `${source} must be resolved before the SPA fallback`);
     }
   });
+
+  it("routes Ahrefs crawlers to the dynamic CMS prerender fallback", () => {
+    const config = JSON.parse(readFileSync("vercel.json", "utf8")) as {
+      rewrites: Array<{
+        source: string;
+        destination: string;
+        has?: Array<{ type: string; key: string; value: string }>;
+      }>;
+    };
+    const crawlerRewrite = config.rewrites.find((rewrite) =>
+      rewrite.source === "/blog/:slug"
+      && rewrite.destination.includes("/cms-prerender"),
+    );
+    const userAgentRule = crawlerRewrite?.has?.find((rule) =>
+      rule.type === "header" && rule.key === "user-agent",
+    );
+
+    assert.ok(userAgentRule, "crawler prerender user-agent rule is missing");
+    const matcher = new RegExp(userAgentRule.value.replace(/^\(\?i\)/, ""), "i");
+    assert.match("Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)", matcher);
+    assert.match("Mozilla/5.0 (compatible; AhrefsSiteAudit/6.1; +http://ahrefs.com/robot/site-audit)", matcher);
+  });
 });
