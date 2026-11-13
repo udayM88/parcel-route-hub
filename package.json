@@ -9,6 +9,7 @@
     "prebuild": "bunx tsx scripts/generate-sitemap.ts",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "build:woocommerce": "node scripts/build-woocommerce-plugins.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

@@ -14,8 +14,15 @@ final class ViaSetu_Settings {
             'enabled'                 => 'yes',
             'connection_mode'         => 'api_key',
             'api_endpoint'            => 'https://tksfdvnogzsweteetjjw.supabase.co/functions/v1/merchant-api',
+            'connect_endpoint'        => 'https://tksfdvnogzsweteetjjw.supabase.co/functions/v1/woocommerce-connect',
+            'connect_portal_url'      => 'https://www.viasetu.com/viasetuforbusinesses/connect/woocommerce',
             'api_key'                 => '',
             'webhook_secret'          => '',
+            'connection_id'           => '',
+            'merchant_company'        => '',
+            'merchant_email'          => '',
+            'connected_at'            => '',
+            'environment'             => 'live',
             'pickup_name'             => '',
             'pickup_phone'            => '',
             'pickup_address'          => '',
@@ -41,6 +48,10 @@ final class ViaSetu_Settings {
             'sync_batch_size'         => '50',
             'complete_when_delivered' => 'yes',
             'debug_logging'           => 'no',
+            'label_paper'             => 'a4',
+            'label_format'            => 'pdf',
+            'label_show_order_number' => 'yes',
+            'label_auto_fetch'        => 'yes',
         );
     }
 
@@ -59,6 +70,42 @@ final class ViaSetu_Settings {
 
     public static function webhook_secret() {
         return self::decrypt( self::get( 'webhook_secret' ) );
+    }
+
+    public static function is_connected() {
+        if ( defined( 'VIASETU_WC_DEMO_MODE' ) && VIASETU_WC_DEMO_MODE ) return 'yes' === self::get( 'enabled' );
+        return '' !== self::api_key();
+    }
+
+    public static function store_connection( $api_key, $webhook_secret, $connection_id, $environment, $merchant = array() ) {
+        $encrypted_key    = self::encrypt( trim( (string) $api_key ) );
+        $encrypted_secret = self::encrypt( trim( (string) $webhook_secret ) );
+        if ( '' === $encrypted_key || '' === $encrypted_secret ) return false;
+
+        $settings                       = self::get_all();
+        $settings['enabled']            = 'yes';
+        $settings['connection_mode']    = 'portal';
+        $settings['api_key']            = $encrypted_key;
+        $settings['webhook_secret']     = $encrypted_secret;
+        $settings['connection_id']      = sanitize_text_field( $connection_id );
+        $settings['environment']        = 'sandbox' === $environment ? 'sandbox' : 'live';
+        $settings['merchant_company']   = sanitize_text_field( $merchant['company_name'] ?? '' );
+        $settings['merchant_email']     = sanitize_email( $merchant['email'] ?? '' );
+        $settings['connected_at']       = current_time( 'mysql', true );
+        update_option( self::OPTION, $settings, false );
+        return true;
+    }
+
+    public static function clear_connection() {
+        $settings = self::get_all();
+        foreach ( array( 'api_key', 'webhook_secret', 'connection_id', 'merchant_company', 'merchant_email', 'connected_at' ) as $key ) {
+            $settings[ $key ] = '';
+        }
+        update_option( self::OPTION, $settings, false );
+    }
+
+    public static function encryption_available() {
+        return function_exists( 'sodium_crypto_secretbox' ) || function_exists( 'openssl_encrypt' );
     }
 
     public static function action_links( $links ) {
@@ -119,6 +166,10 @@ final class ViaSetu_Settings {
             $output['sync_interval']           = in_array( $input['sync_interval'] ?? '', array( 'viasetu_15_minutes', 'hourly', 'twicedaily' ), true ) ? $input['sync_interval'] : 'hourly';
             $output['sync_batch_size']         = (string) max( 10, min( 200, absint( $input['sync_batch_size'] ?? 50 ) ) );
             if ( function_exists( 'viasetu_wc_reschedule_sync' ) ) viasetu_wc_reschedule_sync( $output['sync_interval'] );
+        }
+
+        if ( 'labels' === $section ) {
+            $output['label_auto_fetch'] = isset( $input['label_auto_fetch'] ) ? 'yes' : 'no';
         }
 
         return $output;

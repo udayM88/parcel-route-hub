@@ -1,6 +1,6 @@
 # ViaSetu Merchant SDK for JavaScript
 
-Server-side JavaScript/TypeScript client for ViaSetu rates, shipments, tracking, labels, cancellations, and wallet balance.
+Server-side JavaScript/TypeScript client for ViaSetu merchant account data, dashboard metrics, orders, billing, rates, shipments, tracking, labels, cancellations, and wallet balance.
 
 ## Install from the downloaded package
 
@@ -27,3 +27,5 @@ const rates = await viasetu.rates({
 Never bundle the API key into React, browser JavaScript, a mobile app, or a public repository. Call ViaSetu only from a trusted server, server action, API route, or backend process.
 
 `createShipment` requires a unique idempotency key. Live shipment creation remains account-gated until ViaSetu enables it for the merchant.
+
+Connected merchant applications can also call `account()`, `dashboard()`, `orders({ page, perPage, status })`, `billing({ limit })`, and `disconnect()`. Disconnect revokes the key that performs the action.

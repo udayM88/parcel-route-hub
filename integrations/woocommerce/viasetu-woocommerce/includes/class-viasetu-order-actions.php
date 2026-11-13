@@ -12,6 +12,7 @@ final class ViaSetu_Order_Actions {
         add_action( 'woocommerce_admin_order_data_after_shipping_address', array( __CLASS__, 'admin_details' ) );
         add_action( 'woocommerce_order_details_after_order_table', array( __CLASS__, 'customer_details' ) );
         add_action( 'viasetu_wc_tracking_sync', array( __CLASS__, 'sync_open_shipments' ) );
+        add_action( 'viasetu_wc_fetch_label', array( __CLASS__, 'fetch_label_later' ) );
     }
 
     public static function actions( $actions, $order = null ) {
@@ -131,6 +132,9 @@ final class ViaSetu_Order_Actions {
         $order->save();
         $order->add_order_note( __( 'ViaSetu shipment created successfully.', 'viasetu-woocommerce' ) );
         ViaSetu_Logger::log( 'success', 'Shipment created', array( 'order_id' => $order->get_id(), 'booking_id' => $result['booking_id'] ?? '' ) );
+        if ( 'yes' === ViaSetu_Settings::get( 'label_auto_fetch', 'yes' ) ) {
+            wp_schedule_single_event( time() + 2 * MINUTE_IN_SECONDS, 'viasetu_wc_fetch_label', array( $order->get_id() ) );
+        }
     }
 
     public static function maybe_auto_create( $order_id, $from_status = '', $to_status = '', $order = null ) {
@@ -169,6 +173,11 @@ final class ViaSetu_Order_Actions {
             $order->save();
             $order->add_order_note( __( 'ViaSetu shipping label is ready.', 'viasetu-woocommerce' ) );
         }
+    }
+
+    public static function fetch_label_later( $order_id ) {
+        $order = wc_get_order( absint( $order_id ) );
+        if ( $order instanceof WC_Order && ! $order->get_meta( '_viasetu_label_url' ) ) self::label( $order );
     }
 
     public static function cancel( $order_id ) {

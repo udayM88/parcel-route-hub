@@ -44,3 +44,28 @@ test("structured API errors are preserved", async () => {
     return true;
   });
 });
+
+test("merchant workspace helpers send the documented actions and pagination", async () => {
+  const requests = [];
+  const client = new ViaSetuClient({
+    apiKey: "vs_test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    fetch: async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return new Response(JSON.stringify({ success: true }), { status: 200 });
+    },
+  });
+
+  await client.account();
+  await client.dashboard();
+  await client.orders({ page: 3, perPage: 40, status: "IN_TRANSIT" });
+  await client.billing({ limit: 25 });
+  await client.disconnect();
+
+  assert.deepEqual(requests, [
+    { action: "account" },
+    { action: "dashboard" },
+    { action: "orders", page: 3, per_page: 40, status: "IN_TRANSIT" },
+    { action: "billing", limit: 25 },
+    { action: "disconnect" },
+  ]);
+});

@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: ViaSetu Merchant API
-  version: 1.0.0-beta
-  description: Server-side API for rates, shipments, tracking, labels, cancellation and wallet balance.
+  version: 1.0.0
+  description: Server-side API for merchant account data, dashboard metrics, orders, billing, rates, shipments, tracking, labels, cancellation and secure store disconnection.
 servers:
   - url: https://tksfdvnogzsweteetjjw.supabase.co/functions/v1
 security:
@@ -30,6 +30,11 @@ paths:
                 - $ref: '#/components/schemas/LabelRequest'
                 - $ref: '#/components/schemas/CancelRequest'
                 - $ref: '#/components/schemas/WalletRequest'
+                - $ref: '#/components/schemas/AccountRequest'
+                - $ref: '#/components/schemas/DashboardRequest'
+                - $ref: '#/components/schemas/OrdersRequest'
+                - $ref: '#/components/schemas/BillingRequest'
+                - $ref: '#/components/schemas/DisconnectRequest'
               discriminator:
                 propertyName: action
       responses:
@@ -126,6 +131,37 @@ components:
       required: [action]
       properties:
         action: { const: wallet }
+    AccountRequest:
+      type: object
+      required: [action]
+      properties:
+        action: { const: account }
+    DashboardRequest:
+      type: object
+      required: [action]
+      properties:
+        action: { const: dashboard }
+    OrdersRequest:
+      type: object
+      required: [action]
+      properties:
+        action: { const: orders }
+        page: { type: integer, minimum: 1, maximum: 10000, default: 1 }
+        per_page: { type: integer, minimum: 10, maximum: 100, default: 25 }
+        status:
+          type: string
+          enum: [CREATED, CONFIRMED, PAYMENT_RECEIVED, PENDING_PICKUP, MANIFESTED, ORDER_PLACED, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED, CANCELLED, RTO, UNDELIVERED]
+    BillingRequest:
+      type: object
+      required: [action]
+      properties:
+        action: { const: billing }
+        limit: { type: integer, minimum: 10, maximum: 100, default: 50 }
+    DisconnectRequest:
+      type: object
+      required: [action]
+      properties:
+        action: { const: disconnect }
     SuccessResponse:
       type: object
       required: [success]

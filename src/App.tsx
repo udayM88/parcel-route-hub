@@ -66,6 +66,7 @@ const BusinessBooking = lazy(() => import("./pages/business/BusinessBooking"));
 const BusinessWallet = lazy(() => import("./pages/business/BusinessWallet"));
 const BusinessDevelopers = lazy(() => import("./pages/business/BusinessDevelopers"));
 const BusinessIntegrations = lazy(() => import("./pages/business/BusinessIntegrations"));
+const BusinessWooCommerceConnect = lazy(() => import("./pages/business/BusinessWooCommerceConnect"));
 const BusinessModulePage = lazy(() => import("./pages/business/BusinessModulePage"));
 const BusinessPortalLayout = lazy(() => import("./components/business/BusinessPortalLayout"));
 const BusinessConsoleLayout = lazy(() => import("./components/business/BusinessConsoleLayout"));
@@ -149,6 +150,7 @@ const App = () => (
           <Route path="/viasetuforbusinesses" element={<BusinessPortalLayout />}>
             <Route index element={<BusinessLogin />} />
             <Route path="reset-password" element={<BusinessResetPassword />} />
+            <Route path="connect/woocommerce" element={<ProtectedBusinessRoute permission="integrations:write"><BusinessWooCommerceConnect /></ProtectedBusinessRoute>} />
             <Route element={<ProtectedBusinessRoute><BusinessConsoleLayout /></ProtectedBusinessRoute>}>
               <Route path="dashboard" element={<BusinessDashboard />} />
               <Route path="pricing" element={<ProtectedBusinessRoute permission="orders:read"><BusinessPricing /></ProtectedBusinessRoute>} />

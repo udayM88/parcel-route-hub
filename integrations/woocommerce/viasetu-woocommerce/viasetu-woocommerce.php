@@ -1,12 +1,13 @@
 <?php
 /**
- * Plugin Name: ViaSetu for WooCommerce
+ * Plugin Name: ViaSetu Merchant for WooCommerce
  * Plugin URI: https://www.viasetu.com/developers/merchant-api
  * Description: ViaSetu shipping rates, shipment booking, tracking, labels and signed status webhooks for WooCommerce.
- * Version: 0.2.0
+ * Version: 1.0.0
  * Requires at least: 6.3
  * Requires PHP: 7.4
  * WC requires at least: 8.0
+ * WC tested up to: 11.3
  * Author: ViaSetu
  * Author URI: https://www.viasetu.com
  * Text Domain: viasetu-woocommerce
@@ -14,15 +15,28 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'VIASETU_WC_VERSION', '0.2.0' );
+if ( defined( 'VIASETU_WC_FILE' ) ) {
+    add_action(
+        'admin_notices',
+        static function () {
+            echo '<div class="notice notice-warning"><p>' . esc_html__( 'Another ViaSetu WooCommerce package is already active. Keep only the production or demo package active, not both.', 'viasetu-woocommerce' ) . '</p></div>';
+        }
+    );
+    return;
+}
+
+define( 'VIASETU_WC_VERSION', '1.0.0' );
 define( 'VIASETU_WC_FILE', __FILE__ );
 define( 'VIASETU_WC_DIR', plugin_dir_path( __FILE__ ) );
+if ( ! defined( 'VIASETU_WC_DEMO_MODE' ) ) define( 'VIASETU_WC_DEMO_MODE', false );
 
 require_once VIASETU_WC_DIR . 'includes/class-viasetu-settings.php';
 require_once VIASETU_WC_DIR . 'includes/class-viasetu-logger.php';
 require_once VIASETU_WC_DIR . 'includes/class-viasetu-api-client.php';
 require_once VIASETU_WC_DIR . 'includes/class-viasetu-webhooks.php';
+require_once VIASETU_WC_DIR . 'includes/class-viasetu-connect.php';
 
+if ( ! function_exists( 'viasetu_wc_boot' ) ) {
 function viasetu_wc_missing_woocommerce_notice() {
     echo '<div class="notice notice-error"><p>' . esc_html__( 'ViaSetu for WooCommerce requires WooCommerce to be installed and active.', 'viasetu-woocommerce' ) . '</p></div>';
 }
@@ -39,6 +53,7 @@ function viasetu_wc_boot() {
     require_once VIASETU_WC_DIR . 'includes/class-viasetu-admin.php';
 
     ViaSetu_Settings::init();
+    ViaSetu_Connect::init();
     ViaSetu_Webhooks::init();
     ViaSetu_Order_Actions::init();
     ViaSetu_Product_Settings::init();
@@ -95,3 +110,4 @@ add_action(
         }
     }
 );
+}

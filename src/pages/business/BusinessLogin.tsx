@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Eye,
   EyeOff,
@@ -34,6 +34,7 @@ const getRememberedEmail = () => {
 
 const BusinessLogin = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { refresh } = useBusinessAuth();
   const [email, setEmail] = useState(getRememberedEmail);
   const [password, setPassword] = useState("");
@@ -41,6 +42,10 @@ const BusinessLogin = () => {
   const [isResetMode, setIsResetMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberEmail, setRememberEmail] = useState(() => Boolean(getRememberedEmail()));
+  const requestedReturnTo = searchParams.get("returnTo") || "";
+  const returnTo = requestedReturnTo.startsWith("/viasetuforbusinesses/connect/woocommerce?")
+    ? requestedReturnTo
+    : "/viasetuforbusinesses/dashboard";
 
   const persistRememberedEmail = (value: string) => {
     if (rememberEmail) window.localStorage.setItem(rememberedEmailKey, value);
@@ -67,7 +72,7 @@ const BusinessLogin = () => {
         await refresh(false);
         persistRememberedEmail(normalizedEmail);
         toast.success("Sample merchant workspace opened");
-        navigate("/viasetuforbusinesses/dashboard");
+        navigate(returnTo);
         return;
       }
 
@@ -105,7 +110,7 @@ const BusinessLogin = () => {
 
       persistRememberedEmail(normalizedEmail);
       toast.success("Welcome back!");
-      navigate("/viasetuforbusinesses/dashboard");
+      navigate(returnTo);
     } catch (err) {
       console.error("Business login error:", err);
       toast.error("An unexpected error occurred. Please try again.");
@@ -299,7 +304,7 @@ const BusinessLogin = () => {
             <div className="space-y-2 text-center text-[13px] text-[#52606d]">
               <p>
                 New to ViaSetu?{" "}
-                <button type="button" onClick={() => navigate("/contact")} className="font-bold text-[#087f8d] hover:underline">
+                <button type="button" onClick={() => navigate("/for-business")} className="font-bold text-[#087f8d] hover:underline">
                   Request merchant access
                 </button>
               </p>
