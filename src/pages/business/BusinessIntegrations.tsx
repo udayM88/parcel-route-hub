@@ -19,8 +19,8 @@ const integrationCards = [
     description: "Import orders, create shipments and return tracking updates to your WordPress store.",
     logo: wooCommerceLogo,
     logoAlt: "WooCommerce",
-    status: "Beta available",
-    download: "/downloads/viasetu-woocommerce-0.2.0.zip",
+    status: "Version 1.0.0",
+    download: "/downloads/viasetu-woocommerce-1.0.0.zip",
   },
   {
     title: "Shopify",
@@ -88,7 +88,7 @@ export default function BusinessIntegrations() {
                 </CardHeader>
                 <CardFooter className="justify-between border-t pt-4">
                   <span className="text-xs text-muted-foreground">Account-scoped integration</span>
-                  {item.download ? <Button asChild variant="outline"><a href={item.download} download>Download beta <Download data-icon="inline-end" /></a></Button> : <Button variant="outline" disabled>Configure <ArrowRight data-icon="inline-end" /></Button>}
+                  {item.download ? <Button asChild variant="outline"><a href={item.download} download>Download plugin <Download data-icon="inline-end" /></a></Button> : <Button variant="outline" disabled>Configure <ArrowRight data-icon="inline-end" /></Button>}
                 </CardFooter>
               </Card>
             ))}
@@ -117,9 +117,9 @@ export default function BusinessIntegrations() {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <CardTitle>ViaSetu for WooCommerce</CardTitle>
-                    <Badge>Beta available</Badge>
+                    <Badge>Version 1.0.0</Badge>
                   </div>
-                  <CardDescription className="mt-2">Install the beta package for live checkout rates, server-side order sync, labels, tracking and signed status updates.</CardDescription>
+                  <CardDescription className="mt-2">Install the production package for secure one-click connection, merchant orders, billing, labels, live checkout rates and signed tracking updates.</CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -130,14 +130,15 @@ export default function BusinessIntegrations() {
                 ))}
               </CardContent>
               <CardFooter className="flex-wrap gap-2 border-t pt-4">
-                <Button asChild><a href="/downloads/viasetu-woocommerce-0.2.0.zip" download><Download />Download plugin beta</a></Button>
+                <Button asChild><a href="/downloads/viasetu-woocommerce-1.0.0.zip" download><Download />Production plugin</a></Button>
+                <Button asChild variant="outline"><a href="/downloads/viasetu-woocommerce-demo-1.0.0.zip" download><Download />Demo plugin</a></Button>
                 <Button asChild variant="outline"><a href="/developers/merchant-api"><BookOpen />Setup guide</a></Button>
               </CardFooter>
             </Card>
             <Card className="merchant-surface">
               <CardHeader>
-                <CardTitle className="text-base">Safe beta rollout</CardTitle>
-                <CardDescription>Rates, tracking, labels and signed webhooks are available. Shipment creation activates only after ViaSetu enables it for the merchant account.</CardDescription>
+                <CardTitle className="text-base">Production and isolated demo</CardTitle>
+                <CardDescription>The production package uses live merchant APIs. The demo package uses local fixtures and sends no courier, wallet or payment request.</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3 text-sm">
                 <div className="flex items-center gap-2"><ShieldCheck className="size-4 text-primary" />Server-side credentials only</div>

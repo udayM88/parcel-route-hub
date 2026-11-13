@@ -1,6 +1,6 @@
 # ViaSetu Project Context and Handoff
 
-Last updated: 2026-11-12 (Asia/Kolkata)
+Last updated: 2026-11-13 (Asia/Kolkata)
 
 This file is the persistent project handoff. Read it before making changes and update it after any material feature, database, architecture, deployment, or operational change. Do not store passwords, service-role keys, OAuth tokens, customer PII, or other secrets here.
 
@@ -288,6 +288,20 @@ The public login keeps the sample credentials operational without advertising a 
 - Added Playwright coverage for the complete merchant journey and a 31-route console audit. The team-action toast placement was adjusted so it cannot block table actions.
 - The migration and Edge Function source are committed for deployment, but pushing GitHub code alone does not apply the Supabase migration or deploy functions. Deploy those through the reviewed Supabase/Lovable release workflow after the code revision is approved.
 - Local verification for this release includes TypeScript, targeted ESLint, Vite production build, merchant Playwright journey, 31-route audit, and `git diff --check`. Deno is not installed locally, so Supabase Edge Function type-checking must also run in the deployment pipeline.
+
+## WooCommerce Merchant 1.0 implementation (prepared 2026-11-13; not deployed)
+
+- Rebuilt the WordPress package as **ViaSetu Merchant for WooCommerce 1.0.0** with a dedicated ViaSetu Merchant menu and branded responsive workspaces for overview, merchant orders, WooCommerce shipments, wallet/billing, courier-authoritative labels, shipping rules, automation, products, connection health, and diagnostics.
+- Added a one-click store authorization flow. WordPress generates a PKCE verifier and state, the approved merchant reviews the exact HTTPS store in `/viasetuforbusinesses/connect/woocommerce`, and the plugin exchanges a five-minute one-time code server-to-server. Merchant passwords are never returned to or stored by WordPress.
+- The dedicated integration key and webhook secret are encrypted in WordPress with Sodium or AES-256-GCM, scoped to one merchant, rate-limited, revocable, and never written to logs. Connection endpoints require public HTTPS, block redirects and unsafe/private targets, and cap response sizes. WordPress admin actions use capabilities and nonces; tracking callbacks require a timestamped HMAC signature and delivery deduplication.
+- Added the additive `20261113090000_woocommerce_secure_connect.sql` migration, `woocommerce-connect` Edge Function, and merchant API account/dashboard/orders/billing/disconnect actions. All reads derive the business account from the key; callers cannot submit another tenant ID. Reconnecting the same store revokes its previous key and webhook, while disconnect revokes the current store key.
+- The official new-merchant boundary remains intact: a new business uses `/for-business` to request access and must be approved through the existing Admin business-user flow. The plugin does not create an unapproved live merchant or bypass account review. Existing approved merchants can authorize the store directly.
+- Generated two installable packages from the same reviewed source: `public/downloads/viasetu-woocommerce-1.0.0.zip` for production and `public/downloads/viasetu-woocommerce-demo-1.0.0.zip` for an isolated local-fixture demo. Demo mode sends no courier, wallet, payment, ViaSetu API, or production-data request.
+- Live `create_shipment` remains behind the existing refund-safety gate and still returns `wallet_setup_pending`. Do not claim automatic production booking until that separate safety verification is approved; rates, account/order/billing reads, labels, tracking, cancellation, and signed webhook code paths remain implemented.
+- Source verification completed locally: TypeScript, focused frontend/connection lint, PHP syntax for every plugin PHP file, JavaScript SDK tests, deterministic package structure/isolation tests, frontend production build, focused Playwright documentation and WooCommerce authorization tests, and `git diff --check`. PHP CLI reports an unrelated local `pdo_firebird` startup warning; plugin syntax itself passes.
+- Disposable Docker runtime verification passed for both production and demo packages on the declared minimum stack (WordPress 6.3.2, WooCommerce 8.0.0, PHP 7.4.33), an intermediate stack (WordPress 6.8.3, WooCommerce 8.0.0, PHP 8.1.34), and the current tested stack (WordPress 7.1.4, WooCommerce 11.3.0, PHP 8.1.34). Checks cover plugin boot, branded admin rendering, shipping-method registration, REST webhook registration, encryption, cron scheduling, credential roundtrip, signed webhook handling and delivery deduplication. Demo checks additionally cover local dashboard/billing/shipment fixtures and zero outbound HTTP requests.
+- Browser smoke tests on WordPress 7.1.4 / WooCommerce 11.3.0 passed for production and demo at desktop and mobile sizes with no plugin-level horizontal overflow or relevant page/console errors. Testing accidental simultaneous activation exposed a duplicate global-function fatal; the bootstrap now guards those declarations, and both activation orders boot safely with a warning to keep only one package active.
+- GitHub push alone will not apply the migration or deploy the Edge Functions. Production rollout requires a reviewed Supabase migration/function deployment before publishing the production ZIP or enabling the connection link. The source and packages in this workspace are preparation artifacts until that rollout is completed and smoke-tested.
 
 ## Recommended workflow for the next contributor
 

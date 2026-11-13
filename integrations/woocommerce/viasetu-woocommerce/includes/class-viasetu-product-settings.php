@@ -37,6 +37,7 @@ final class ViaSetu_Product_Settings {
     }
 
     public static function save( $product_id ) {
+        if ( ! current_user_can( 'edit_post', $product_id ) ) return;
         update_post_meta( $product_id, '_viasetu_exclude', isset( $_POST['_viasetu_exclude'] ) ? 'yes' : 'no' );
         update_post_meta( $product_id, '_viasetu_fragile', isset( $_POST['_viasetu_fragile'] ) ? 'yes' : 'no' );
         if ( isset( $_POST['_viasetu_goods_type'] ) ) {

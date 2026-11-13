@@ -9,6 +9,11 @@
 //   label            { booking_id, box_index? }
 //   cancel           { booking_id, reason? }
 //   wallet           {}  -> current balance
+//   account          {}  -> merchant, wallet and connected-store summary
+//   dashboard        {}  -> tenant shipment metrics and recent orders
+//   orders           { page?, per_page?, status? }
+//   billing          { limit? }  -> tenant wallet ledger
+//   disconnect       {}  -> deactivate this store connection and revoke this key
 // Prices are computed server-side (displayed consumer rate + ₹15 per box, then merchant GST).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolvePartnerKey } from "../_shared/partner-key.ts";
@@ -39,6 +44,11 @@ const ACTION_SCOPES: Record<string, string> = {
   label: "shipments:read",
   cancel: "shipments:cancel",
   wallet: "wallet:read",
+  account: "wallet:read",
+  dashboard: "shipments:read",
+  orders: "shipments:read",
+  billing: "wallet:read",
+  disconnect: "shipments:read",
 };
 const PARTNERS = [
   { code: "shadowfax", fn: "shadowfax-serviceability" },
@@ -224,6 +234,118 @@ Deno.serve(async (req) => {
       return json({ success: true, balance: Number(data?.balance ?? 0), currency: "INR" });
     }
 
+    if (action === "account") {
+      const [{ data: account }, { data: wallet }, { data: connection }] = await Promise.all([
+        admin.from("business_accounts").select("company_name,contact_person,email,phone,city,state,pincode,status")
+          .eq("id", biz.id).maybeSingle(),
+        admin.from("business_wallets").select("balance,low_balance_threshold,updated_at")
+          .eq("business_account_id", biz.id).maybeSingle(),
+        admin.from("merchant_store_connections")
+          .select("id,platform,environment,store_name,site_url,status,last_seen_at,plugin_version,created_at")
+          .eq("api_key_id", apiKey.id).eq("status", "active").maybeSingle(),
+      ]);
+      if (connection?.id) {
+        await admin.from("merchant_store_connections").update({ last_seen_at: new Date().toISOString() }).eq("id", connection.id);
+      }
+      return json({
+        success: true,
+        merchant: account,
+        wallet: {
+          balance: Number(wallet?.balance ?? 0),
+          low_balance_threshold: Number(wallet?.low_balance_threshold ?? 0),
+          currency: "INR",
+          updated_at: wallet?.updated_at || null,
+        },
+        connection: connection || null,
+      });
+    }
+
+    if (action === "dashboard") {
+      const activeStatuses = ["CREATED", "CONFIRMED", "PAYMENT_RECEIVED", "PENDING_PICKUP", "MANIFESTED", "ORDER_PLACED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"];
+      const exceptionStatuses = ["FAILED", "CANCELLED", "RTO", "UNDELIVERED"];
+      const withLowercase = (statuses: string[]) => [...statuses, ...statuses.map((status) => status.toLowerCase())];
+      const [total, active, delivered, exceptions, recent, wallet] = await Promise.all([
+        admin.from("bookings").select("id", { count: "exact", head: true }).eq("business_account_id", biz.id),
+        admin.from("bookings").select("id", { count: "exact", head: true }).eq("business_account_id", biz.id).in("status", withLowercase(activeStatuses)),
+        admin.from("bookings").select("id", { count: "exact", head: true }).eq("business_account_id", biz.id).in("status", ["DELIVERED", "delivered"]),
+        admin.from("bookings").select("id", { count: "exact", head: true }).eq("business_account_id", biz.id).in("status", withLowercase(exceptionStatuses)),
+        admin.from("bookings").select("id,created_at,receiver_name,receiver_city,receiver_pincode,courier_name,courier_price,status,tracking_id,prayog_awb,delivery_time,booking_source")
+          .eq("business_account_id", biz.id).order("created_at", { ascending: false }).limit(8),
+        admin.from("business_wallets").select("balance,low_balance_threshold").eq("business_account_id", biz.id).maybeSingle(),
+      ]);
+      return json({
+        success: true,
+        metrics: {
+          total_shipments: total.count || 0,
+          active_shipments: active.count || 0,
+          delivered_shipments: delivered.count || 0,
+          exceptions: exceptions.count || 0,
+        },
+        wallet: {
+          balance: Number(wallet.data?.balance ?? 0),
+          low_balance_threshold: Number(wallet.data?.low_balance_threshold ?? 0),
+          currency: "INR",
+        },
+        recent_orders: recent.data || [],
+      });
+    }
+
+    if (action === "orders") {
+      const page = Math.max(1, Math.min(Number(body.page) || 1, 10_000));
+      const perPage = Math.max(10, Math.min(Number(body.per_page) || 25, 100));
+      const from = (page - 1) * perPage;
+      const allowedStatuses = new Set([
+        "CREATED", "CONFIRMED", "PAYMENT_RECEIVED", "PENDING_PICKUP", "MANIFESTED", "ORDER_PLACED",
+        "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED", "CANCELLED", "RTO", "UNDELIVERED",
+      ]);
+      const status = String(body.status || "").toUpperCase();
+      let query = admin.from("bookings").select(
+        "id,created_at,updated_at,receiver_name,receiver_city,receiver_state,receiver_pincode,sender_name,sender_city,sender_pincode,courier_name,courier_price,gst,status,tracking_id,prayog_awb,delivery_time,goods_type,package_weight,box_count,payment_status,booking_source,label_url",
+        { count: "exact" },
+      ).eq("business_account_id", biz.id).order("created_at", { ascending: false }).range(from, from + perPage - 1);
+      if (status && allowedStatuses.has(status)) query = query.in("status", [status, status.toLowerCase()]);
+      const { data: rows, count, error: ordersError } = await query;
+      if (ordersError) return err("orders_unavailable", "Orders could not be loaded", 503);
+      return json({
+        success: true,
+        orders: rows || [],
+        pagination: { page, per_page: perPage, total: count || 0, total_pages: Math.ceil((count || 0) / perPage) },
+      });
+    }
+
+    if (action === "billing") {
+      const limit = Math.max(10, Math.min(Number(body.limit) || 50, 100));
+      const [{ data: wallet }, { data: transactions, error: billingError }] = await Promise.all([
+        admin.from("business_wallets").select("balance,low_balance_threshold,updated_at").eq("business_account_id", biz.id).maybeSingle(),
+        admin.from("wallet_transactions").select("id,type,amount,balance_after,booking_id,note,created_at")
+          .eq("business_account_id", biz.id).order("created_at", { ascending: false }).limit(limit),
+      ]);
+      if (billingError) return err("billing_unavailable", "Billing activity could not be loaded", 503);
+      return json({
+        success: true,
+        wallet: {
+          balance: Number(wallet?.balance ?? 0),
+          low_balance_threshold: Number(wallet?.low_balance_threshold ?? 0),
+          currency: "INR",
+          updated_at: wallet?.updated_at || null,
+        },
+        transactions: transactions || [],
+      });
+    }
+
+    if (action === "disconnect") {
+      const { data: connection } = await admin.from("merchant_store_connections")
+        .select("id,webhook_subscription_id").eq("api_key_id", apiKey.id).eq("status", "active").maybeSingle();
+      if (connection?.webhook_subscription_id) {
+        await admin.from("merchant_webhook_subscriptions").update({ is_active: false }).eq("id", connection.webhook_subscription_id);
+      }
+      if (connection?.id) {
+        await admin.from("merchant_store_connections").update({ status: "disconnected", disconnected_at: new Date().toISOString() }).eq("id", connection.id);
+      }
+      await admin.from("business_api_keys").update({ revoked_at: new Date().toISOString() }).eq("id", apiKey.id);
+      return json({ success: true, disconnected: true });
+    }
+
     if (action === "rates") {
       const boxes = parseBoxes(body.boxes);
       if (typeof boxes === "string") return err("validation_error", boxes);
@@ -378,7 +500,7 @@ Deno.serve(async (req) => {
       return json({ success: true, booking_id: b.id, status: "CANCELLED", message: "Cancelled. Refund credited to wallet." });
     }
 
-    return err("unknown_action", "action must be one of rates, create_shipment, track, label, cancel, wallet");
+    return err("unknown_action", "Unknown merchant API action");
   } catch (e) {
     console.error("[merchant-api]", e);
     return err("internal_error", "Unexpected error", 500);

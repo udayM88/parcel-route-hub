@@ -34,7 +34,7 @@ export class ViaSetuClient {
         const headers = {
           Authorization: `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",
-          "User-Agent": "ViaSetu-JS-SDK/0.1.0",
+          "User-Agent": "ViaSetu-JS-SDK/1.0.0",
         };
         if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
         const response = await this.fetch(this.endpoint, {
@@ -102,6 +102,26 @@ export class ViaSetuClient {
 
   wallet() {
     return this.request("wallet");
+  }
+
+  account() {
+    return this.request("account");
+  }
+
+  dashboard() {
+    return this.request("dashboard");
+  }
+
+  orders({ page = 1, perPage = 25, status = "" } = {}) {
+    return this.request("orders", { page, per_page: perPage, ...(status ? { status } : {}) });
+  }
+
+  billing({ limit = 50 } = {}) {
+    return this.request("billing", { limit });
+  }
+
+  disconnect() {
+    return this.request("disconnect", {}, { retry: false });
   }
 }
 
