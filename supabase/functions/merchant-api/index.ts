@@ -12,6 +12,7 @@
 // Prices are computed server-side (displayed consumer rate + ₹15 per box, then merchant GST).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolvePartnerKey } from "../_shared/partner-key.ts";
+import { createB2BQuotes } from "../_shared/b2b-quotes.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,7 +67,7 @@ function parseBoxes(raw: unknown): Box[] | string {
     if ([l, wd, h].some((x) => Number.isNaN(x))) return "dimensions must be between 0 and 300 cm";
     // Chargeable weight: max(dead, volumetric /5000)
     const vol = l && wd && h ? (l * wd * h) / 5000 : 0;
-    out.push({ weight_kg: Math.max(w, vol), length_cm: l, width_cm: wd, height_cm: h });
+    out.push({ weight_kg: w, length_cm: l, width_cm: wd, height_cm: h });
   }
   return out;
 }
@@ -230,8 +231,8 @@ Deno.serve(async (req) => {
       if (!/^\d{6}$/.test(String(body.pickup_pincode)) || !/^\d{6}$/.test(String(body.delivery_pincode))) {
         return err("validation_error", "pickup_pincode and delivery_pincode must be 6 digits");
       }
-      const q = applyCarrierRules(await quote(url, anonKey, env, String(body.pickup_pincode), String(body.delivery_pincode), boxes, enabledPartnerCodes));
-      return json({ success: true, quotes: q.map(pub) });
+      const result = await createB2BQuotes(admin,url,anonKey,biz.id,env,{pickup_pincode:String(body.pickup_pincode),delivery_pincode:String(body.delivery_pincode),boxes});
+      return json({ success: true, ...result, quotes:applyCarrierRules(result.quotes).map(pub) });
     }
 
     if (action === "create_shipment") {
@@ -264,7 +265,7 @@ Deno.serve(async (req) => {
         return json(payload, status);
       };
 
-      const quotes = applyCarrierRules(await quote(url, anonKey, env, pickup.pincode, delivery.pincode, boxes, enabledPartnerCodes));
+      const quotes = applyCarrierRules((await createB2BQuotes(admin,url,anonKey,biz.id,env,{pickup_pincode:pickup.pincode,delivery_pincode:delivery.pincode,boxes})).quotes);
       const chosen = body.partner_code
         ? quotes.find((q) => q.partner_code === body.partner_code && (!body.service_code || q.service_code === body.service_code))
         : quotes[0];
@@ -277,6 +278,7 @@ Deno.serve(async (req) => {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}`, "x-internal-key": serviceKey, "x-environment": env },
         body: JSON.stringify({
           _business_account_id: biz.id, _pay_with_wallet: true,
+          quote_id: chosen.quote_id,
           sender_name: pickup.name, sender_phone: pickup.phone, sender_address: pickup.address,
           sender_city: pickup.city, sender_state: pickup.state, sender_pincode: pickup.pincode,
           receiver_name: delivery.name, receiver_phone: delivery.phone, receiver_address: delivery.address,
@@ -285,7 +287,7 @@ Deno.serve(async (req) => {
           shipment_value: Number(body.declared_value) > 0 ? Number(body.declared_value) : null,
           courier_name: `${chosen.partner_name} - ${chosen.service_name}`,
           partner_id: chosen.partner_id, service_code: chosen.service_code, delivery_time: chosen.delivery_time,
-          boxes: boxes.map((b, i) => ({ ...b, courier_rate: chosen._box_rates[i] })),
+          boxes,
         }),
       });
       const out = await res.json().catch(() => ({}));

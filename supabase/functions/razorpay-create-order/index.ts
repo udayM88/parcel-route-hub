@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: 'This order can no longer be paid. Please start again.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-      if (Math.round(Number(row.courier_price)) !== Math.round(Number(amount))) {
+      if (Math.round(Number(row.courier_price)*100) !== Math.round(Number(amount)*100)) {
         return new Response(JSON.stringify({ error: 'Price mismatch. Please refresh and try again.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
