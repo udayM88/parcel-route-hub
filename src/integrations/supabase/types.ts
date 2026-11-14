@@ -44,6 +44,484 @@ export type Database = {
         }
         Relationships: []
       }
+      b2b_booking_pricing_snapshots: {
+        Row: {
+          booking_id: string
+          box_allocations: Json
+          business_account_id: string
+          created_at: string
+          quote_id: string
+          snapshot: Json
+        }
+        Insert: {
+          booking_id: string
+          box_allocations: Json
+          business_account_id: string
+          created_at?: string
+          quote_id: string
+          snapshot: Json
+        }
+        Update: {
+          booking_id?: string
+          box_allocations?: Json
+          business_account_id?: string
+          created_at?: string
+          quote_id?: string
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_booking_pricing_snapshots_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_booking_pricing_snapshots_business_account_id_fkey"
+            columns: ["business_account_id"]
+            isOneToOne: false
+            referencedRelation: "business_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_booking_pricing_snapshots_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: true
+            referencedRelation: "b2b_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_courier_pricing_rules: {
+        Row: {
+          billing_increment_g: number
+          created_at: string
+          effective_from: string
+          effective_until: string | null
+          enabled: boolean
+          evidence: string
+          freight_gst_bps: number
+          freight_tax_treatment: string
+          id: string
+          minimum_weight_g: number
+          package_rule: string
+          partner_code: string
+          service_code: string
+          updated_at: string
+          volumetric_divisor: number
+        }
+        Insert: {
+          billing_increment_g: number
+          created_at?: string
+          effective_from?: string
+          effective_until?: string | null
+          enabled?: boolean
+          evidence: string
+          freight_gst_bps?: number
+          freight_tax_treatment: string
+          id?: string
+          minimum_weight_g: number
+          package_rule?: string
+          partner_code: string
+          service_code?: string
+          updated_at?: string
+          volumetric_divisor: number
+        }
+        Update: {
+          billing_increment_g?: number
+          created_at?: string
+          effective_from?: string
+          effective_until?: string | null
+          enabled?: boolean
+          evidence?: string
+          freight_gst_bps?: number
+          freight_tax_treatment?: string
+          id?: string
+          minimum_weight_g?: number
+          package_rule?: string
+          partner_code?: string
+          service_code?: string
+          updated_at?: string
+          volumetric_divisor?: number
+        }
+        Relationships: []
+      }
+      b2b_customer_rate_cards: {
+        Row: {
+          approved_by: string | null
+          booking_fee_paise: number
+          business_account_id: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_until: string | null
+          enabled: boolean
+          id: string
+          kind: string
+          name: string
+          slabs: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_by?: string | null
+          booking_fee_paise: number
+          business_account_id: string
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_until?: string | null
+          enabled?: boolean
+          id?: string
+          kind?: string
+          name: string
+          slabs: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_by?: string | null
+          booking_fee_paise?: number
+          business_account_id?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_until?: string | null
+          enabled?: boolean
+          id?: string
+          kind?: string
+          name?: string
+          slabs?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_customer_rate_cards_business_account_id_fkey"
+            columns: ["business_account_id"]
+            isOneToOne: false
+            referencedRelation: "business_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_monthly_tiers: {
+        Row: {
+          business_account_id: string
+          completed_shipments: number
+          created_at: string
+          id: string
+          missing_completion_evidence: number
+          month: string
+          tier: number
+          updated_at: string
+          version_id: string
+        }
+        Insert: {
+          business_account_id: string
+          completed_shipments: number
+          created_at?: string
+          id?: string
+          missing_completion_evidence?: number
+          month: string
+          tier: number
+          updated_at?: string
+          version_id: string
+        }
+        Update: {
+          business_account_id?: string
+          completed_shipments?: number
+          created_at?: string
+          id?: string
+          missing_completion_evidence?: number
+          month?: string
+          tier?: number
+          updated_at?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_monthly_tiers_business_account_id_fkey"
+            columns: ["business_account_id"]
+            isOneToOne: false
+            referencedRelation: "business_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_monthly_tiers_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_pricing_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_pricing_audit_logs: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          after_value: Json | null
+          before_value: Json | null
+          created_at: string
+          id: string
+          resource_id: string
+          resource_type: string
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          after_value?: Json | null
+          before_value?: Json | null
+          created_at?: string
+          id?: string
+          resource_id: string
+          resource_type: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          after_value?: Json | null
+          before_value?: Json | null
+          created_at?: string
+          id?: string
+          resource_id?: string
+          resource_type?: string
+        }
+        Relationships: []
+      }
+      b2b_pricing_slabs: {
+        Row: {
+          created_at: string
+          fee_per_500g_paise: number
+          id: string
+          tier_id: string
+          updated_at: string
+          upper_weight_g: number
+        }
+        Insert: {
+          created_at?: string
+          fee_per_500g_paise: number
+          id?: string
+          tier_id: string
+          updated_at?: string
+          upper_weight_g: number
+        }
+        Update: {
+          created_at?: string
+          fee_per_500g_paise?: number
+          id?: string
+          tier_id?: string
+          updated_at?: string
+          upper_weight_g?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_pricing_slabs_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_pricing_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_pricing_tiers: {
+        Row: {
+          booking_fee_paise: number | null
+          created_at: string
+          enabled: boolean
+          id: string
+          max_shipments: number | null
+          min_shipments: number
+          name: string
+          tier: number
+          updated_at: string
+          version_id: string
+        }
+        Insert: {
+          booking_fee_paise?: number | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          max_shipments?: number | null
+          min_shipments: number
+          name: string
+          tier: number
+          updated_at?: string
+          version_id: string
+        }
+        Update: {
+          booking_fee_paise?: number | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          max_shipments?: number | null
+          min_shipments?: number
+          name?: string
+          tier?: number
+          updated_at?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_pricing_tiers_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_pricing_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_pricing_versions: {
+        Row: {
+          approved_by: string | null
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_until: string | null
+          enabled: boolean
+          id: string
+          name: string
+          service_gst_bps: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_until?: string | null
+          enabled?: boolean
+          id?: string
+          name: string
+          service_gst_bps?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_until?: string | null
+          enabled?: boolean
+          id?: string
+          name?: string
+          service_gst_bps?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      b2b_quotes: {
+        Row: {
+          booking_id: string | null
+          business_account_id: string
+          created_at: string
+          environment: string
+          expires_at: string
+          id: string
+          request: Json
+          request_fingerprint: string
+          snapshot: Json
+          updated_at: string
+          version_id: string
+        }
+        Insert: {
+          booking_id?: string | null
+          business_account_id: string
+          created_at?: string
+          environment: string
+          expires_at: string
+          id?: string
+          request: Json
+          request_fingerprint: string
+          snapshot: Json
+          updated_at?: string
+          version_id: string
+        }
+        Update: {
+          booking_id?: string | null
+          business_account_id?: string
+          created_at?: string
+          environment?: string
+          expires_at?: string
+          id?: string
+          request?: Json
+          request_fingerprint?: string
+          snapshot?: Json
+          updated_at?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_quotes_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_quotes_business_account_id_fkey"
+            columns: ["business_account_id"]
+            isOneToOne: false
+            referencedRelation: "business_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_quotes_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_pricing_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_tier_overrides: {
+        Row: {
+          business_account_id: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_until: string | null
+          id: string
+          reason: string
+          tier: number
+          updated_at: string
+        }
+        Insert: {
+          business_account_id: string
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_until?: string | null
+          id?: string
+          reason: string
+          tier: number
+          updated_at?: string
+        }
+        Update: {
+          business_account_id?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_until?: string | null
+          id?: string
+          reason?: string
+          tier?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_tier_overrides_business_account_id_fkey"
+            columns: ["business_account_id"]
+            isOneToOne: false
+            referencedRelation: "business_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_balance_payments: {
         Row: {
           amount_due: number
@@ -238,6 +716,7 @@ export type Database = {
         Row: {
           account_type: string
           admin_email_sent_at: string | null
+          b2b_quote_id: string | null
           base_fare: number | null
           booking_source: string | null
           box_count: number
@@ -313,6 +792,7 @@ export type Database = {
         Insert: {
           account_type?: string
           admin_email_sent_at?: string | null
+          b2b_quote_id?: string | null
           base_fare?: number | null
           booking_source?: string | null
           box_count?: number
@@ -388,6 +868,7 @@ export type Database = {
         Update: {
           account_type?: string
           admin_email_sent_at?: string | null
+          b2b_quote_id?: string | null
           base_fare?: number | null
           booking_source?: string | null
           box_count?: number
@@ -461,6 +942,13 @@ export type Database = {
           width?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bookings_b2b_quote_id_fkey"
+            columns: ["b2b_quote_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_quotes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bookings_business_account_id_fkey"
             columns: ["business_account_id"]
@@ -2085,6 +2573,10 @@ export type Database = {
       }
     }
     Functions: {
+      b2b_resolve_month: {
+        Args: { _business_id: string; _version_id: string }
+        Returns: Json
+      }
       can_manage_cms: { Args: { _user_id: string }; Returns: boolean }
       generate_canonical_url: {
         Args: { content_slug: string; content_type: string }
