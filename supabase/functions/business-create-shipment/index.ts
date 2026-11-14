@@ -9,7 +9,7 @@ import { dispatchEmail } from "../_shared/notify-email.ts";
 // create one booking_boxes row per box, then fire the partner booking edge
 // function once per box so every box gets its own AWB / label.
 //
-// Pricing: consumer displayed rate + ₹15 per box, plus merchant GST on top.
+// Pricing: immutable, scoped B2B server quotes; consumer pricing is independent.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { bookingFunctionFor, resolvePartnerKey } from "../_shared/partner-key.ts";
 import { refundWalletBooking, walletApply, WALLET_PREFIX } from "../_shared/wallet.ts";
@@ -21,18 +21,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-environment",
 };
-
-const CONSUMER_MARGIN_PCT = 1;
-const CONSUMER_PLATFORM_FEE = 25;
-const BUSINESS_PREMIUM_OVER_CONSUMER = 15;
-const GST_RATE = 0.18;
-
-function businessNet(courierRate: number): number {
-  const rate = Number(courierRate) || 0;
-  const consumerNet = rate * (1 + CONSUMER_MARGIN_PCT) + CONSUMER_PLATFORM_FEE;
-  const consumerDisplayed = Math.round(consumerNet * (1 + GST_RATE));
-  return consumerDisplayed + BUSINESS_PREMIUM_OVER_CONSUMER;
-}
 
 function pickPartnerFn(partnerId: string, courierName: string): string | null {
   const key = resolvePartnerKey(partnerId, courierName);

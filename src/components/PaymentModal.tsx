@@ -124,7 +124,7 @@ const PaymentModal = ({ isOpen, onClose, orderDetails, onPaymentSuccess, custome
             courierId: orderDetails.courierId,
           }
         },
-        headers: prayogAuthPre ? { 'x-prayog-auth': prayogAuthPre } : {},
+        headers: { 'x-environment': CURRENT_ENV, ...(prayogAuthPre ? { 'x-prayog-auth': prayogAuthPre } : {}) },
       });
 
 

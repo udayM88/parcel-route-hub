@@ -9,7 +9,7 @@
 //   label            { booking_id, box_index? }
 //   cancel           { booking_id, reason? }
 //   wallet           {}  -> current balance
-// Prices are computed server-side (displayed consumer rate + ₹15 per box, then merchant GST).
+// Business prices use versioned progressive tiers and immutable server quotes.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolvePartnerKey } from "../_shared/partner-key.ts";
 import { createB2BQuotes } from "../_shared/b2b-quotes.ts";
@@ -28,10 +28,6 @@ const err = (
   headers: Record<string, string> = {},
 ) => json({ success: false, error: { code, message, ...extra } }, status, headers);
 
-const CONSUMER_MARGIN_PCT = 1;
-const CONSUMER_PLATFORM_FEE = 25;
-const BUSINESS_PREMIUM_OVER_CONSUMER = 15;
-const GST_RATE = 0.18;
 const ACTION_SCOPES: Record<string, string> = {
   rates: "rates:read",
   create_shipment: "shipments:write",
@@ -70,69 +66,6 @@ function parseBoxes(raw: unknown): Box[] | string {
     out.push({ weight_kg: w, length_cm: l, width_cm: wd, height_cm: h });
   }
   return out;
-}
-
-export function priceFor(rates: number[]) {
-  const nets = rates.map((r) => {
-    const rate = Math.round(Number(r) || 0);
-    const consumerNet = rate * (1 + CONSUMER_MARGIN_PCT) + CONSUMER_PLATFORM_FEE;
-    const consumerDisplayed = Math.round(consumerNet * (1 + GST_RATE));
-    return consumerDisplayed + BUSINESS_PREMIUM_OVER_CONSUMER;
-  });
-  const net = nets.reduce((a, b) => a + b, 0);
-  const total = Math.round(net * (1 + GST_RATE));
-  return { net, gst: total - net, total };
-}
-
-async function quote(url: string, anonKey: string, env: string, pickup: string, delivery: string, boxes: Box[], enabledPartnerCodes?: Set<string>) {
-  const availablePartners = enabledPartnerCodes ? PARTNERS.filter((partner) => enabledPartnerCodes.has(partner.code)) : PARTNERS;
-  const perBox = await Promise.all(boxes.map(async (b) => {
-    const payload = {
-      pickup_pincode: pickup, delivery_pincode: delivery, weight_kg: b.weight_kg,
-      length_cm: b.length_cm || 10, width_cm: b.width_cm || 10, height_cm: b.height_cm || 10,
-    };
-    const settled = await Promise.allSettled(availablePartners.map(async (p) => {
-      const r = await fetch(`${url}/functions/v1/${p.fn}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}`, apikey: anonKey, "x-environment": env },
-        body: JSON.stringify(payload),
-      });
-      return { code: p.code, data: await r.json().catch(() => null) };
-    }));
-    const map = new Map<string, { partner: any; service: any; code: string }>();
-    for (const s of settled) {
-      if (s.status !== "fulfilled") continue;
-      const d = s.value.data;
-      if (!d?.is_serviceable || !d?.partner) continue;
-      for (const svc of d.partner.services || []) {
-        map.set(`${s.value.code}::${svc.service_code}`, { partner: d.partner, service: svc, code: s.value.code });
-      }
-    }
-    return map;
-  }));
-  const quotes: any[] = [];
-  perBox[0].forEach((entry, key) => {
-    const rates: number[] = [];
-    for (const m of perBox) {
-      const hit = m.get(key);
-      if (!hit) return;
-      rates.push(Math.round(hit.service.rate?.price?.amount || 0));
-    }
-    if (rates.some((r) => !(r > 0))) return;
-    const p = priceFor(rates);
-    quotes.push({
-      partner_code: entry.code,
-      partner_id: entry.partner.partner_id,
-      partner_name: entry.partner.partner_name,
-      service_code: entry.service.service_code,
-      service_name: entry.service.service_name || "Standard",
-      delivery_time: entry.service.delivery_label || (entry.service.tat_days ? `${entry.service.tat_days} days` : "2-5 days"),
-      amount_excl_gst: p.net, gst: p.gst, total_amount: p.total, currency: "INR",
-      _box_rates: rates,
-    });
-  });
-  quotes.sort((a, b) => a.total_amount - b.total_amount);
-  return quotes;
 }
 
 const pub = (q: any) => { const { _box_rates, partner_id, ...rest } = q; return rest; };

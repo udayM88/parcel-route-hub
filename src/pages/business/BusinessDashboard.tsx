@@ -120,7 +120,7 @@ const BusinessDashboard = () => {
   }, [searchParams]);
 
   const BOOKING_COLUMNS =
-    "id,created_at,sender_name,sender_phone,sender_address,sender_city,sender_state,sender_pincode,receiver_name,receiver_phone,receiver_address,receiver_city,receiver_state,receiver_pincode,courier_name,courier_price,delivery_time,box_count,status,tracking_id,goods_type,partner_id,prayog_order_id,booking_source,prayog_awb,payment_status,payment_id,refund_id,shipment_value";
+    "id,created_at,sender_name,sender_phone,sender_address,sender_city,sender_state,sender_pincode,receiver_name,receiver_phone,receiver_address,receiver_city,receiver_state,receiver_pincode,courier_name,courier_price,gst,delivery_time,box_count,status,tracking_id,goods_type,partner_id,prayog_order_id,booking_source,prayog_awb,payment_status,payment_id,refund_id,shipment_value";
 
   useEffect(() => {
     const load = async () => {
@@ -888,7 +888,7 @@ const BusinessDashboard = () => {
                   <Separator className="my-2" />
                   <div className="flex justify-between font-bold">
                     <span>Total paid</span>
-                    <span>₹{Math.round(Number(selected.courier_price || 0))}</span>
+                    <span>₹{Number(selected.courier_price || 0).toLocaleString("en-IN",{maximumFractionDigits:2})}</span>
                   </div>
                 </div>
               )}
