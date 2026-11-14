@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { CURRENT_ENV } from '@/config/environment';
 
 declare global {
   interface Window {
@@ -124,7 +125,7 @@ const PaymentModal = ({ isOpen, onClose, orderDetails, onPaymentSuccess, custome
             courierId: orderDetails.courierId,
           }
         },
-        headers: { 'x-environment': CURRENT_ENV, ...(prayogAuthPre ? { 'x-prayog-auth': prayogAuthPre } : {}) },
+        headers: { ...(preparedBookingId ? { 'x-environment': CURRENT_ENV } : {}), ...(prayogAuthPre ? { 'x-prayog-auth': prayogAuthPre } : {}) },
       });
 
 
@@ -156,7 +157,7 @@ const PaymentModal = ({ isOpen, onClose, orderDetails, onPaymentSuccess, custome
                 razorpay_signature: response.razorpay_signature,
                 booking_draft: bookingDraft || null,
               },
-              headers: prayogAuthRaw ? { 'x-prayog-auth': prayogAuthRaw } : {},
+              headers: { ...(preparedBookingId ? { 'x-environment': CURRENT_ENV } : {}), ...(prayogAuthRaw ? { 'x-prayog-auth': prayogAuthRaw } : {}) },
             });
 
             if (verifyError || !verifyData?.verified) {
