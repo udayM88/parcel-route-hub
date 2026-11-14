@@ -54,6 +54,7 @@ const adminMenuItems: { title: string; url: string; icon: LucideIcon; allowedRol
   { title: "User & Partner Management", url: "/admin/users", icon: Users, allowedRoles: ["super_admin", "operations", "support"] },
   { title: "Admin Users", url: "/admin/admin-users", icon: Shield, allowedRoles: ["super_admin"] },
   { title: "Manage Businesses", url: "/admin/businesses", icon: Building2, allowedRoles: ["super_admin", "operations"] },
+  { title: "B2B Pricing", url: "/admin/b2b-pricing", icon: DollarSign, allowedRoles: ["super_admin"] },
   { title: "Courier Partners", url: "/admin/courier-partners", icon: Truck, allowedRoles: ["super_admin", "operations"] },
 
   { title: "Business Inquiries", url: "/admin/business-inquiries", icon: Inbox, allowedRoles: ["super_admin", "operations", "support"] },

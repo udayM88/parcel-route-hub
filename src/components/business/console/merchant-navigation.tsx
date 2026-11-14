@@ -80,6 +80,7 @@ export const merchantNavigation: MerchantNavSection[] = [
   {
     label: "Finance",
     items: [
+      { label: "Pricing & Tiers", to: `${root}/pricing`, icon: ReceiptText, permission: "orders:read" },
       {
         label: "Rate Cards",
         icon: ReceiptText,
@@ -189,6 +190,7 @@ export const getMerchantPageTitle = (pathname: string) => {
   if (pathname.endsWith("/orders")) return "Orders";
   if (pathname.endsWith("/book") || pathname.endsWith("/create-order")) return "Create Order";
   if (pathname.endsWith("/wallet")) return "Wallet";
+  if (pathname.endsWith("/pricing")) return "Pricing & Tiers";
   if (pathname.endsWith("/developers")) return "API & Integrations";
   if (pathname.endsWith("/integrations")) return "Integration Hub";
   const moduleKey = pathname.split("/module/")[1];

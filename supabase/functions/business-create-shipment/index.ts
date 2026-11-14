@@ -9,29 +9,18 @@ import { dispatchEmail } from "../_shared/notify-email.ts";
 // create one booking_boxes row per box, then fire the partner booking edge
 // function once per box so every box gets its own AWB / label.
 //
-// Pricing: consumer displayed rate + ₹15 per box, plus merchant GST on top.
+// Pricing: immutable, scoped B2B server quotes; consumer pricing is independent.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { bookingFunctionFor, resolvePartnerKey } from "../_shared/partner-key.ts";
 import { refundWalletBooking, walletApply, WALLET_PREFIX } from "../_shared/wallet.ts";
 import { merchantCan, resolveMerchantAccess } from "../_shared/merchant-access.ts";
+import { loadB2BQuote, requestFingerprint } from "../_shared/b2b-quotes.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-environment",
 };
-
-const CONSUMER_MARGIN_PCT = 1;
-const CONSUMER_PLATFORM_FEE = 25;
-const BUSINESS_PREMIUM_OVER_CONSUMER = 15;
-const GST_RATE = 0.18;
-
-function businessNet(courierRate: number): number {
-  const rate = Number(courierRate) || 0;
-  const consumerNet = rate * (1 + CONSUMER_MARGIN_PCT) + CONSUMER_PLATFORM_FEE;
-  const consumerDisplayed = Math.round(consumerNet * (1 + GST_RATE));
-  return consumerDisplayed + BUSINESS_PREMIUM_OVER_CONSUMER;
-}
 
 function pickPartnerFn(partnerId: string, courierName: string): string | null {
   const key = resolvePartnerKey(partnerId, courierName);
@@ -129,9 +118,9 @@ Deno.serve(async (req) => {
       if (userErr || !userData?.user) return json({ error: "Invalid session" }, 401);
       userId = userData.user.id;
       const access = await resolveMerchantAccess(admin, userData.user);
-      if (!merchantCan(access, "orders:write")) return json({ error: "Shipment creation permission required" }, 403);
+      if (!access || !merchantCan(access, "orders:write")) return json({ error: "Shipment creation permission required" }, 403);
       const { data } = await admin.from("business_accounts")
-        .select("id,company_name,status,is_active").eq("id", access!.business_account_id).maybeSingle();
+        .select("id,company_name,status,is_active").eq("id", access.business_account_id).maybeSingle();
       biz = data;
     }
 
@@ -155,22 +144,29 @@ Deno.serve(async (req) => {
       return json({ booking_id: row.id, status: row.status, payment_status: row.payment_status, failure_reason: row.failure_reason, boxes: boxesOut });
     }
 
-    const parsed = validate(rawBody);
+    if (!rawBody.quote_id) return json({ error: 'A finalized business quote is required. Fetch rates again.' }, 400);
+    const quote = await loadB2BQuote(admin, rawBody.quote_id, biz.id, env);
+    if (quote.booking_id) {
+      const {data: existing} = await admin.from('bookings').select('id,status,courier_price').eq('id',quote.booking_id).eq('business_account_id',biz.id).maybeSingle();
+      if (existing?.status === 'PENDING_PAYMENT') return json({prepared:true,booking_id:existing.id,total_amount:existing.courier_price});
+      return json({error:'This quote has already been booked'},409);
+    }
+    const submittedRequest = {pickup_pincode:String(rawBody.sender_pincode),delivery_pincode:String(rawBody.receiver_pincode),boxes:(rawBody.boxes || []).map((bx:BoxInput)=>({weight_kg:bx.weight_kg,...(bx.length_cm?{length_cm:bx.length_cm}:{}),...(bx.width_cm?{width_cm:bx.width_cm}:{}),...(bx.height_cm?{height_cm:bx.height_cm}:{})}))};
+    if (await requestFingerprint(submittedRequest) !== quote.request_fingerprint) return json({error:'Shipment details changed. Fetch rates again.'},409);
+    const snapshot = quote.snapshot;
+    const authoritativeBody = {...rawBody,partner_id:snapshot.partner_id,service_code:snapshot.service_code,courier_name:`${snapshot.partner_name} - ${snapshot.service_name}`,delivery_time:snapshot.delivery_time,boxes:snapshot.boxes.map((bx:any)=>({...bx,courier_rate:bx.freight_net_paise/100}))};
+    const parsed = validate(authoritativeBody);
     if (!parsed.ok) return json({ error: parsed.error }, 400);
     const b = parsed.data;
     const payWithWallet = internal && rawBody._pay_with_wallet === true;
     const boxes: BoxInput[] = b.boxes;
 
-    // ── Pricing: displayed consumer rate + ₹15, then merchant GST ─
-    const perBox = boxes.map((bx) => {
-      const rate = Math.round(Number(bx.courier_rate) || 0);
-      const net = businessNet(rate);
-      return { rate, net, price: Math.round(net * (1 + GST_RATE)) };
-    });
-    const totalRate = perBox.reduce((s, p) => s + p.rate, 0);
-    const totalNet = perBox.reduce((s, p) => s + p.net, 0);
-    const totalPrice = Math.round(totalNet * (1 + GST_RATE));
-    const gst = totalPrice - totalNet;
+    // Accepted, immutable server quote; never trust client prices.
+    const perBox = snapshot.boxes.map((bx:any)=>({rate:bx.freight_net_paise/100,net:(bx.freight_net_paise+bx.platform_fee_paise)/100,price:bx.total_paise/100}));
+    const totalRate = snapshot.freight_net_paise/100;
+    const totalNet = snapshot.net_paise/100;
+    const totalPrice = snapshot.total_paise/100;
+    const gst = snapshot.gst_paise/100;
     const totalWeightKg = boxes.reduce((s, bx) => s + (Number(bx.weight_kg) || 0), 0);
 
 
@@ -182,6 +178,7 @@ Deno.serve(async (req) => {
         user_id: userId,
         business_account_id: biz.id,
         account_type: "business",
+        b2b_quote_id: quote.id,
         sender_name: b.sender_name,
         sender_phone: String(b.sender_phone).replace(/\D/g, "").slice(-10),
         sender_address: b.sender_address,
@@ -234,13 +231,14 @@ Deno.serve(async (req) => {
         await admin.from("bookings").delete().eq("id", booking.id);
         return json({ error: `Unknown courier partner '${b.courier_name}'` }, 400);
       }
-      if (boxes.length > 1) {
-        await admin.from("booking_boxes").insert(boxes.map((bx, i) => ({
+      if (boxes.length >= 1) {
+        const {error:boxError}=await admin.from("booking_boxes").insert(boxes.map((bx, i) => ({
           booking_id: booking.id, box_index: i + 1, weight_kg: Number(bx.weight_kg),
           length_cm: bx.length_cm ?? null, width_cm: bx.width_cm ?? null, height_cm: bx.height_cm ?? null,
-          chargeable_weight_kg: Number(bx.weight_kg), courier_rate: perBox[i].rate, price: perBox[i].price,
+          chargeable_weight_kg: snapshot.boxes[i].billed_weight_g/1000, courier_rate: perBox[i].rate, price: perBox[i].price,
           status: "pending",
         })));
+        if(boxError) {await admin.from('bookings').update({status:'FAILED',failure_reason:'Parcel preparation failed'}).eq('id',booking.id);return json({error:'Unable to save parcels. Please start again.'},500);}
       }
       return json({ prepared: true, booking_id: booking.id, total_amount: totalPrice });
     }
@@ -291,7 +289,7 @@ Deno.serve(async (req) => {
         length_cm: bx.length_cm ?? null,
         width_cm: bx.width_cm ?? null,
         height_cm: bx.height_cm ?? null,
-        chargeable_weight_kg: Number(bx.weight_kg),
+        chargeable_weight_kg: snapshot.boxes[i].billed_weight_g/1000,
         courier_rate: perBox[i].rate,
         price: perBox[i].price,
         status: "pending",

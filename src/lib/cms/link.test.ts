@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, it } from 'node:test';
+import {strict as assert} from 'node:assert';
+const expect=(actual:unknown)=>({toBe:(expected:unknown)=>assert.equal(actual,expected),toBeNull:()=>assert.equal(actual,null)});
 import { normalizeCmsLinkHref } from './link';
 
 describe('CMS hyperlink normalization', () => {

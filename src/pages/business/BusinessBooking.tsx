@@ -22,6 +22,8 @@ import { isBusinessDemoSession } from "@/lib/business-demo";
 import { getPartnerLogo } from "@/config/partnerLogos";
 import { usePartnerRatings } from "@/hooks/usePartnerRatings";
 
+import { businessQuotes } from "@/lib/business-pricing";
+
 const DIRECT_PARTNERS = [
   { code: "shadowfax", name: "Shadowfax", fn: "shadowfax-serviceability" },
   { code: "delhivery", name: "Delhivery", fn: "delhivery-serviceability" },
@@ -35,6 +37,8 @@ type Party = {
   name: string; phone: string; address: string; city: string; state: string; pincode: string;
 };
 type Quote = {
+  quoteId?: string;
+  gst?: number;
   partnerId: string;
   partnerCode: string;
   partnerName: string;
@@ -207,7 +211,7 @@ const BusinessBooking = () => {
   const canContinueAddresses = addressValid(sender) && addressValid(receiver);
 
   const breakdown = useMemo(
-    () => computeBusinessBreakdown(selected?.boxRates ?? []),
+    () => selected?.quoteId ? {net:selected.netPrice,gst:selected.gst || 0,total:selected.totalPrice} : computeBusinessBreakdown(selected?.boxRates ?? []),
     [selected],
   );
 
@@ -234,69 +238,8 @@ const BusinessBooking = () => {
         setStep(2);
         return;
       }
-      // Quote every box with every partner; only keep partner+service combos
-      // that are serviceable for ALL boxes.
-      const perBoxResults = await Promise.all(
-        boxes.map(async (b, i) => {
-          const payload = {
-            pickup_pincode: pickupPincode,
-            delivery_pincode: deliveryPincode,
-            weight_kg: chargeableKgs[i],
-            length_cm: parseFloat(b.length) || 10,
-            width_cm: parseFloat(b.width) || 10,
-            height_cm: parseFloat(b.height) || 10,
-          };
-          const activePartners = await filterEnabledBusinessPartners(DIRECT_PARTNERS, business?.id);
-          const settled = await Promise.allSettled(
-            activePartners.map((p) =>
-              supabase.functions
-                .invoke(p.fn, { body: payload, headers: { "x-environment": CURRENT_ENV } })
-                .then((res) => ({ res, meta: p })),
-            ),
-          );
-          const map = new Map<string, { partner: any; service: any }>();
-          settled.forEach((s, idx) => {
-            const meta = activePartners[idx];
-            if (s.status !== "fulfilled") return;
-            const { data, error } = (s.value as any).res;
-            if (error || !data?.is_serviceable || !data?.partner) return;
-            (data.partner.services || []).forEach((svc: any) => {
-              map.set(`${meta.code}::${svc.service_code}`, { partner: data.partner, service: svc });
-            });
-          });
-          return map;
-        }),
-      );
-
-      const first = perBoxResults[0];
-      const combos: Quote[] = [];
-      first.forEach((entry, key) => {
-        const rates: number[] = [];
-        for (const m of perBoxResults) {
-          const hit = m.get(key);
-          if (!hit) return;
-          rates.push(Math.round(hit.service.rate?.price?.amount || 0));
-        }
-        const price = computeBusinessBreakdown(rates);
-        combos.push({
-          partnerId: entry.partner.partner_id || key,
-          partnerCode: entry.partner.partner_code || key.split("::")[0],
-          partnerName: entry.partner.partner_name || key.split("::")[0],
-          serviceCode: entry.service.service_code,
-          serviceName: entry.service.service_name || "Standard",
-          deliveryTime:
-            entry.service.delivery_label ||
-            (entry.service.tat_days ? `${entry.service.tat_days} days` : "2-5 days"),
-          boxRates: rates,
-          netPrice: price.net,
-          totalPrice: price.total,
-          rating: Number(entry.partner.rating) || undefined,
-          isCod: Boolean(entry.service.is_cod),
-          insurance: Boolean(entry.service.insurance),
-          pickup: entry.service.pickup !== false,
-        });
-      });
-
+      const finalized = await businessQuotes({pickup_pincode:pickupPincode,delivery_pincode:deliveryPincode,boxes:boxes.map(b=>({weight_kg:(parseFloat(b.weightG)||0)/1000,...(Number(b.length)>0?{length_cm:Number(b.length)}:{}),...(Number(b.width)>0?{width_cm:Number(b.width)}:{}),...(Number(b.height)>0?{height_cm:Number(b.height)}:{})}))});
+      const combos: Quote[] = finalized.map(q=>({quoteId:q.quote_id,partnerId:q.partner_id,partnerCode:q.partner_code,partnerName:q.partner_name,serviceCode:q.service_code,serviceName:q.service_name,deliveryTime:q.delivery_time,boxRates:[],netPrice:q.amount_excl_gst,totalPrice:q.total_amount,gst:q.gst,pickup:true,isCod:false}));
       const rules = await fetchBusinessCarrierRules(business?.id);
       const preferred = rules.preferred_partner && rules.preferred_partner !== "none" ? rules.preferred_partner : "";
       combos.sort((a, b) => {
@@ -342,16 +285,17 @@ const BusinessBooking = () => {
     goods_type: goodsType || "Package",
     shipment_value: shipmentValue ? Number(shipmentValue) : null,
     urgency: "standard",
-    partner_id: selected!.partnerId,
-    service_code: selected!.serviceCode,
-    courier_name: selected!.partnerName,
-    delivery_time: selected!.deliveryTime,
+    quote_id: selected?.quoteId,
+    partner_id: selected?.partnerId,
+    service_code: selected?.serviceCode,
+    courier_name: selected?.partnerName,
+    delivery_time: selected?.deliveryTime,
     boxes: boxes.map((b, i) => ({
-      weight_kg: chargeableKgs[i],
+      weight_kg: (parseFloat(b.weightG) || 0)/1000,
       length_cm: parseFloat(b.length) || null,
       width_cm: parseFloat(b.width) || null,
       height_cm: parseFloat(b.height) || null,
-      courier_rate: selected!.boxRates[i],
+      courier_rate: selected?.boxRates[i],
     })),
   });
 
@@ -370,7 +314,7 @@ const BusinessBooking = () => {
         headers: { "x-environment": CURRENT_ENV },
       });
       if (error || data?.error || !data?.booking_id) throw new Error(data?.error || error?.message || "Could not start payment");
-      if (Math.round(Number(data.total_amount)) !== Math.round(breakdown.total)) {
+      if (Math.round(Number(data.total_amount)*100) !== Math.round(breakdown.total*100)) {
         throw new Error("The price changed. Please fetch rates again.");
       }
       setPreparedBookingId(data.booking_id);
@@ -691,7 +635,7 @@ const BusinessBooking = () => {
                 <Truck className="h-4 w-4" /> Available couriers
               </CardTitle>
               <CardDescription>
-                {pickupPincode} → {deliveryPincode} · {boxes.length} box{boxes.length > 1 ? "es" : ""}. Merchant rate is ₹15 above the regular consumer rate per box.
+                {pickupPincode} → {deliveryPincode} · {boxes.length} box{boxes.length > 1 ? "es" : ""}. Tier-based business pricing.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -724,7 +668,7 @@ const BusinessBooking = () => {
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             {q.pickup ? <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">Doorstep pickup</span> : null}
-                            {q.isCod ? <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">COD available</span> : null}
+                            {q.isCod ? <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">Prepaid</span> : null}
                             {q.insurance ? <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground"><ShieldCheck className="size-3" />Insurance</span> : null}
                           </div>
                         </div>
