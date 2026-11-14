@@ -224,7 +224,7 @@ export default function BusinessModulePage() {
 
       {requiredPermission && !can(requiredPermission) ? <Alert className="border-amber-200 bg-amber-50/80"><ShieldX /><AlertTitle>Permission required</AlertTitle><AlertDescription>Your merchant role does not include {requiredPermission.replace(":", " ")} access. Ask the owner or an administrator to update your role.</AlertDescription></Alert> : module === "support" ? <BusinessSupportPanel /> : module === "addresses" ? <BusinessAddressesPanel /> : module === "analytics" ? <BusinessAnalyticsPanel /> : ["transactions", "recharge-management", "billing-statements"].includes(module) ? (
         <BusinessFinanceReport mode={module as "transactions" | "recharge-management" | "billing-statements"} />
-      ) : module === "rate-calculator" ? <RateCalculatorPanel /> : module === "tracking" ? (
+      ) : module === "rate-cards" ? <BusinessPricing /> : module === "rate-calculator" ? <RateCalculatorPanel /> : module === "tracking" ? (
         <Card>
           <CardHeader>
             <CardTitle>Track your shipment</CardTitle>

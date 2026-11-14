@@ -1,6 +1,7 @@
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildBookingRow, syncBookingBoxes, type BookingDraft } from "../_shared/booking-draft.ts";
+import {resolveMerchantAccess,merchantCan} from '../_shared/merchant-access.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,8 +26,12 @@ Deno.serve(async (req) => {
     if (prepared_booking_id) {
       const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
       const { data: row } = await sb.from('bookings')
-        .select('id,status,courier_price,payment_id')
+        .select('id,status,courier_price,payment_id,business_account_id')
         .eq('id', prepared_booking_id).maybeSingle();
+      const token=(req.headers.get('Authorization') || '').replace(/^Bearer\s+/i,'');
+      const {data:user,error:authError}=await sb.auth.getUser(token);
+      const access=!authError && user.user?await resolveMerchantAccess(sb,user.user):null;
+      if(!access || !merchantCan(access,'orders:write') || row?.business_account_id!==access.business_account_id) return new Response(JSON.stringify({error:'Business order access required'}),{status:403,headers:{...corsHeaders,'Content-Type':'application/json'}});
       if (!row || row.status !== 'PENDING_PAYMENT' || row.payment_id) {
         return new Response(JSON.stringify({ error: 'This order can no longer be paid. Please start again.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

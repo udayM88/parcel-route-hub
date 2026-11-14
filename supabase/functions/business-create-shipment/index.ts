@@ -130,9 +130,9 @@ Deno.serve(async (req) => {
       if (userErr || !userData?.user) return json({ error: "Invalid session" }, 401);
       userId = userData.user.id;
       const access = await resolveMerchantAccess(admin, userData.user);
-      if (!merchantCan(access, "orders:write")) return json({ error: "Shipment creation permission required" }, 403);
+      if (!access || !merchantCan(access, "orders:write")) return json({ error: "Shipment creation permission required" }, 403);
       const { data } = await admin.from("business_accounts")
-        .select("id,company_name,status,is_active").eq("id", access!.business_account_id).maybeSingle();
+        .select("id,company_name,status,is_active").eq("id", access.business_account_id).maybeSingle();
       biz = data;
     }
 
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
     const payWithWallet = internal && rawBody._pay_with_wallet === true;
     const boxes: BoxInput[] = b.boxes;
 
-    // ── Pricing: displayed consumer rate + ₹15, then merchant GST ─
+    // Accepted, immutable server quote; never trust client prices.
     const perBox = snapshot.boxes.map((bx:any)=>({rate:bx.freight_net_paise/100,net:(bx.freight_net_paise+bx.platform_fee_paise)/100,price:bx.total_paise/100}));
     const totalRate = snapshot.freight_net_paise/100;
     const totalNet = snapshot.net_paise/100;
@@ -243,13 +243,14 @@ Deno.serve(async (req) => {
         await admin.from("bookings").delete().eq("id", booking.id);
         return json({ error: `Unknown courier partner '${b.courier_name}'` }, 400);
       }
-      if (boxes.length > 1) {
-        await admin.from("booking_boxes").insert(boxes.map((bx, i) => ({
+      if (boxes.length >= 1) {
+        const {error:boxError}=await admin.from("booking_boxes").insert(boxes.map((bx, i) => ({
           booking_id: booking.id, box_index: i + 1, weight_kg: Number(bx.weight_kg),
           length_cm: bx.length_cm ?? null, width_cm: bx.width_cm ?? null, height_cm: bx.height_cm ?? null,
           chargeable_weight_kg: snapshot.boxes[i].billed_weight_g/1000, courier_rate: perBox[i].rate, price: perBox[i].price,
           status: "pending",
         })));
+        if(boxError) {await admin.from('bookings').update({status:'FAILED',failure_reason:'Parcel preparation failed'}).eq('id',booking.id);return json({error:'Unable to save parcels. Please start again.'},500);}
       }
       return json({ prepared: true, booking_id: booking.id, total_amount: totalPrice });
     }

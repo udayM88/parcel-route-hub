@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import PageSeo from "@/components/PageSeo";
 import { bucketOfStatus, STATUS_BUCKETS, type StatusBucket } from "@/lib/booking-status";
 import { extractGst } from "@/lib/pricing";
+import { BusinessTierSummary } from "./BusinessPricing";
 import { useCancelOrder, isCancellable } from "@/hooks/useCancelOrder";
 import CancelOrderDialog from "@/components/booking/CancelOrderDialog";
 import {
@@ -49,6 +50,7 @@ type BusinessBooking = {
   receiver_state: string | null;
   courier_name: string | null;
   courier_price: number | null;
+  gst?: number | null;
   delivery_time: string | null;
   box_count: number | null;
   status: string | null;
@@ -404,8 +406,8 @@ const BusinessDashboard = () => {
 
   const handleInvoice = () => {
     if (!selected) return;
-    const total = Math.round(Number(selected.courier_price || 0));
-    const gst = Math.round(extractGst(total));
+    const total = Number(selected.courier_price || 0);
+    const gst = selected.gst==null?extractGst(total):Number(selected.gst);
     const net = total - gst;
     const rows = (boxes.length ? boxes : []).map(
       (bx) => `<tr><td>Box ${bx.box_index}</td><td>${bx.tracking_id || "—"}</td><td>${
@@ -492,9 +494,9 @@ const BusinessDashboard = () => {
 
   const selectedBreakdown = useMemo(() => {
     if (!selected) return null;
-    const total = Math.round(Number(selected.courier_price || 0));
-    const gst = extractGst(total);
-    return { total, gst, net: Math.round(total - gst) };
+    const total = Number(selected.courier_price || 0);
+    const gst = selected.gst==null?extractGst(total):Number(selected.gst);
+    return { total, gst, net: Math.round((total - gst)*100)/100 };
   }, [selected]);
 
   return (
@@ -604,6 +606,7 @@ const BusinessDashboard = () => {
           </button> : <Card className="merchant-stat-card merchant-stat-amber min-h-[126px]"><CardContent className="grid h-full place-items-center p-[18px] text-center"><div><WalletCards className="mx-auto size-6 text-[#a96511]" /><p className="mt-2 text-xs font-bold text-[#40516b]">Wallet access restricted</p></div></CardContent></Card>}
         </section>
 
+        {can("orders:read") && <BusinessTierSummary compact />}
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
           <Card className="merchant-bordered-card border-[#d9e3f2] bg-[linear-gradient(180deg,#fff_0%,#f7faff_100%)] shadow-[0_10px_28px_rgba(35,55,95,.055)]">
             <CardContent className="p-[23px]">

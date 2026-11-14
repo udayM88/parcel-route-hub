@@ -13,7 +13,7 @@ function staticSeoPlugin(): Plugin {
     configResolved: (config) => {
       outDir = path.resolve(config.root, config.build.outDir);
     },
-    closeBundle: () => generateStaticSeoPages(outDir),
+    closeBundle: async () => { await generateStaticSeoPages(outDir); },
   };
 }
 
