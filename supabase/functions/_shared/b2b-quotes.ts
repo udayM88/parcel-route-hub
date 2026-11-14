@@ -2,10 +2,10 @@ import { approvedCard, billableWeight, calculateB2B, paise, type Parcel } from '
 const PARTNERS = ['delhivery','shree_maruti','xpressbees','shadowfax','urbanebolt'];
 export async function pricingContext(db: any, businessId: string) {
   const now = new Date().toISOString();
-  const { data: versions, error } = await db.from('b2b_pricing_versions').select('*').eq('status','published').eq('enabled',true).lte('effective_from',now).order('effective_from',{ascending:false});
+  const { data: versions, error } = await db.from('b2b_pricing_versions').select('*').eq('status','published').lte('effective_from',now).order('effective_from',{ascending:false});
   if (error) throw error;
   const version = versions?.find((v:any) => !v.effective_until || v.effective_until>now);
-  if (!version) throw new Error('Business pricing is not configured');
+  if (!version || !version.enabled) throw new Error('Business pricing is not configured or currently disabled');
   const { data: tiers, error: te } = await db.from('b2b_pricing_tiers').select('*,b2b_pricing_slabs(*)').eq('version_id',version.id).order('tier');
   if (te) throw te;
   const { data: month, error: me } = await db.rpc('b2b_resolve_month',{_business_id:businessId,_version_id:version.id});
@@ -32,9 +32,9 @@ export async function createB2BQuotes(db:any, url:string, anon:string, businessI
   if(ge) throw new Error('Unable to load courier eligibility');
   const {data:preferences,error:pe}=await db.from('merchant_console_settings').select('settings').eq('business_account_id',businessId).eq('category','carrier_selection').maybeSingle();
   if(pe) throw new Error('Unable to load merchant courier eligibility');
-  const {data:rules,error:re}=await db.from('b2b_courier_pricing_rules').select('*').eq('enabled',true).lte('effective_from',now).order('effective_from',{ascending:false});
+  const {data:rules,error:re}=await db.from('b2b_courier_pricing_rules').select('*').lte('effective_from',now).order('effective_from',{ascending:false});
   if(re) throw re;
-  const active=PARTNERS.filter(code=>global?.value?.[code]?.enabled!==false && preferences?.settings?.[code]!==false);
+  const active=PARTNERS.filter(code=>global?.value?.[code]?.enabled===true && preferences?.settings?.[code]!==false);
   const fingerprint=await requestFingerprint(request);
   const blocked:string[]=[];
   const results=await Promise.all(active.map(async code=>{
@@ -54,12 +54,12 @@ export async function createB2BQuotes(db:any, url:string, anon:string, businessI
         const matched=responses.map(d=>d?.partner.services?.find((s:any)=>s.service_code===service.service_code));
         if(matched.some(s=>!s)) continue;
         const rule=applicable.find((r:any)=>r.service_code===service.service_code) || applicable.find((r:any)=>r.service_code==='*');
-        if(!rule) continue;
+        if(!rule || !rule.enabled || matched.some(s=>s.pickup!==true || s.delivery!==true || s.is_cod===true)) continue;
         const rates=matched.map(s=>paise(Number(s.rate?.price?.amount)));
         if(rates.some(r=>!Number.isSafeInteger(r) || r<=0)) continue;
         const reported=responses.map((d,i)=>{
           const m={...d?.partner.metadata,...matched[i]?.metadata};
-          return Number(m.chargeable_g || m.chargeable_weight_g || (m.chargeable_weight_kg ? m.chargeable_weight_kg*1000 : 0));
+          return Number(m.slab_weight_g || m.chargeable_g || m.chargeable_weight_g || d?.chargeable_weight_g || (m.chargeable_weight_kg ? m.chargeable_weight_kg*1000 : 0));
         });
         const weight=request.boxes.reduce((sum,b,i)=>sum+billableWeight(b,rule,reported[i]).billed_weight_g,0);
         const custom=approvedCard(context.cards,context.tier.tier,weight);

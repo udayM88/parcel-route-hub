@@ -76,9 +76,10 @@ export function calculateB2B(input: { parcels: Parcel[]; freight_paise: number[]
   return { ...fee, booking_fee_paise: card.booking_fee_paise, chargeable_weight_g: combined, freight_net_paise, gst_paise, service_gst_paise: serviceGst, net_paise, total_paise: net_paise+gst_paise, boxes };
 }
 export function approvedCard(cards: any[], tier: number, weightG: number, now = new Date()) {
-  const eligible = cards.filter(c => c.enabled && c.status === 'approved' && c.approved_by && new Date(c.effective_from) <= now && (!c.effective_until || new Date(c.effective_until)>now));
+  const eligible = cards.filter(c => c.enabled && c.status === 'approved' && c.approved_by && new Date(c.effective_from) <= now && (!c.effective_until || new Date(c.effective_until)>now)).sort((a,b)=>new Date(b.effective_from).getTime()-new Date(a.effective_from).getTime());
   const required = weightG>25000 ? 'heavy' : tier===4 ? 'enterprise' : 'customer';
   const card = eligible.find(c => c.kind === required);
   if ((tier===4 || weightG>25000) && !card) throw new Error('Approved custom Enterprise/heavy rate card required');
+  if(tier===4 && weightG>25000 && !eligible.some(c=>c.kind==='enterprise')) throw new Error('Approved Enterprise agreement required for heavy pricing');
   return card;
 }
