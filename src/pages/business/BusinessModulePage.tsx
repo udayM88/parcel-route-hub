@@ -23,6 +23,9 @@ import type { MerchantPermission } from "@/lib/merchant-permissions";
 import { getPartnerLogo } from "@/config/partnerLogos";
 import { usePartnerRatings } from "@/hooks/usePartnerRatings";
 
+import { businessQuotes } from "@/lib/business-pricing";
+import BusinessPricing from "./BusinessPricing";
+
 const modulePermission: Record<string, MerchantPermission> = {
   users: "team:manage", "bulk-booking": "orders:write", "cod-orders": "orders:read", "cod-dashboard": "reports:read",
   "weight-reconciliation": "orders:read", invoices: "wallet:read", webhooks: "integrations:read", pincodes: "orders:read",
@@ -110,33 +113,8 @@ function RateCalculatorPanel() {
         ]);
         return;
       }
-      const activePartners = await filterEnabledBusinessPartners(RATE_PARTNERS, business?.id);
-      const settled = await Promise.allSettled(activePartners.map(async (partner) => {
-        const { data, error } = await supabase.functions.invoke<ServiceabilityResponse>(partner.fn, {
-          body: {
-            pickup_pincode: pickup,
-            delivery_pincode: delivery,
-            weight_kg: chargeableKg,
-            length_cm: Number(length) || 10,
-            width_cm: Number(width) || 10,
-            height_cm: Number(height) || 10,
-          },
-          headers: { "x-environment": CURRENT_ENV },
-        });
-        if (error || !data?.is_serviceable || !data.partner) return [];
-        return (data.partner.services || []).map((service) => {
-          const courierRate = Number(service.rate?.price?.amount || 0);
-          return {
-            partnerCode: partner.code,
-            partner: data.partner?.partner_name || partner.code,
-            service: service.service_name || "Standard",
-            delivery: service.delivery_label || (service.tat_days ? `${service.tat_days} days` : "ETA unavailable"),
-            amount: computeBusinessBreakdown([courierRate]).net,
-            rating: Number((data.partner as { rating?: number }).rating) || undefined,
-          };
-        });
-      }));
-      const available = settled.flatMap((result) => result.status === "fulfilled" ? result.value : []).filter((quote) => quote.amount > 0);
+      const finalized=await businessQuotes({pickup_pincode:pickup,delivery_pincode:delivery,boxes:[{weight_kg:Number(weight),...(Number(length)>0?{length_cm:Number(length)}:{}),...(Number(width)>0?{width_cm:Number(width)}:{}),...(Number(height)>0?{height_cm:Number(height)}:{})}]});
+      const available=finalized.map(q=>({partnerCode:q.partner_code,partner:q.partner_name,service:q.service_name,delivery:q.delivery_time,amount:q.amount_excl_gst}));
       const rules = await fetchBusinessCarrierRules(business?.id);
       const preferred = rules.preferred_partner && rules.preferred_partner !== "none" ? rules.preferred_partner.toLowerCase() : "";
       available.sort((a, b) => {
@@ -174,7 +152,7 @@ function RateCalculatorPanel() {
         <CardFooter className="justify-end border-t pt-4"><Button onClick={calculate} disabled={!valid || loading}>{loading ? <Loader2 className="animate-spin" /> : <Calculator />}Calculate rates</Button></CardFooter>
       </Card>
       <Card className="merchant-surface merchant-bordered-card">
-        <CardHeader><CardTitle>Available services</CardTitle><CardDescription>Merchant rate is ₹15 above the regular consumer rate. GST is added separately at checkout.</CardDescription></CardHeader>
+        <CardHeader><CardTitle>Available services</CardTitle><CardDescription>Tier-based shipping prices. GST is shown separately before payment.</CardDescription></CardHeader>
         <CardContent className="space-y-3">
           {!quotes.length && !message ? <div className="grid min-h-52 place-items-center text-center text-sm text-muted-foreground"><div><Truck className="mx-auto mb-3 size-9 text-primary/60" />Fill the form to compare courier services.</div></div> : null}
           {message ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{message}</p> : null}
