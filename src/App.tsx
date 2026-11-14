@@ -54,6 +54,8 @@ const RealTimeTracking = lazy(() => import("./pages/admin/RealTimeTracking"));
 const UserManagement = lazy(() => import("./pages/admin/UserManagement"));
 const AdminUserManagement = lazy(() => import("./pages/admin/AdminUserManagement"));
 const BusinessManagement = lazy(() => import("./pages/admin/BusinessManagement"));
+const B2BPricingManagement = lazy(() => import("./pages/admin/B2BPricingManagement"));
+const BusinessPricing = lazy(() => import("./pages/business/BusinessPricing"));
 const PartnerManagement = lazy(() => import("./pages/admin/PartnerManagement"));
 const BusinessInquiries = lazy(() => import("./pages/admin/BusinessInquiries"));
 const BusinessLogin = lazy(() => import("./pages/business/BusinessLogin"));
@@ -149,6 +151,7 @@ const App = () => (
             <Route path="reset-password" element={<BusinessResetPassword />} />
             <Route element={<ProtectedBusinessRoute><BusinessConsoleLayout /></ProtectedBusinessRoute>}>
               <Route path="dashboard" element={<BusinessDashboard />} />
+              <Route path="pricing" element={<ProtectedBusinessRoute permission="orders:read"><BusinessPricing /></ProtectedBusinessRoute>} />
               <Route path="orders" element={<ProtectedBusinessRoute permission="orders:read"><BusinessOrders /></ProtectedBusinessRoute>} />
               <Route path="book" element={<ProtectedBusinessRoute permission="orders:write"><BusinessBooking /></ProtectedBusinessRoute>} />
               <Route path="create-order" element={<ProtectedBusinessRoute permission="orders:write"><BusinessBooking /></ProtectedBusinessRoute>} />
@@ -178,6 +181,7 @@ const App = () => (
             <Route path="users" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><UserManagement /></ProtectedAdminRoute>} />
             <Route path="admin-users" element={<ProtectedAdminRoute allowedRoles={["super_admin"]}><AdminUserManagement /></ProtectedAdminRoute>} />
             <Route path="businesses" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations"]}><BusinessManagement /></ProtectedAdminRoute>} />
+            <Route path="b2b-pricing" element={<ProtectedAdminRoute allowedRoles={["super_admin"]}><B2BPricingManagement /></ProtectedAdminRoute>} />
             <Route path="courier-partners" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations"]}><PartnerManagement /></ProtectedAdminRoute>} />
             <Route path="business-inquiries" element={<ProtectedAdminRoute allowedRoles={["super_admin", "operations", "support"]}><BusinessInquiries /></ProtectedAdminRoute>} />
             <Route path="revenue" element={<ProtectedAdminRoute allowedRoles={["super_admin"]}><RevenueManagement /></ProtectedAdminRoute>} />
