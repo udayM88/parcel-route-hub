@@ -182,3 +182,12 @@ verify_jwt = false
 
 [functions.shadowfax-webhook]
 verify_jwt = false
+
+[functions.business-pricing]
+verify_jwt = false
+
+[functions.admin-b2b-pricing]
+verify_jwt = false
+
+[functions.b2b-monthly-tiers]
+verify_jwt = false

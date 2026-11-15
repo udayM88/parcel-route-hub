@@ -1,6 +1,6 @@
 # ViaSetu Project Context and Handoff
 
-Last updated: 2026-11-12 (Asia/Kolkata)
+Last updated: 2026-11-15 (Asia/Kolkata)
 
 This file is the persistent project handoff. Read it before making changes and update it after any material feature, database, architecture, deployment, or operational change. Do not store passwords, service-role keys, OAuth tokens, customer PII, or other secrets here.
 
@@ -60,11 +60,24 @@ Implemented routes and areas include:
 
 ## Merchant quote pricing and comparison UI (2026-11-10)
 
-- The merchant GST-exclusive quote is defined as the regular displayed consumer quote plus ₹15 per box. With courier rate `r`, the displayed consumer quote is `round((r × 2 + ₹25) × 1.18)` and the merchant net is that displayed amount plus ₹15.
+- Historical rule, superseded for new B2B quotes by the tiered-pricing release below: merchant GST-exclusive quotes previously used the displayed consumer quote plus ₹15 per box.
 - Merchant quote cards display the partner logo, partner/service name, star rating, delivery ETA, applicable service capabilities, and the merchant amount labelled `(GST excluded)`. Review-count totals are intentionally hidden to keep the comparison concise.
 - GST remains 18% and is shown separately in the review/payment breakdown. The final payable amount still includes GST.
-- The same formula is enforced in `src/lib/pricing.ts`, `business-create-shipment`, and `merchant-api` to prevent client/server payment mismatches. This is a code-only change with no database migration or existing-row rewrite.
-- The Edge Function changes are not live until the relevant functions are explicitly deployed; do not deploy them implicitly during local UI work.
+- Old business helpers remain only in non-writing demo data; live quotes use the server B2B engine. Consumer formulas and historical records remain unchanged.
+- This historical section does not establish current deployment status; verify the current release before reporting it live.
+
+## B2B progressive tiered pricing (2026-11-15)
+
+- Replaces live business pricing with courier freight plus a database-driven booking fee charged once per order and progressive 500g service fees. Growth uses the confirmed listed slabs, yielding platform charges of ₹115 at 5kg, ₹165 at 10kg and ₹255 at 25kg; consumer pricing remains unchanged.
+- Added version, tier, slab, customer-card, override, monthly-assessment, courier-rule, private quote, immutable snapshot and audit tables. All public tables have explicit grants and scoped RLS. Existing orders/invoices are not rewritten. `bookings.b2b_quote_id` atomically binds and consumes an accepted quote.
+- `_shared/b2b-pricing.ts` performs integer-paise arithmetic, courier-specific billed weight, allocation and GST treatment. `_shared/b2b-quotes.ts` retains courier response metadata privately and issues safe business totals; no procurement/profit values are returned in public quotes.
+- Business portal and merchant API rate requests use `business-pricing`/the shared quote service. Booking preparation requires a scoped, unexpired quote matching actual parcels and pins; retries retain the accepted snapshot. Parcel actual weights remain separate from courier billed weights. Razorpay prepared-order ownership and paise equality are checked server-side.
+- Monthly tiers freeze previous calendar month's evidenced completed orders in Asia/Kolkata, counting an order once rather than AWBs. A daily pg_cron catch-up runs at 00:05 IST, including the first day; on-demand resolution covers newly approved businesses. Missing delivery evidence is recorded, not invented.
+- Merchant Pricing & Tiers lives at `/viasetuforbusinesses/pricing`; dashboard includes current tier, completed volume, booking fee and next-tier progress. Invoices use saved GST and exact totals.
+- Super-admin configuration lives at `/admin/b2b-pricing` via server-validated `admin-b2b-pricing`: draft/publish versions, threshold/slab edits, previews, effective dates, enabled rules, Enterprise/heavy/customer cards, tier overrides, platform revenue and audit history.
+- Enterprise and shipments over 25kg require approved custom cards; there is no silent standard-tier fallback. Courier contract/tax settings are seeded from existing integration evidence and can be revised prospectively by super admins.
+- Wallet shipment creation remains paused; no wallet charge/refund behavior was enabled. Courier integration responses, tracking, cancellation rules and manual-refund policy are unchanged.
+- Verification: tier/weight/tax/consumer/accounting regression tests and private quote-expiry/public-output tests pass. Signed-in quote-to-payment and admin-publication checks are unavailable on external unmanaged Supabase; do not represent sample-account or unit tests as live authenticated verification. Existing 22 security-advisor findings remain outside this release.
 
 ## Static SEO coverage for non-JavaScript crawlers (2026-11-12)
 
