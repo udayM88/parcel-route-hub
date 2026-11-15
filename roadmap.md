@@ -1,8 +1,9 @@
 # B2B tiered pricing replacement
-- [ ] Review and approve implementation plan; Growth uses listed slab rates (5kg ₹115, 10kg ₹165, 25kg ₹255).
-- [ ] Implement effective-dated pricing storage, monthly tiers, server quotes and immutable booking snapshots.
-- [ ] Connect business pricing/dashboard and admin pricing management without changing B2C or refund safety.
-- [ ] Verify boundaries, tax, multi-package, historical, payment and consumer regressions; authenticated live checks require external account access.
+- [x] Review and approve implementation plan; Growth uses listed slab rates (5kg ₹115, 10kg ₹165, 25kg ₹255).
+- [x] Implement effective-dated pricing storage, monthly tiers, server quotes and immutable booking snapshots.
+- [x] Connect business pricing/dashboard and super-admin pricing management without changing B2C or refund safety.
+- [x] Verify tier/weight boundaries, tax, multi-package, custom rates, quote expiry, historical and consumer regressions.
+- [ ] Verify signed-in quote → prepare → payment and admin publish end-to-end — external unmanaged Supabase cannot provide a test session.
 
 # Pricing breakdown correction
 - [x] Correct future pricing metadata without changing charged prices.

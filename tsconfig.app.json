@@ -22,6 +22,7 @@
       ]
     },
     "skipLibCheck": true,
+    "types": ["node", "vite/client"],
     "strict": false,
     "target": "ES2021",
     "useDefineForClassFields": true
