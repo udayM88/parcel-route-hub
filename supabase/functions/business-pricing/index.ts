@@ -1,4 +1,4 @@
-import {createClient} from 'npm:@supabase/supabase-js@2';
+import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
 import {corsHeaders} from 'npm:@supabase/supabase-js@2/cors';
 import {z} from 'npm:zod@3';
 import {resolveMerchantAccess,merchantCan} from '../_shared/merchant-access.ts';
@@ -29,6 +29,11 @@ Deno.serve(async req=>{
     const c=await pricingContext(db,access.business_account_id);
     const next=c.tiers?.find((t:any)=>t.tier===c.tier.tier+1);
     const cards=c.cards.filter((card:any)=>card.enabled && card.status==='approved' && card.approved_by && new Date(card.effective_from)<=new Date() && (!card.effective_until || new Date(card.effective_until)>new Date()));
-    return json({tier:c.tier.tier,tier_name:c.tier.name,booking_fee_paise:c.tier.booking_fee_paise,previous_completed:c.month.completed_shipments,current_completed:c.month.current_completed,missing_completion_evidence:c.month.missing_completion_evidence,next_tier:next?.name || null,shipments_to_next:next?Math.max(0,next.min_shipments-c.month.current_completed):0,tiers:c.tiers.map((t:any)=>({tier:t.tier,name:t.name,min_shipments:t.min_shipments,max_shipments:t.max_shipments,booking_fee_paise:t.booking_fee_paise,enabled:t.enabled,slabs:t.b2b_pricing_slabs})),custom_cards:cards.map((card:any)=>({name:card.name,kind:card.kind,booking_fee_paise:card.booking_fee_paise,slabs:card.slabs,effective_until:card.effective_until})),override:!!c.override});
+    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit'}).formatToParts(new Date());
+    const year=Number(parts.find(p=>p.type==='year')?.value),month=Number(parts.find(p=>p.type==='month')?.value);
+    const from=new Date(Date.UTC(year,month-1,1)-19800000).toISOString(),until=new Date(Date.UTC(year,month,1)-19800000).toISOString();
+    let expenditure=0;
+    for(let offset=0;;offset+=1000){const {data:orders,error:oe}=await db.from('bookings').select('courier_price').eq('business_account_id',access.business_account_id).gte('created_at',from).lt('created_at',until).not('status','in','(PENDING_PAYMENT,PAYMENT_ABANDONED)').range(offset,offset+999);if(oe) throw oe;expenditure+=(orders || []).reduce((sum,o)=>sum+Number(o.courier_price || 0),0);if(!orders || orders.length<1000)break;}
+    return json({monthly_shipping_expenditure:Math.round(expenditure*100)/100,tier:c.tier.tier,tier_name:c.tier.name,booking_fee_paise:c.tier.booking_fee_paise,previous_completed:c.month.completed_shipments,current_completed:c.month.current_completed,missing_completion_evidence:c.month.missing_completion_evidence,next_tier:next?.name || null,shipments_to_next:next?Math.max(0,next.min_shipments-c.month.current_completed):0,tiers:c.tiers.map((t:any)=>({tier:t.tier,name:t.name,min_shipments:t.min_shipments,max_shipments:t.max_shipments,booking_fee_paise:t.booking_fee_paise,enabled:t.enabled,slabs:t.b2b_pricing_slabs})),custom_cards:cards.map((card:any)=>({name:card.name,kind:card.kind,booking_fee_paise:card.booking_fee_paise,slabs:card.slabs,effective_until:card.effective_until})),override:!!c.override});
   } catch(e) { return json({error:e instanceof Error?e.message:'Pricing unavailable'},422); }
 });

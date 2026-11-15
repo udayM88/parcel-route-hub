@@ -144,6 +144,7 @@ Deno.serve(async (req) => {
       return json({ booking_id: row.id, status: row.status, payment_status: row.payment_status, failure_reason: row.failure_reason, boxes: boxesOut });
     }
 
+    if(!internal && rawBody._prepare!==true) return json({error:'Prepare the business order before payment; shipment finalization is server-only.'},400);
     if (!rawBody.quote_id) return json({ error: 'A finalized business quote is required. Fetch rates again.' }, 400);
     const quote = await loadB2BQuote(admin, rawBody.quote_id, biz.id, env);
     if (quote.booking_id) {
