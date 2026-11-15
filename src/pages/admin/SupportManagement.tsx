@@ -128,7 +128,7 @@ const SupportManagement = () => {
 
   const handleUpdateStatus = async (ticketId: string, newStatus: string) => {
     try {
-      const update: Record<string, any> = { status: newStatus };
+      const update: {status:string;resolved_at?:string} = { status: newStatus };
       if (newStatus === "resolved") update.resolved_at = new Date().toISOString();
       
       const { error } = await supabase.from("support_tickets").update(update).eq("id", ticketId);
