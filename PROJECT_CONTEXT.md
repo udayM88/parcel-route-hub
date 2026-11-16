@@ -1,6 +1,6 @@
 # ViaSetu Project Context and Handoff
 
-Last updated: 2026-11-15 (Asia/Kolkata)
+Last updated: 2026-11-16 (Asia/Kolkata)
 
 This file is the persistent project handoff. Read it before making changes and update it after any material feature, database, architecture, deployment, or operational change. Do not store passwords, service-role keys, OAuth tokens, customer PII, or other secrets here.
 
@@ -329,7 +329,8 @@ Local merchant URL while the development server is running:
 
 ## Shadowfax (Marketplace 360 forward) — Nov 2026
 - Old reverse-pickup (RVP, 1.7x) integration replaced by forward delivery via `_shared/shadowfax.ts` (dale.shadowfax.in / dale.staging.shadowfax.in, `Token` auth).
-- Serviceability: live `/v1/clients/serviceability/?service=marketplace` only; price from SFX_Ratecard.xlsx Standard forward card (rate-cards.ts, 30% FSC, no RVP multiplier). Unknown state → priced at special-zone slab.
+- Serviceability: live `/v1/clients/serviceability/` independently checks seller_pickup/Marketplace at origin, customer_delivery/Regular at destination and seller_delivery/RTS at origin, matching Regular seller-return bookings. Missing exact tiers fail closed; price remains from SFX_Ratecard.xlsx Standard forward card (rate-cards.ts, 30% FSC, no RVP multiplier). Unknown state → priced at special-zone slab.
 - Booking: `/v3/clients/orders/` single; multi-box uses MPS `/v2/clients/orders/` (parent AWB on booking, child AWB per box). Tracking v4, cancel v3, label `/client/generate_label/` with HTML fallback.
 - `shadowfax-webhook` re-verifies each callback via tracking API (callbacks are unsigned).
-- Status: staging rejects pickup pincodes (411005, 560058 "not serviceable"); serviceability API returns "Invalid Request". Pending Shadowfax account enablement. Partner toggle currently disabled.
+- Production activation (2026-11-16): user relayed Shadowfax confirmation that the production token is active and production webhook is configured, then explicitly approved activation. Enabled only the Shadowfax courier toggle, preserving other settings. Webhook OPTIONS returned HTTP 200; actual incoming status delivery remains unverified.
+- Corrected the obsolete `service=marketplace` query after both production checks returned `Invalid Request`. Deployed only `shadowfax-serviceability`; three exact-tier/missing-pincode tests pass. Production 462022 → 456001 passes pickup, delivery and return checks and quotes ₹91 courier freight for 1kg, 10×10×10cm. Production 560007 → 560068 fails pickup and seller return despite delivery coverage and is correctly rejected. No shipment/payment was created; booking-to-webhook end-to-end remains untested. Existing 22 security findings predate the toggle migration and were unchanged.

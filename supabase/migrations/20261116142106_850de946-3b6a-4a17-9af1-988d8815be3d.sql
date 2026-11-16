@@ -1,0 +1,1 @@
+UPDATE public.system_settings SET value = jsonb_set(value, '{shadowfax,enabled}', 'true'::jsonb, true) WHERE key = 'courier_partners' AND value ? 'shadowfax';
