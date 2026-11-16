@@ -1,3 +1,8 @@
+# Shadowfax production activation
+- [x] Enable the courier toggle with explicit approval and check the production endpoint.
+- [x] Correct coverage queries to documented pickup, delivery and seller-return services and exact Regular tiers.
+- [ ] Verify corrected deployed production coverage and record activation outcome.
+
 # B2B tiered pricing replacement
 - [x] Review and approve implementation plan; Growth uses listed slab rates (5kg ₹115, 10kg ₹165, 25kg ₹255).
 - [x] Implement effective-dated pricing storage, monthly tiers, server quotes and immutable booking snapshots.

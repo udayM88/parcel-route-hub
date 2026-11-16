@@ -45,9 +45,13 @@ export function sfxError(r: SfxResult): string {
 }
 
 /** Marketplace forward pincode check. Explicit "serviceable" listing only — never assumed. */
-export async function sfxServiceablePins(base: string, token: string, pins: string[]) {
+export async function sfxServiceablePins(
+  base: string, token: string, pins: string[],
+  service: "seller_pickup" | "seller_delivery" | "customer_delivery",
+  tier: "Marketplace" | "RTS" | "Regular",
+) {
   const r = await sfxFetch(base, token,
-    `/v1/clients/serviceability/?service=marketplace&pincodes=${pins.join(",")}&count=${pins.length}`);
+    `/v1/clients/serviceability/?service=${service}&pincodes=${pins.join(",")}&count=${pins.length}`);
   const list: any[] = Array.isArray(r.data) ? r.data
     : Array.isArray(r.data?.data) ? r.data.data
     : Array.isArray(r.data?.results) ? r.data.results : [];
@@ -55,7 +59,7 @@ export async function sfxServiceablePins(base: string, token: string, pins: stri
   for (const it of list) {
     const code = String(it?.code ?? it?.pincode ?? "");
     const services: string[] = Array.isArray(it?.services) ? it.services : [];
-    if (code && services.length > 0) ok.add(code);
+    if (pins.includes(code) && services.includes(tier)) ok.add(code);
   }
   return { result: r, serviceable: ok, apiOk: r.ok && (Array.isArray(r.data) || Array.isArray(r.data?.data) || Array.isArray(r.data?.results)) };
 }

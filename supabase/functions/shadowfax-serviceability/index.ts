@@ -52,16 +52,24 @@ Deno.serve(async (req) => {
     const { base, token, env } = sfxConfigFromRequest(req);
     if (!token) return json({ is_serviceable: false, error: "Shadowfax token not configured" });
 
-    const pins = pickup_pincode === delivery_pincode ? [pickup_pincode] : [pickup_pincode, delivery_pincode];
-    const { serviceable, apiOk, result } = await sfxServiceablePins(base, token, pins);
-    if (!apiOk) {
+    // Booking uses Regular with seller pickup and seller return: verify every leg.
+    const [pickup, delivery, returns] = await Promise.all([
+      sfxServiceablePins(base, token, [pickup_pincode], "seller_pickup", "Marketplace"),
+      sfxServiceablePins(base, token, [delivery_pincode], "customer_delivery", "Regular"),
+      sfxServiceablePins(base, token, [pickup_pincode], "seller_delivery", "RTS"),
+    ]);
+    const failed = [pickup, delivery, returns].find((leg) => !leg.apiOk);
+    if (failed) {
+      const result = failed.result;
       console.warn("[shadowfax-serviceability] API not usable:", result.status, result.raw.slice(0, 300));
       return json({ is_serviceable: false, error: "Shadowfax serviceability unavailable", details: result.data });
     }
-    const pickupOk = serviceable.has(pickup_pincode);
-    const deliveryOk = serviceable.has(delivery_pincode);
-    if (!pickupOk || !deliveryOk) {
-      return json({ is_serviceable: false, pickup_serviceable: pickupOk, delivery_serviceable: deliveryOk });
+    const pickupOk = pickup.serviceable.has(pickup_pincode);
+    const deliveryOk = delivery.serviceable.has(delivery_pincode);
+    const returnOk = returns.serviceable.has(pickup_pincode);
+    if (!pickupOk || !deliveryOk || !returnOk) {
+      return json({ is_serviceable: false, pickup_serviceable: pickupOk, delivery_serviceable: deliveryOk, return_serviceable: returnOk,
+        reason: !pickupOk ? "Pickup not covered for Marketplace" : !deliveryOk ? "Prepaid delivery not covered for Regular" : "Seller return not covered for RTS" });
     }
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);

@@ -3,6 +3,7 @@
 - Before changing this repository, read `PROJECT_CONTEXT.md` completely. It is the persistent handoff for the ViaSetu merchant-console work, production state, safety constraints, and pending scope. Update it whenever a material architecture, database, deployment, or feature-status change is made.
 
 - All Shree Maruti operations use the documented Innofulfill gateway v2 through one shared authenticated client, so endpoint authentication, retries, and environment isolation remain consistent.
+- Shadowfax Regular marketplace coverage checks seller_pickup/Marketplace, customer_delivery/Regular and seller_delivery/RTS through the shared client, so every booking leg and its exact tier are confirmed before quoting.
 - Courier partner detection in edge functions uses `_shared/partner-key.ts`, so aliases resolve identically across consumer, business, admin, and retry flows.
 - Partner booking responses persist the courier-generated order ID separately from the AWB, because labels and cancellations require the upstream order ID.
 - Advertising providers load through one region and browser-privacy gate, so all measurement destinations follow the same no-banner compliance route.
