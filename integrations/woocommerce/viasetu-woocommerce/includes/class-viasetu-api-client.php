@@ -12,7 +12,9 @@ final class ViaSetu_Api_Client {
 
     public function is_configured() {
         if ( defined( 'VIASETU_WC_DEMO_MODE' ) && VIASETU_WC_DEMO_MODE ) return true;
-        return 'yes' === ViaSetu_Settings::get( 'enabled' ) && '' !== $this->api_key && 0 === strpos( $this->endpoint, 'https://' );
+        return 'yes' === ViaSetu_Settings::get( 'enabled' )
+            && ViaSetu_Settings::api_key_is_valid( $this->api_key, ViaSetu_Settings::get( 'environment' ) )
+            && 0 === strpos( $this->endpoint, 'https://' );
     }
 
     public function request( $action, $payload = array(), $idempotency_key = '' ) {
@@ -49,23 +51,42 @@ final class ViaSetu_Api_Client {
 
         $status = (int) wp_remote_retrieve_response_code( $response );
         $data   = json_decode( wp_remote_retrieve_body( $response ), true );
-        if ( $status >= 200 && $status < 300 && is_array( $data ) && false !== ( $data['success'] ?? true ) ) {
+        if ( $status >= 200 && $status < 300 && is_array( $data ) && true === ( $data['success'] ?? false ) ) {
             ViaSetu_Logger::log( 'debug', 'Merchant API request completed', array( 'action' => $action, 'status' => $status ) );
+            if ( 'account' === $action ) ViaSetu_Settings::mark_connection_checked( true );
             return $data;
         }
 
-        $code    = sanitize_key( $data['error']['code'] ?? 'request_failed' );
-        $message = sanitize_text_field( $data['error']['message'] ?? sprintf( __( 'ViaSetu returned HTTP %d.', 'viasetu-woocommerce' ), $status ) );
+        $error   = is_array( $data ) ? ( $data['error'] ?? array() ) : array();
+        $code    = sanitize_key( is_array( $error ) ? ( $error['code'] ?? 'request_failed' ) : 'request_failed' );
+        $message = sanitize_text_field( is_array( $error ) ? ( $error['message'] ?? '' ) : (string) $error );
+        if ( '' === $message ) $message = sanitize_text_field( is_array( $data ) ? ( $data['message'] ?? '' ) : '' );
+        if ( '' === $message ) $message = sprintf( __( 'ViaSetu returned HTTP %d.', 'viasetu-woocommerce' ), $status );
+        if ( in_array( $status, array( 401, 403 ), true ) ) ViaSetu_Settings::mark_connection_checked( false, $message );
         ViaSetu_Logger::log( 'error', 'Merchant API request rejected', array( 'action' => $action, 'status' => $status, 'code' => $code ) );
         return new WP_Error( 'viasetu_' . $code, $message, array( 'status' => $status, 'response' => $data ) );
     }
 
     public function rates( $pickup_pincode, $delivery_pincode, $boxes ) {
-        return $this->request( 'rates', array( 'pickup_pincode' => $pickup_pincode, 'delivery_pincode' => $delivery_pincode, 'boxes' => $boxes ) );
+        $result = $this->request( 'rates', array( 'pickup_pincode' => $pickup_pincode, 'delivery_pincode' => $delivery_pincode, 'boxes' => $boxes ) );
+        if ( ! is_wp_error( $result ) && ! isset( $result['quotes'] ) ) {
+            return new WP_Error( 'viasetu_invalid_response', __( 'ViaSetu returned an invalid rate response.', 'viasetu-woocommerce' ) );
+        }
+        return $result;
     }
 
     public function create_shipment( $payload, $idempotency_key ) {
-        return $this->request( 'create_shipment', $payload, $idempotency_key );
+        $result = $this->request( 'create_shipment', $payload, $idempotency_key );
+        if ( is_wp_error( $result ) ) return $result;
+        $booking_id = sanitize_text_field( $result['booking_id'] ?? '' );
+        if ( '' === $booking_id ) {
+            return new WP_Error(
+                'viasetu_invalid_booking_response',
+                __( 'ViaSetu did not return a booking ID, so this shipment was not marked as created.', 'viasetu-woocommerce' ),
+                array( 'status' => 502, 'response' => $result )
+            );
+        }
+        return $result;
     }
 
     public function track( $booking_id ) {

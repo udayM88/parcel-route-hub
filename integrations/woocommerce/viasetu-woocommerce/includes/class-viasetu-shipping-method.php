@@ -15,9 +15,14 @@ final class ViaSetu_Shipping_Method extends WC_Shipping_Method {
     public function calculate_shipping( $package = array() ) {
         $postcode = preg_replace( '/\D+/', '', (string) ( $package['destination']['postcode'] ?? '' ) );
         $pickup   = preg_replace( '/\D+/', '', (string) ViaSetu_Settings::get( 'pickup_pincode' ) );
+        if ( ! ViaSetu_Settings::is_connected() || ! ViaSetu_Settings::pickup_is_complete() ) return;
         if ( 6 !== strlen( $postcode ) || 6 !== strlen( $pickup ) || ! ViaSetu_Product_Settings::cart_is_eligible( $package['contents'] ?? array() ) ) return;
 
-        $box = $this->package_box( $package['contents'] ?? array() );
+        $box = ViaSetu_Product_Settings::package_box( $package['contents'] ?? array() );
+        if ( is_wp_error( $box ) ) {
+            ViaSetu_Logger::log( 'warning', 'Checkout rates skipped because product shipping data is incomplete', array( 'error' => $box->get_error_message() ) );
+            return;
+        }
         $cache_key = 'viasetu_rate_' . md5( wp_json_encode( array( $pickup, $postcode, $box ) ) );
         $quotes    = get_transient( $cache_key );
         if ( false === $quotes ) {
@@ -54,28 +59,6 @@ final class ViaSetu_Shipping_Method extends WC_Shipping_Method {
                 )
             );
         }
-    }
-
-    private function package_box( $contents ) {
-        $weight = 0.0;
-        $length = 0.0;
-        $width  = 0.0;
-        $height = 0.0;
-        foreach ( $contents as $line ) {
-            $product = $line['data'] ?? null;
-            if ( ! $product instanceof WC_Product ) continue;
-            $quantity = max( 1, (int) ( $line['quantity'] ?? 1 ) );
-            $weight  += (float) wc_get_weight( $product->get_weight() ?: 0.1, 'kg' ) * $quantity;
-            $length   = max( $length, (float) wc_get_dimension( $product->get_length() ?: 0, 'cm' ) );
-            $width    = max( $width, (float) wc_get_dimension( $product->get_width() ?: 0, 'cm' ) );
-            $height  += (float) wc_get_dimension( $product->get_height() ?: 0, 'cm' ) * $quantity;
-        }
-        return array(
-            'weight_kg' => max( 0.1, round( $weight, 3 ) ),
-            'length_cm' => max( 1, min( 300, $length ?: (float) ViaSetu_Settings::get( 'default_length', 20 ) ) ),
-            'width_cm'  => max( 1, min( 300, $width ?: (float) ViaSetu_Settings::get( 'default_width', 15 ) ) ),
-            'height_cm' => max( 1, min( 300, $height ?: (float) ViaSetu_Settings::get( 'default_height', 10 ) ) ),
-        );
     }
 
     private function sort_quotes( $quotes ) {

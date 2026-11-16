@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.3
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 
 Secure ViaSetu merchant orders, billing, labels, live rates and tracking inside WooCommerce.
 
@@ -27,7 +27,7 @@ The plugin never collects a ViaSetu password or embeds a Supabase service-role k
 
 == Installation ==
 
-1. Upload `viasetu-woocommerce-1.0.0.zip` in Plugins > Add New > Upload Plugin.
+1. Upload `viasetu-woocommerce-1.1.0.zip` in Plugins > Add New > Upload Plugin.
 2. Activate the plugin and open ViaSetu Merchant > Connection.
 3. Choose Sign in and connect, sign in on the official ViaSetu domain and approve the HTTPS store.
 4. Save the pickup address and checkout preferences.
@@ -37,6 +37,14 @@ The plugin never collects a ViaSetu password or embeds a Supabase service-role k
 Use the separate demo ZIP on a staging WordPress installation when you need local fixtures with no external ViaSetu, courier, wallet or payment requests.
 
 == Changelog ==
+
+= 1.1.0 =
+* Restricts automatic booking to orders that actually selected ViaSetu Shipping.
+* Adds strict pickup, delivery and product weight/dimension validation without fake parcel defaults.
+* Adds environment-aware API-key validation, persistent verification status and clearer 401 handling.
+* Adds safe transient-failure retries, missed-order recovery and failed-booking visibility.
+* Requires a valid booking ID before marking a shipment successful.
+* Adds an explicit India shipping-zone setup action and produces a verified single-folder ZIP.
 
 = 1.0.0 =
 * Added single-use PKCE store authorization and automatic dedicated key/webhook setup.

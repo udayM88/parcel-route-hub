@@ -31,30 +31,32 @@ async function packageEntries(file) {
 
 function assertSafePackage(entries, root) {
   assert.equal(entries.size, 13);
+  assert.equal(entries.has(`${root}/viasetu-woocommerce.php`), true, "plugin bootstrap must be exactly one folder below the ZIP root");
   for (const name of entries.keys()) {
     assert.equal(name.startsWith(`${root}/`), true, `${name} is outside the plugin root`);
+    assert.equal(name.startsWith(`${root}/${root}/`), false, `${name} is double nested`);
     assert.equal(name.includes("\\"), false, `${name} uses a Windows separator`);
     assert.equal(name.includes("../"), false, `${name} contains path traversal`);
   }
 }
 
-test("production archive contains the live 1.0 plugin", async () => {
-  const entries = await packageEntries("viasetu-woocommerce-1.0.0.zip");
+test("production archive contains the live 1.1 plugin with one WordPress plugin folder", async () => {
+  const entries = await packageEntries("viasetu-woocommerce-1.1.0.zip");
   assertSafePackage(entries, "viasetu-woocommerce");
   const bootstrap = entries.get("viasetu-woocommerce/viasetu-woocommerce.php")?.toString("utf8") || "";
   assert.match(bootstrap, /Plugin Name: ViaSetu Merchant for WooCommerce/);
-  assert.match(bootstrap, /Version: 1\.0\.0/);
+  assert.match(bootstrap, /Version: 1\.1\.0/);
   assert.match(bootstrap, /define\( 'VIASETU_WC_DEMO_MODE', false \);/);
   assert.match(bootstrap, /if \( ! function_exists\( 'viasetu_wc_boot' \) \) \{/);
   assert.doesNotMatch(bootstrap, /vs_live_[0-9a-f]{48}/);
 });
 
 test("demo archive is isolated from production requests", async () => {
-  const entries = await packageEntries("viasetu-woocommerce-demo-1.0.0.zip");
+  const entries = await packageEntries("viasetu-woocommerce-demo-1.1.0.zip");
   assertSafePackage(entries, "viasetu-woocommerce-demo");
   const bootstrap = entries.get("viasetu-woocommerce-demo/viasetu-woocommerce.php")?.toString("utf8") || "";
   assert.match(bootstrap, /Plugin Name: ViaSetu Merchant Demo for WooCommerce/);
-  assert.match(bootstrap, /Version: 1\.0\.0-demo/);
+  assert.match(bootstrap, /Version: 1\.1\.0-demo/);
   assert.match(bootstrap, /define\( 'VIASETU_WC_DEMO_MODE', true \);/);
   assert.match(bootstrap, /if \( ! function_exists\( 'viasetu_wc_boot' \) \) \{/);
 });

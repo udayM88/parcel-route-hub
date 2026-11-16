@@ -19,8 +19,8 @@ const integrationCards = [
     description: "Import orders, create shipments and return tracking updates to your WordPress store.",
     logo: wooCommerceLogo,
     logoAlt: "WooCommerce",
-    status: "Version 1.0.0",
-    download: "/downloads/viasetu-woocommerce-1.0.0.zip",
+    status: "Version 1.1.0",
+    download: "/downloads/viasetu-woocommerce-1.1.0.zip",
   },
   {
     title: "Shopify",
@@ -117,7 +117,7 @@ export default function BusinessIntegrations() {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <CardTitle>ViaSetu for WooCommerce</CardTitle>
-                    <Badge>Version 1.0.0</Badge>
+                    <Badge>Version 1.1.0</Badge>
                   </div>
                   <CardDescription className="mt-2">Install the production package for secure one-click connection, merchant orders, billing, labels, live checkout rates and signed tracking updates.</CardDescription>
                 </div>
@@ -130,8 +130,8 @@ export default function BusinessIntegrations() {
                 ))}
               </CardContent>
               <CardFooter className="flex-wrap gap-2 border-t pt-4">
-                <Button asChild><a href="/downloads/viasetu-woocommerce-1.0.0.zip" download><Download />Production plugin</a></Button>
-                <Button asChild variant="outline"><a href="/downloads/viasetu-woocommerce-demo-1.0.0.zip" download><Download />Demo plugin</a></Button>
+                <Button asChild><a href="/downloads/viasetu-woocommerce-1.1.0.zip" download><Download />Production plugin</a></Button>
+                <Button asChild variant="outline"><a href="/downloads/viasetu-woocommerce-demo-1.1.0.zip" download><Download />Demo plugin</a></Button>
                 <Button asChild variant="outline"><a href="/developers/merchant-api"><BookOpen />Setup guide</a></Button>
               </CardFooter>
             </Card>
