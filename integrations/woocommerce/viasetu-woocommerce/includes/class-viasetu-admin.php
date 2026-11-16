@@ -20,6 +20,8 @@ final class ViaSetu_Admin {
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
         add_action( 'admin_post_viasetu_test_connection', array( __CLASS__, 'test_connection' ) );
         add_action( 'admin_post_viasetu_sync_now', array( __CLASS__, 'sync_now' ) );
+        add_action( 'admin_post_viasetu_recover_orders', array( __CLASS__, 'recover_orders' ) );
+        add_action( 'admin_post_viasetu_enable_india_zone', array( __CLASS__, 'enable_india_zone' ) );
         add_action( 'admin_post_viasetu_clear_logs', array( __CLASS__, 'clear_logs' ) );
         add_action( 'admin_init', array( __CLASS__, 'activation_redirect' ) );
     }
@@ -66,6 +68,7 @@ final class ViaSetu_Admin {
         check_admin_referer( 'viasetu_test_connection' );
         $result = ( new ViaSetu_Api_Client() )->account();
         if ( is_wp_error( $result ) ) {
+            ViaSetu_Settings::mark_connection_checked( false, $result->get_error_message() );
             ViaSetu_Logger::log( 'error', 'Connection test failed', array( 'error' => $result->get_error_message() ) );
             self::redirect( 'connection', sprintf( __( 'Connection failed: %s', 'viasetu-woocommerce' ), $result->get_error_message() ), 'error' );
         }
@@ -78,7 +81,43 @@ final class ViaSetu_Admin {
         self::require_admin();
         check_admin_referer( 'viasetu_sync_now' );
         $stats = ViaSetu_Order_Actions::sync_open_shipments();
-        self::redirect( 'sync', sprintf( __( 'Sync complete: %1$d checked, %2$d updated, %3$d failed.', 'viasetu-woocommerce' ), $stats['checked'], $stats['updated'], $stats['failed'] ), $stats['failed'] ? 'warning' : 'success' );
+        self::redirect( 'sync', sprintf( __( 'Sync complete: %1$d tracked, %2$d updated, %3$d failed; %4$d booking retries run.', 'viasetu-woocommerce' ), $stats['checked'], $stats['updated'], $stats['failed'], $stats['retried'] ), ( $stats['failed'] || $stats['retry_failed'] ) ? 'warning' : 'success' );
+    }
+
+    public static function recover_orders() {
+        self::require_admin();
+        check_admin_referer( 'viasetu_recover_orders' );
+        $stats = ViaSetu_Order_Actions::recover_eligible_orders( (int) ViaSetu_Settings::get( 'sync_batch_size', 50 ) );
+        self::redirect(
+            'sync',
+            sprintf( __( 'Recovery complete: %1$d checked, %2$d created, %3$d need attention, %4$d skipped.', 'viasetu-woocommerce' ), $stats['checked'], $stats['created'], $stats['failed'], $stats['skipped'] ),
+            $stats['failed'] ? 'warning' : 'success'
+        );
+    }
+
+    public static function enable_india_zone() {
+        self::require_admin();
+        check_admin_referer( 'viasetu_enable_india_zone' );
+        if ( ! class_exists( 'WC_Shipping_Zones' ) ) self::redirect( 'shipping', __( 'WooCommerce shipping zones are unavailable.', 'viasetu-woocommerce' ), 'error' );
+        if ( self::shipping_zone_ready() ) self::redirect( 'shipping', __( 'ViaSetu Shipping is already enabled in a shipping zone.', 'viasetu-woocommerce' ) );
+
+        $target = null;
+        foreach ( WC_Shipping_Zones::get_zones() as $zone_data ) {
+            foreach ( $zone_data['zone_locations'] ?? array() as $location ) {
+                if ( 'country' === $location->type && 'IN' === strtoupper( $location->code ) ) {
+                    $target = new WC_Shipping_Zone( absint( $zone_data['zone_id'] ) );
+                    break 2;
+                }
+            }
+        }
+        if ( ! $target ) {
+            $target = new WC_Shipping_Zone();
+            $target->set_zone_name( 'India — ViaSetu' );
+            $target->add_location( 'IN', 'country' );
+            $target->save();
+        }
+        $target->add_shipping_method( 'viasetu_shipping' );
+        self::redirect( 'shipping', __( 'ViaSetu Shipping was added to the India shipping zone. Review its order and checkout availability in WooCommerce settings.', 'viasetu-woocommerce' ) );
     }
 
     public static function clear_logs() {
@@ -106,13 +145,14 @@ final class ViaSetu_Admin {
         self::require_admin();
         $tab       = self::tab();
         $connected = ViaSetu_Settings::is_connected();
+        $verified  = ViaSetu_Settings::connection_is_verified();
         $demo      = defined( 'VIASETU_WC_DEMO_MODE' ) && VIASETU_WC_DEMO_MODE;
 
         echo '<div class="wrap viasetu-admin">';
         self::notice();
         settings_errors( ViaSetu_Settings::OPTION );
         echo '<header class="viasetu-hero"><div class="viasetu-brand"><span class="viasetu-mark" aria-hidden="true">VS</span><div><p>ViaSetu Merchant</p><span>WooCommerce operations workspace</span></div></div>';
-        echo '<div class="viasetu-hero-status"><span class="viasetu-status-dot ' . esc_attr( $connected ? 'is-online' : '' ) . '"></span><strong>' . esc_html( $connected ? __( 'Connected', 'viasetu-woocommerce' ) : __( 'Setup required', 'viasetu-woocommerce' ) ) . '</strong>';
+        echo '<div class="viasetu-hero-status"><span class="viasetu-status-dot ' . esc_attr( $verified ? 'is-online' : '' ) . '"></span><strong>' . esc_html( $verified ? __( 'Connected', 'viasetu-woocommerce' ) : ( $connected ? __( 'Verification required', 'viasetu-woocommerce' ) : __( 'Setup required', 'viasetu-woocommerce' ) ) ) . '</strong>';
         echo '<span class="viasetu-mode">' . esc_html( $demo ? __( 'Sandbox demo', 'viasetu-woocommerce' ) : strtoupper( ViaSetu_Settings::get( 'environment', 'live' ) ) ) . '</span></div></header>';
 
         echo '<div class="viasetu-shell"><nav class="viasetu-tabs" aria-label="' . esc_attr__( 'ViaSetu Merchant sections', 'viasetu-woocommerce' ) . '">';
@@ -189,8 +229,8 @@ final class ViaSetu_Admin {
         echo '<div class="viasetu-grid"><section class="viasetu-card full"><div class="viasetu-card-head"><div><h2>' . esc_html__( 'Recent merchant orders', 'viasetu-woocommerce' ) . '</h2><p>' . esc_html__( 'Orders booked against this ViaSetu merchant account.', 'viasetu-woocommerce' ) . '</p></div><a class="button" href="' . esc_url( admin_url( 'admin.php?page=viasetu&tab=orders' ) ) . '">' . esc_html__( 'View all', 'viasetu-woocommerce' ) . '</a></div>';
         self::merchant_orders_table( $data['recent_orders'] ?? array() );
         echo '</section><section class="viasetu-card"><h2>' . esc_html__( 'Store readiness', 'viasetu-woocommerce' ) . '</h2><ul class="viasetu-checklist">';
-        self::check_item( __( 'Merchant key stored encrypted', 'viasetu-woocommerce' ), '' !== ViaSetu_Settings::api_key() );
-        self::check_item( __( 'Pickup address configured', 'viasetu-woocommerce' ), '' !== ViaSetu_Settings::get( 'pickup_address' ) && 6 === strlen( ViaSetu_Settings::get( 'pickup_pincode' ) ) );
+        self::check_item( __( 'Merchant API key verified', 'viasetu-woocommerce' ), ViaSetu_Settings::connection_is_verified() );
+        self::check_item( __( 'Complete pickup address configured', 'viasetu-woocommerce' ), ViaSetu_Settings::pickup_is_complete() );
         self::check_item( __( 'WooCommerce shipping zone enabled', 'viasetu-woocommerce' ), self::shipping_zone_ready() );
         self::check_item( __( 'Signed webhook secret active', 'viasetu-woocommerce' ), '' !== ViaSetu_Settings::webhook_secret() );
         echo '</ul></section>';
@@ -230,12 +270,14 @@ final class ViaSetu_Admin {
 
     private static function shipments() {
         self::page_heading( __( 'WooCommerce fulfilment', 'viasetu-woocommerce' ), __( 'Local WooCommerce orders linked to ViaSetu booking, AWB, label and tracking metadata.', 'viasetu-woocommerce' ), '<a class="button button-primary" href="' . esc_url( admin_url( 'edit.php?post_type=shop_order' ) ) . '">' . esc_html__( 'Open WooCommerce orders', 'viasetu-woocommerce' ) . '</a>' );
-        $orders = wc_get_orders( array( 'limit' => 50, 'orderby' => 'date', 'order' => 'DESC', 'meta_key' => '_viasetu_booking_id', 'meta_compare' => 'EXISTS' ) );
-        echo '<section class="viasetu-card full"><div class="viasetu-card-head"><div><h2>' . esc_html__( 'Connected shipments', 'viasetu-woocommerce' ) . '</h2><p>' . esc_html__( 'Use the WooCommerce order action menu to create, refresh, fetch a label or cancel.', 'viasetu-woocommerce' ) . '</p></div></div><div class="viasetu-table-wrap"><table class="viasetu-table"><thead><tr><th>' . esc_html__( 'Order', 'viasetu-woocommerce' ) . '</th><th>' . esc_html__( 'Customer', 'viasetu-woocommerce' ) . '</th><th>' . esc_html__( 'AWB', 'viasetu-woocommerce' ) . '</th><th>' . esc_html__( 'Status', 'viasetu-woocommerce' ) . '</th><th>' . esc_html__( 'Total', 'viasetu-woocommerce' ) . '</th><th>' . esc_html__( 'Label', 'viasetu-woocommerce' ) . '</th></tr></thead><tbody>';
+        $orders = wc_get_orders( array( 'limit' => 50, 'orderby' => 'date', 'order' => 'DESC', 'meta_query' => array( 'relation' => 'OR', array( 'key' => '_viasetu_booking_id', 'compare' => 'EXISTS' ), array( 'key' => '_viasetu_booking_error', 'compare' => 'EXISTS' ) ) ) );
+        echo '<section class="viasetu-card full"><div class="viasetu-card-head"><div><h2>' . esc_html__( 'Connected shipments and booking issues', 'viasetu-woocommerce' ) . '</h2><p>' . esc_html__( 'Open an order to retry a failed ViaSetu booking after correcting the reported setup or product issue.', 'viasetu-woocommerce' ) . '</p></div></div><div class="viasetu-table-wrap"><table class="viasetu-table"><thead><tr><th>' . esc_html__( 'Order', 'viasetu-woocommerce' ) . '</th><th>' . esc_html__( 'Customer', 'viasetu-woocommerce' ) . '</th><th>' . esc_html__( 'AWB', 'viasetu-woocommerce' ) . '</th><th>' . esc_html__( 'Status', 'viasetu-woocommerce' ) . '</th><th>' . esc_html__( 'Total', 'viasetu-woocommerce' ) . '</th><th>' . esc_html__( 'Label', 'viasetu-woocommerce' ) . '</th></tr></thead><tbody>';
         if ( ! $orders ) echo '<tr><td colspan="6" class="viasetu-table-empty">' . esc_html__( 'No WooCommerce order has a ViaSetu shipment yet.', 'viasetu-woocommerce' ) . '</td></tr>';
         foreach ( $orders as $order ) {
             $label = esc_url( $order->get_meta( '_viasetu_label_url' ) );
-            echo '<tr><td><a href="' . esc_url( $order->get_edit_order_url() ) . '"><strong>#' . esc_html( $order->get_order_number() ) . '</strong></a><small>' . esc_html( $order->get_meta( '_viasetu_booking_id' ) ) . '</small></td><td>' . esc_html( $order->get_formatted_billing_full_name() ) . '</td><td>' . esc_html( $order->get_meta( '_viasetu_awb' ) ?: 'Pending' ) . '</td><td>' . self::status_badge( $order->get_meta( '_viasetu_status' ) ?: 'Created' ) . '</td><td>' . wp_kses_post( $order->get_formatted_order_total() ) . '</td><td>' . ( $label ? '<a class="button button-small" target="_blank" rel="noopener" href="' . $label . '">' . esc_html__( 'Download', 'viasetu-woocommerce' ) . '</a>' : '<span class="viasetu-muted">' . esc_html__( 'Not ready', 'viasetu-woocommerce' ) . '</span>' ) . '</td></tr>';
+            $booking_id = $order->get_meta( '_viasetu_booking_id' );
+            $error = $order->get_meta( '_viasetu_booking_error' );
+            echo '<tr><td><a href="' . esc_url( $order->get_edit_order_url() ) . '"><strong>#' . esc_html( $order->get_order_number() ) . '</strong></a><small>' . esc_html( $booking_id ?: $error ) . '</small></td><td>' . esc_html( $order->get_formatted_billing_full_name() ) . '</td><td>' . esc_html( $order->get_meta( '_viasetu_awb' ) ?: 'Pending' ) . '</td><td>' . self::status_badge( $booking_id ? ( $order->get_meta( '_viasetu_status' ) ?: 'Created' ) : 'FAILED' ) . '</td><td>' . wp_kses_post( $order->get_formatted_order_total() ) . '</td><td>' . ( $label ? '<a class="button button-small" target="_blank" rel="noopener" href="' . $label . '">' . esc_html__( 'Download', 'viasetu-woocommerce' ) . '</a>' : '<span class="viasetu-muted">' . esc_html__( 'Not ready', 'viasetu-woocommerce' ) . '</span>' ) . '</td></tr>';
         }
         echo '</tbody></table></div></section>';
     }
@@ -275,8 +317,9 @@ final class ViaSetu_Admin {
         $s       = ViaSetu_Settings::get_all();
         $account = get_transient( 'viasetu_wc_account_' . get_current_user_id() );
         $ready   = ViaSetu_Settings::is_connected();
+        $verified = ViaSetu_Settings::connection_is_verified();
         self::page_heading( __( 'Merchant connection', 'viasetu-woocommerce' ), __( 'One secure authorization connects this store without sharing a merchant password.', 'viasetu-woocommerce' ) );
-        echo '<div class="viasetu-grid"><section class="viasetu-connect-card ' . esc_attr( $ready ? 'is-connected' : '' ) . '"><div><span class="viasetu-connect-kicker">' . esc_html( $ready ? __( 'Active bridge', 'viasetu-woocommerce' ) : __( 'Recommended setup', 'viasetu-woocommerce' ) ) . '</span><h2>' . esc_html( $ready ? ( $s['merchant_company'] ?: __( 'ViaSetu merchant connected', 'viasetu-woocommerce' ) ) : __( 'Connect with ViaSetu', 'viasetu-woocommerce' ) ) . '</h2><p>' . esc_html( $ready ? sprintf( __( 'This store is connected in %s mode. Credentials are encrypted at rest.', 'viasetu-woocommerce' ), strtoupper( $s['environment'] ) ) : __( 'Sign in or apply for a merchant account, review the store permissions, then return automatically to WordPress.', 'viasetu-woocommerce' ) ) . '</p>';
+        echo '<div class="viasetu-grid"><section class="viasetu-connect-card ' . esc_attr( $ready && $verified ? 'is-connected' : '' ) . '"><div><span class="viasetu-connect-kicker">' . esc_html( $verified ? __( 'Verified bridge', 'viasetu-woocommerce' ) : ( $ready ? __( 'Verification required', 'viasetu-woocommerce' ) : __( 'Recommended setup', 'viasetu-woocommerce' ) ) ) . '</span><h2>' . esc_html( $ready ? ( $s['merchant_company'] ?: __( 'ViaSetu merchant connected', 'viasetu-woocommerce' ) ) : __( 'Connect with ViaSetu', 'viasetu-woocommerce' ) ) . '</h2><p>' . esc_html( $ready ? sprintf( __( 'This %1$s key is encrypted at rest. Last API check: %2$s.', 'viasetu-woocommerce' ), strtoupper( $s['environment'] ), $s['connection_last_checked'] ?: __( 'not verified yet', 'viasetu-woocommerce' ) ) : __( 'Sign in or apply for a merchant account, review the store permissions, then return automatically to WordPress.', 'viasetu-woocommerce' ) ) . '</p>';
         if ( $ready ) echo '<dl class="viasetu-details"><div><dt>' . esc_html__( 'Merchant email', 'viasetu-woocommerce' ) . '</dt><dd>' . esc_html( $s['merchant_email'] ?: '—' ) . '</dd></div><div><dt>' . esc_html__( 'Connected', 'viasetu-woocommerce' ) . '</dt><dd>' . esc_html( $s['connected_at'] ?: '—' ) . '</dd></div><div><dt>' . esc_html__( 'Webhook', 'viasetu-woocommerce' ) . '</dt><dd>' . esc_html__( 'Signed and active', 'viasetu-woocommerce' ) . '</dd></div></dl>';
         echo '</div><div class="viasetu-connect-actions">';
         if ( $ready ) {
@@ -285,6 +328,7 @@ final class ViaSetu_Admin {
             echo '<a class="button button-primary button-hero" href="' . esc_url( ViaSetu_Connect::start_url() ) . '">' . esc_html__( 'Sign in and connect', 'viasetu-woocommerce' ) . '</a><a class="button" target="_blank" rel="noopener" href="https://www.viasetu.com/for-business?source=woocommerce">' . esc_html__( 'Create / apply for account', 'viasetu-woocommerce' ) . '</a>';
         }
         echo '</div></section>';
+        if ( ! $verified && ! empty( $s['connection_last_error'] ) ) echo '<section class="viasetu-card full"><h2>' . esc_html__( 'Connection needs attention', 'viasetu-woocommerce' ) . '</h2><p>' . esc_html( $s['connection_last_error'] ) . '</p></section>';
         if ( is_array( $account ) ) echo '<section class="viasetu-card full"><h2>' . esc_html__( 'Last connection test', 'viasetu-woocommerce' ) . '</h2><p>' . esc_html( sprintf( __( 'Merchant: %1$s · Wallet: %2$s', 'viasetu-woocommerce' ), $account['merchant']['company_name'] ?? '—', self::money( $account['wallet']['balance'] ?? 0 ) ) ) . '</p></section>';
 
         echo '<section class="viasetu-card full"><details><summary>' . esc_html__( 'Advanced manual API-key setup', 'viasetu-woocommerce' ) . '</summary><p>' . esc_html__( 'Use only when the one-click flow is unavailable. Create a dedicated store-scoped key in ViaSetu Developer Tools.', 'viasetu-woocommerce' ) . '</p>';
@@ -296,29 +340,39 @@ final class ViaSetu_Admin {
     private static function shipping() {
         $s = ViaSetu_Settings::get_all();
         self::page_heading( __( 'Shipping & checkout', 'viasetu-woocommerce' ), __( 'Pickup identity, live rate presentation and checkout fallback rules.', 'viasetu-woocommerce' ) );
-        echo '<section class="viasetu-card full"><div class="viasetu-callout"><span class="dashicons dashicons-info"></span><p>' . esc_html__( 'After saving, add “ViaSetu Shipping” to each WooCommerce shipping zone where it should appear.', 'viasetu-woocommerce' ) . '</p></div>';
+        echo '<section class="viasetu-card full"><div class="viasetu-callout"><span class="dashicons dashicons-info"></span><div><p>' . esc_html__( 'ViaSetu must be enabled in a WooCommerce shipping zone. Only orders that select this method can be booked automatically.', 'viasetu-woocommerce' ) . '</p>';
+        if ( self::shipping_zone_ready() ) {
+            echo '<strong>' . esc_html__( 'Shipping zone ready', 'viasetu-woocommerce' ) . '</strong>';
+        } else {
+            echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="viasetu_enable_india_zone">'; wp_nonce_field( 'viasetu_enable_india_zone' ); submit_button( __( 'Add ViaSetu to India zone', 'viasetu-woocommerce' ), 'secondary', 'submit', false ); echo '</form>';
+        }
+        echo '</div></div>';
         self::form_start( 'shipping' );
         echo '<h2>' . esc_html__( 'Pickup address', 'viasetu-woocommerce' ) . '</h2><div class="viasetu-field-grid">';
-        foreach ( array( 'pickup_name' => 'Contact name', 'pickup_phone' => 'Phone', 'pickup_address' => 'Address', 'pickup_city' => 'City', 'pickup_state' => 'State', 'pickup_pincode' => 'Pincode' ) as $field => $label ) echo '<label><span>' . esc_html( $label ) . '</span><input type="text" name="' . esc_attr( ViaSetu_Settings::OPTION . '[' . $field . ']' ) . '" value="' . esc_attr( $s[ $field ] ) . '"></label>';
+        foreach ( array( 'pickup_name' => 'Contact name', 'pickup_phone' => 'Phone', 'pickup_address' => 'Address', 'pickup_city' => 'City', 'pickup_state' => 'State', 'pickup_pincode' => 'Pincode' ) as $field => $label ) {
+            $inputmode = in_array( $field, array( 'pickup_phone', 'pickup_pincode' ), true ) ? ' inputmode="numeric"' : '';
+            $pattern = 'pickup_phone' === $field ? ' pattern="[0-9]{10}" maxlength="10"' : ( 'pickup_pincode' === $field ? ' pattern="[0-9]{6}" maxlength="6"' : '' );
+            echo '<label><span>' . esc_html( $label ) . ' *</span><input type="text" required' . $inputmode . $pattern . ' name="' . esc_attr( ViaSetu_Settings::OPTION . '[' . $field . ']' ) . '" value="' . esc_attr( $s[ $field ] ) . '"></label>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fixed input attributes.
+        }
         echo '</div><hr><h2>' . esc_html__( 'Checkout presentation', 'viasetu-woocommerce' ) . '</h2><div class="viasetu-field-grid"><label><span>' . esc_html__( 'Checkout label', 'viasetu-woocommerce' ) . '</span><input type="text" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[shipping_title]" value="' . esc_attr( $s['shipping_title'] ) . '"></label><label><span>' . esc_html__( 'Default goods type', 'viasetu-woocommerce' ) . '</span><input type="text" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[default_goods_type]" value="' . esc_attr( $s['default_goods_type'] ) . '"></label><label><span>' . esc_html__( 'Rate priority', 'viasetu-woocommerce' ) . '</span><select name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[quote_sort]"><option value="price" ' . selected( $s['quote_sort'], 'price', false ) . '>' . esc_html__( 'Lowest price first', 'viasetu-woocommerce' ) . '</option><option value="fastest" ' . selected( $s['quote_sort'], 'fastest', false ) . '>' . esc_html__( 'Fastest first', 'viasetu-woocommerce' ) . '</option><option value="preferred" ' . selected( $s['quote_sort'], 'preferred', false ) . '>' . esc_html__( 'Preferred couriers first', 'viasetu-woocommerce' ) . '</option></select></label><label><span>' . esc_html__( 'Preferred courier codes', 'viasetu-woocommerce' ) . '</span><input type="text" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[preferred_partners]" value="' . esc_attr( $s['preferred_partners'] ) . '" placeholder="delhivery, xpressbees"></label></div>';
-        echo '<h3>' . esc_html__( 'Fallback parcel size (cm)', 'viasetu-woocommerce' ) . '</h3><div class="viasetu-inline-fields">'; foreach ( array( 'default_length' => 'Length', 'default_width' => 'Width', 'default_height' => 'Height' ) as $field => $label ) echo '<label><span>' . esc_html( $label ) . '</span><input type="number" min="1" max="300" name="' . esc_attr( ViaSetu_Settings::OPTION . '[' . $field . ']' ) . '" value="' . esc_attr( $s[ $field ] ) . '"></label>'; echo '</div>';
+        echo '<div class="viasetu-callout"><span class="dashicons dashicons-shield"></span><p>' . esc_html__( 'No fake parcel defaults are used. Every physical product must have real WooCommerce weight, length, width and height before rates or booking.', 'viasetu-woocommerce' ) . '</p></div>';
         echo '<div class="viasetu-toggle-list"><label><input type="checkbox" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[show_courier]" ' . checked( $s['show_courier'], 'yes', false ) . '> ' . esc_html__( 'Show courier name', 'viasetu-woocommerce' ) . '</label><label><input type="checkbox" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[show_eta]" ' . checked( $s['show_eta'], 'yes', false ) . '> ' . esc_html__( 'Show delivery estimate', 'viasetu-woocommerce' ) . '</label><label><input type="checkbox" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[enable_cod]" ' . checked( $s['enable_cod'], 'yes', false ) . '> ' . esc_html__( 'Allow Cash on Delivery', 'viasetu-woocommerce' ) . '</label><label><input type="checkbox" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[fallback_enabled]" ' . checked( $s['fallback_enabled'], 'yes', false ) . '> ' . esc_html__( 'Offer fallback when live rates are unavailable', 'viasetu-woocommerce' ) . '</label></div><label class="viasetu-compact-field"><span>' . esc_html__( 'Fallback rate (₹)', 'viasetu-woocommerce' ) . '</span><input type="number" min="0" step="0.01" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[fallback_cost]" value="' . esc_attr( $s['fallback_cost'] ) . '"></label>';
         submit_button( __( 'Save shipping rules', 'viasetu-woocommerce' ) ); echo '</form></section>';
     }
 
     private static function products() {
         self::page_heading( __( 'Product shipping data', 'viasetu-woocommerce' ), __( 'Accurate dimensions and handling rules produce reliable rates.', 'viasetu-woocommerce' ) );
-        echo '<div class="viasetu-grid"><section class="viasetu-card"><span class="dashicons dashicons-products viasetu-card-icon"></span><h2>' . esc_html__( 'WooCommerce catalogue', 'viasetu-woocommerce' ) . '</h2><p>' . esc_html__( 'ViaSetu reads each product’s WooCommerce weight and dimensions. Complete those fields before enabling live rates.', 'viasetu-woocommerce' ) . '</p><a class="button button-primary" href="' . esc_url( admin_url( 'edit.php?post_type=product' ) ) . '">' . esc_html__( 'Manage products', 'viasetu-woocommerce' ) . '</a></section><section class="viasetu-card"><span class="dashicons dashicons-admin-tools viasetu-card-icon"></span><h2>' . esc_html__( 'Per-product controls', 'viasetu-woocommerce' ) . '</h2><ul class="viasetu-checklist"><li>' . esc_html__( 'Exclude a product from ViaSetu checkout', 'viasetu-woocommerce' ) . '</li><li>' . esc_html__( 'Set a shipment goods type', 'viasetu-woocommerce' ) . '</li><li>' . esc_html__( 'Mark fragile products for merchant handling', 'viasetu-woocommerce' ) . '</li></ul><p class="description">' . esc_html__( 'Open a product and use Product data → Shipping.', 'viasetu-woocommerce' ) . '</p></section></div>';
+        echo '<div class="viasetu-grid"><section class="viasetu-card"><span class="dashicons dashicons-products viasetu-card-icon"></span><h2>' . esc_html__( 'WooCommerce catalogue', 'viasetu-woocommerce' ) . '</h2><p>' . esc_html__( 'ViaSetu requires real weight, length, width and height for every physical product. Missing values block rates and booking instead of using fake defaults.', 'viasetu-woocommerce' ) . '</p><a class="button button-primary" href="' . esc_url( admin_url( 'edit.php?post_type=product' ) ) . '">' . esc_html__( 'Manage products', 'viasetu-woocommerce' ) . '</a></section><section class="viasetu-card"><span class="dashicons dashicons-admin-tools viasetu-card-icon"></span><h2>' . esc_html__( 'Per-product controls', 'viasetu-woocommerce' ) . '</h2><ul class="viasetu-checklist"><li>' . esc_html__( 'Exclude a product from ViaSetu checkout', 'viasetu-woocommerce' ) . '</li><li>' . esc_html__( 'Set a shipment goods type', 'viasetu-woocommerce' ) . '</li><li>' . esc_html__( 'Mark fragile products for merchant handling', 'viasetu-woocommerce' ) . '</li></ul><p class="description">' . esc_html__( 'Open a product and use Product data → Shipping.', 'viasetu-woocommerce' ) . '</p></section></div>';
     }
 
     private static function sync() {
         $s = ViaSetu_Settings::get_all();
         self::page_heading( __( 'Automation & sync', 'viasetu-woocommerce' ), __( 'Control booking triggers, tracking refresh and signed status updates.', 'viasetu-woocommerce' ) );
-        echo '<div class="viasetu-grid"><section class="viasetu-card"><h2>' . esc_html__( 'Run shipment sync', 'viasetu-woocommerce' ) . '</h2><p>' . esc_html__( 'Refresh open ViaSetu shipments now. Scheduled sync continues in the background.', 'viasetu-woocommerce' ) . '</p><form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="viasetu_sync_now">'; wp_nonce_field( 'viasetu_sync_now' ); submit_button( __( 'Sync now', 'viasetu-woocommerce' ), 'primary', 'submit', false ); echo '</form></section><section class="viasetu-card"><h2>' . esc_html__( 'Signed webhook receiver', 'viasetu-woocommerce' ) . '</h2><code class="viasetu-code">' . esc_html( rest_url( 'viasetu/v1/webhook' ) ) . '</code><p>' . esc_html__( 'One-click connection registers this endpoint and its signing secret automatically.', 'viasetu-woocommerce' ) . '</p></section>';
+        echo '<div class="viasetu-grid"><section class="viasetu-card"><h2>' . esc_html__( 'Run shipment sync', 'viasetu-woocommerce' ) . '</h2><p>' . esc_html__( 'Refresh booked shipments and run any due safe retries. Scheduled sync continues in the background.', 'viasetu-woocommerce' ) . '</p><form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="viasetu_sync_now">'; wp_nonce_field( 'viasetu_sync_now' ); submit_button( __( 'Sync now', 'viasetu-woocommerce' ), 'primary', 'submit', false ); echo '</form></section><section class="viasetu-card"><h2>' . esc_html__( 'Recover missed eligible orders', 'viasetu-woocommerce' ) . '</h2><p>' . esc_html__( 'Checks older orders in selected statuses. Free Shipping and all other non-ViaSetu methods are always skipped.', 'viasetu-woocommerce' ) . '</p><form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="viasetu_recover_orders">'; wp_nonce_field( 'viasetu_recover_orders' ); submit_button( __( 'Recover eligible orders', 'viasetu-woocommerce' ), 'secondary', 'submit', false ); echo '</form></section><section class="viasetu-card"><h2>' . esc_html__( 'Signed webhook receiver', 'viasetu-woocommerce' ) . '</h2><code class="viasetu-code">' . esc_html( rest_url( 'viasetu/v1/webhook' ) ) . '</code><p>' . esc_html__( 'One-click connection registers this endpoint and its signing secret automatically.', 'viasetu-woocommerce' ) . '</p></section>';
         echo '<section class="viasetu-card full"><h2>' . esc_html__( 'Automation rules', 'viasetu-woocommerce' ) . '</h2>'; self::form_start( 'sync' );
-        echo '<div class="viasetu-toggle-list"><label><input type="checkbox" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[auto_create]" ' . checked( $s['auto_create'], 'yes', false ) . '> ' . esc_html__( 'Create a shipment when an order enters a selected status', 'viasetu-woocommerce' ) . '</label><label><input type="checkbox" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[complete_when_delivered]" ' . checked( $s['complete_when_delivered'], 'yes', false ) . '> ' . esc_html__( 'Mark WooCommerce order Completed after ViaSetu delivery', 'viasetu-woocommerce' ) . '</label><label><input type="checkbox" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[debug_logging]" ' . checked( $s['debug_logging'], 'yes', false ) . '> ' . esc_html__( 'Enable redacted diagnostic logs', 'viasetu-woocommerce' ) . '</label></div><h3>' . esc_html__( 'Automatic booking statuses', 'viasetu-woocommerce' ) . '</h3><div class="viasetu-inline-checks">';
+        echo '<div class="viasetu-toggle-list"><label><input type="checkbox" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[auto_create]" ' . checked( $s['auto_create'], 'yes', false ) . '> ' . esc_html__( 'Create a shipment only when a ViaSetu Shipping order enters a selected status', 'viasetu-woocommerce' ) . '</label><label><input type="checkbox" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[booking_retry_enabled]" ' . checked( $s['booking_retry_enabled'], 'yes', false ) . '> ' . esc_html__( 'Retry transient network, rate-limit and server failures', 'viasetu-woocommerce' ) . '</label><label><input type="checkbox" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[complete_when_delivered]" ' . checked( $s['complete_when_delivered'], 'yes', false ) . '> ' . esc_html__( 'Mark WooCommerce order Completed after ViaSetu delivery', 'viasetu-woocommerce' ) . '</label><label><input type="checkbox" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[debug_logging]" ' . checked( $s['debug_logging'], 'yes', false ) . '> ' . esc_html__( 'Enable redacted diagnostic logs', 'viasetu-woocommerce' ) . '</label></div><h3>' . esc_html__( 'Automatic booking statuses', 'viasetu-woocommerce' ) . '</h3><div class="viasetu-inline-checks">';
         foreach ( array( 'pending' => 'Pending payment', 'on-hold' => 'On hold', 'processing' => 'Processing', 'completed' => 'Completed' ) as $status => $label ) echo '<label><input type="checkbox" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[auto_create_statuses][]" value="' . esc_attr( $status ) . '" ' . checked( in_array( $status, (array) $s['auto_create_statuses'], true ), true, false ) . '> ' . esc_html( $label ) . '</label>';
-        echo '</div><div class="viasetu-field-grid"><label><span>' . esc_html__( 'Tracking schedule', 'viasetu-woocommerce' ) . '</span><select name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[sync_interval]"><option value="viasetu_15_minutes" ' . selected( $s['sync_interval'], 'viasetu_15_minutes', false ) . '>' . esc_html__( 'Every 15 minutes', 'viasetu-woocommerce' ) . '</option><option value="hourly" ' . selected( $s['sync_interval'], 'hourly', false ) . '>' . esc_html__( 'Hourly', 'viasetu-woocommerce' ) . '</option><option value="twicedaily" ' . selected( $s['sync_interval'], 'twicedaily', false ) . '>' . esc_html__( 'Twice daily', 'viasetu-woocommerce' ) . '</option></select></label><label><span>' . esc_html__( 'Orders per run', 'viasetu-woocommerce' ) . '</span><input type="number" min="10" max="200" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[sync_batch_size]" value="' . esc_attr( $s['sync_batch_size'] ) . '"></label></div>';
+        echo '</div><div class="viasetu-field-grid"><label><span>' . esc_html__( 'Tracking schedule', 'viasetu-woocommerce' ) . '</span><select name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[sync_interval]"><option value="viasetu_15_minutes" ' . selected( $s['sync_interval'], 'viasetu_15_minutes', false ) . '>' . esc_html__( 'Every 15 minutes', 'viasetu-woocommerce' ) . '</option><option value="hourly" ' . selected( $s['sync_interval'], 'hourly', false ) . '>' . esc_html__( 'Hourly', 'viasetu-woocommerce' ) . '</option><option value="twicedaily" ' . selected( $s['sync_interval'], 'twicedaily', false ) . '>' . esc_html__( 'Twice daily', 'viasetu-woocommerce' ) . '</option></select></label><label><span>' . esc_html__( 'Orders per run', 'viasetu-woocommerce' ) . '</span><input type="number" min="10" max="200" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[sync_batch_size]" value="' . esc_attr( $s['sync_batch_size'] ) . '"></label><label><span>' . esc_html__( 'Maximum booking attempts', 'viasetu-woocommerce' ) . '</span><input type="number" min="1" max="5" name="' . esc_attr( ViaSetu_Settings::OPTION ) . '[booking_retry_limit]" value="' . esc_attr( $s['booking_retry_limit'] ) . '"></label></div>';
         submit_button( __( 'Save automation', 'viasetu-woocommerce' ) ); echo '</form></section></div>';
     }
 
@@ -329,7 +383,10 @@ final class ViaSetu_Admin {
             array( 'WooCommerce 8.0+', defined( 'WC_VERSION' ) && version_compare( WC_VERSION, '8.0', '>=' ), defined( 'WC_VERSION' ) ? WC_VERSION : 'Missing' ),
             array( 'PHP 7.4+', version_compare( PHP_VERSION, '7.4', '>=' ), PHP_VERSION ),
             array( 'Credential encryption', ViaSetu_Settings::encryption_available(), function_exists( 'sodium_crypto_secretbox' ) ? 'Sodium' : ( function_exists( 'openssl_encrypt' ) ? 'OpenSSL AES-256-GCM' : 'Unavailable' ) ),
-            array( 'Merchant connection', ViaSetu_Settings::is_connected(), ViaSetu_Settings::is_connected() ? 'Encrypted API key present' : 'Not connected' ),
+            array( 'API key format and environment', ViaSetu_Settings::is_connected(), ViaSetu_Settings::is_connected() ? strtoupper( ViaSetu_Settings::get( 'environment' ) ) . ' key accepted locally' : 'Missing, malformed or wrong environment' ),
+            array( 'API key verified with ViaSetu', ViaSetu_Settings::connection_is_verified(), ViaSetu_Settings::get( 'connection_last_checked' ) ?: 'Run Test connection' ),
+            array( 'Complete pickup details', ViaSetu_Settings::pickup_is_complete(), ViaSetu_Settings::pickup_is_complete() ? 'Name, phone, address, city, state and pincode ready' : implode( ' ', ViaSetu_Settings::pickup_errors() ) ),
+            array( 'ViaSetu shipping zone', self::shipping_zone_ready(), self::shipping_zone_ready() ? 'Enabled in WooCommerce' : 'Add ViaSetu Shipping to the India zone' ),
             array( 'WP-Cron sync', (bool) wp_next_scheduled( 'viasetu_wc_tracking_sync' ), wp_next_scheduled( 'viasetu_wc_tracking_sync' ) ? wp_date( 'Y-m-d H:i:s', wp_next_scheduled( 'viasetu_wc_tracking_sync' ) ) : 'Not scheduled' ),
         );
         echo '<div class="viasetu-grid"><section class="viasetu-card full"><h2>' . esc_html__( 'System health', 'viasetu-woocommerce' ) . '</h2><ul class="viasetu-checklist">'; foreach ( $checks as $check ) echo '<li><span>' . esc_html( $check[0] ) . '<small>' . esc_html( $check[2] ) . '</small></span><strong class="viasetu-' . esc_attr( $check[1] ? 'good' : 'bad' ) . '">' . esc_html( $check[1] ? 'Pass' : 'Check' ) . '</strong></li>'; echo '</ul></section><section class="viasetu-card full"><div class="viasetu-card-head"><div><h2>' . esc_html__( 'Recent integration logs', 'viasetu-woocommerce' ) . '</h2><p>' . esc_html__( 'Credentials, customer addresses and raw provider payloads are never written here.', 'viasetu-woocommerce' ) . '</p></div><form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="viasetu_clear_logs">'; wp_nonce_field( 'viasetu_clear_logs' ); submit_button( __( 'Clear logs', 'viasetu-woocommerce' ), 'secondary', 'submit', false ); echo '</form></div><div class="viasetu-table-wrap"><table class="viasetu-table"><thead><tr><th>' . esc_html__( 'Time', 'viasetu-woocommerce' ) . '</th><th>' . esc_html__( 'Level', 'viasetu-woocommerce' ) . '</th><th>' . esc_html__( 'Message', 'viasetu-woocommerce' ) . '</th></tr></thead><tbody>';

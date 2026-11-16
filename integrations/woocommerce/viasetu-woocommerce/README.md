@@ -1,11 +1,11 @@
-# ViaSetu Merchant for WooCommerce 1.0.0
+# ViaSetu Merchant for WooCommerce 1.1.0
 
 ViaSetu Merchant adds a branded operations workspace to WordPress for merchant orders, WooCommerce fulfilment, wallet billing, labels, shipping rules, tracking automation and diagnostics.
 
 ## Packages
 
-- `viasetu-woocommerce-1.0.0.zip` is the production connector. It uses the live ViaSetu Merchant API and requires an approved merchant account.
-- `viasetu-woocommerce-demo-1.0.0.zip` is an isolated demonstration connector. It uses local fixtures and never calls ViaSetu, courier, wallet or payment endpoints.
+- `viasetu-woocommerce-1.1.0.zip` is the production connector. It uses the live ViaSetu Merchant API and requires an approved merchant account.
+- `viasetu-woocommerce-demo-1.1.0.zip` is an isolated demonstration connector. It uses local fixtures and never calls ViaSetu, courier, wallet or payment endpoints.
 
 Both packages are produced from this source with `npm run build:woocommerce`. The production and demo builds have different WordPress plugin names and folder slugs, so they are easy to identify. Do not activate both on one site.
 
@@ -42,6 +42,6 @@ Shipment creation remains subject to the existing ViaSetu server-side account ro
 - HTTPS for production one-click connection
 - Sodium or OpenSSL for credential encryption
 
-Runtime compatibility was verified with both production and demo packages on WordPress 6.3.2 / WooCommerce 8.0.0 / PHP 7.4.33 and WordPress 7.1.4 / WooCommerce 11.3.0 / PHP 8.1.34. The demo verification also asserts that no outbound HTTP request is emitted.
+Runtime compatibility was verified on WordPress 6.3.2 / WooCommerce 8.0.2 / PHP 7.4.33 and WordPress 7.1.4 / WooCommerce 11.3.0 / PHP 8.3.36. The exact demo package was also installed on the minimum stack and verified to emit no outbound HTTP request.
 
 After activation open **ViaSetu Merchant → Connection**, approve the store, save the pickup address, then add **ViaSetu Shipping** to the relevant WooCommerce shipping zones.

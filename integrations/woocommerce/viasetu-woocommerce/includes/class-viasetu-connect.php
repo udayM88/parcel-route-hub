@@ -61,6 +61,7 @@ final class ViaSetu_Connect {
         if ( defined( 'VIASETU_WC_DEMO_MODE' ) && VIASETU_WC_DEMO_MODE ) {
             $key = 'vs_test_' . str_repeat( '0', 48 );
             ViaSetu_Settings::store_connection( $key, str_repeat( 'd', 64 ), 'demo-connection', 'sandbox', array( 'company_name' => 'ViaSetu Demo Store', 'email' => get_option( 'admin_email' ) ) );
+            ViaSetu_Settings::mark_connection_checked( true );
             self::notice( __( 'Demo workspace connected locally. No ViaSetu or courier request was sent.', 'viasetu-woocommerce' ) );
             self::redirect_connection();
         }
@@ -143,7 +144,14 @@ final class ViaSetu_Connect {
             self::redirect_connection();
         }
         if ( ! ViaSetu_Settings::store_connection( $data['api_key'], $data['webhook_secret'], $data['connection_id'] ?? '', $data['environment'] ?? 'live', $data['merchant'] ?? array() ) ) {
-            self::notice( __( 'The store was authorized but WordPress could not encrypt the credentials. Reconnect after enabling server encryption.', 'viasetu-woocommerce' ), 'error' );
+            self::notice( __( 'The store was authorized but the returned credentials were incomplete, malformed or could not be encrypted. Reconnect and do not paste a shortened key.', 'viasetu-woocommerce' ), 'error' );
+            self::redirect_connection();
+        }
+        $verification = ( new ViaSetu_Api_Client() )->account();
+        if ( is_wp_error( $verification ) ) {
+            ViaSetu_Settings::mark_connection_checked( false, $verification->get_error_message() );
+            ViaSetu_Logger::log( 'error', 'WooCommerce connection created but verification failed', array( 'error' => $verification->get_error_message() ) );
+            self::notice( sprintf( __( 'The store key was saved, but ViaSetu could not verify it: %s', 'viasetu-woocommerce' ), $verification->get_error_message() ), 'error' );
             self::redirect_connection();
         }
         ViaSetu_Logger::log( 'success', 'WooCommerce store connected to merchant account' );

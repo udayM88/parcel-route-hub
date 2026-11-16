@@ -22,6 +22,10 @@ final class ViaSetu_Settings {
             'merchant_company'        => '',
             'merchant_email'          => '',
             'connected_at'            => '',
+            'connection_last_checked' => '',
+            'connection_last_status'  => 'unverified',
+            'connection_last_error'   => '',
+            'connection_key_fingerprint' => '',
             'environment'             => 'live',
             'pickup_name'             => '',
             'pickup_phone'            => '',
@@ -44,6 +48,8 @@ final class ViaSetu_Settings {
             'enable_cod'              => 'yes',
             'auto_create'             => 'no',
             'auto_create_statuses'    => array( 'processing' ),
+            'booking_retry_enabled'   => 'yes',
+            'booking_retry_limit'     => '3',
             'sync_interval'           => 'hourly',
             'sync_batch_size'         => '50',
             'complete_when_delivered' => 'yes',
@@ -74,33 +80,98 @@ final class ViaSetu_Settings {
 
     public static function is_connected() {
         if ( defined( 'VIASETU_WC_DEMO_MODE' ) && VIASETU_WC_DEMO_MODE ) return 'yes' === self::get( 'enabled' );
-        return '' !== self::api_key();
+        return 'yes' === self::get( 'enabled' ) && self::api_key_is_valid( self::api_key(), self::get( 'environment' ) );
+    }
+
+    public static function api_key_is_valid( $api_key, $environment = '' ) {
+        $api_key = trim( (string) $api_key );
+        if ( ! preg_match( '/^vs_(live|test)_[0-9a-f]{48}$/', $api_key, $matches ) ) return false;
+        if ( 'live' === $environment && 'live' !== $matches[1] ) return false;
+        if ( 'sandbox' === $environment && 'test' !== $matches[1] ) return false;
+        return true;
+    }
+
+    public static function api_key_environment( $api_key ) {
+        if ( preg_match( '/^vs_(live|test)_[0-9a-f]{48}$/', trim( (string) $api_key ), $matches ) ) {
+            return 'test' === $matches[1] ? 'sandbox' : 'live';
+        }
+        return '';
+    }
+
+    public static function key_fingerprint( $api_key = null ) {
+        $api_key = null === $api_key ? self::api_key() : trim( (string) $api_key );
+        return '' === $api_key ? '' : substr( hash( 'sha256', $api_key ), 0, 12 );
+    }
+
+    public static function mark_connection_checked( $success, $message = '' ) {
+        $settings                               = self::get_all();
+        $settings['connection_last_checked']    = current_time( 'mysql', true );
+        $settings['connection_last_status']     = $success ? 'verified' : 'failed';
+        $settings['connection_last_error']      = $success ? '' : sanitize_text_field( $message );
+        $settings['connection_key_fingerprint'] = self::key_fingerprint();
+        update_option( self::OPTION, $settings, false );
+    }
+
+    public static function connection_is_verified() {
+        if ( defined( 'VIASETU_WC_DEMO_MODE' ) && VIASETU_WC_DEMO_MODE ) return self::is_connected();
+        return self::is_connected()
+            && 'verified' === self::get( 'connection_last_status' )
+            && hash_equals( (string) self::get( 'connection_key_fingerprint' ), (string) self::key_fingerprint() );
+    }
+
+    public static function pickup_errors() {
+        $fields = array(
+            'pickup_name'    => __( 'Pickup contact name is required.', 'viasetu-woocommerce' ),
+            'pickup_address' => __( 'Pickup address is required.', 'viasetu-woocommerce' ),
+            'pickup_city'    => __( 'Pickup city is required.', 'viasetu-woocommerce' ),
+            'pickup_state'   => __( 'Pickup state is required.', 'viasetu-woocommerce' ),
+        );
+        $errors = array();
+        foreach ( $fields as $field => $message ) {
+            if ( strlen( trim( (string) self::get( $field ) ) ) < 2 ) $errors[] = $message;
+        }
+        $phone = preg_replace( '/\D+/', '', (string) self::get( 'pickup_phone' ) );
+        if ( strlen( $phone ) > 10 ) $phone = substr( $phone, -10 );
+        if ( ! preg_match( '/^\d{10}$/', $phone ) ) $errors[] = __( 'Pickup phone must contain 10 digits.', 'viasetu-woocommerce' );
+        if ( ! preg_match( '/^\d{6}$/', (string) self::get( 'pickup_pincode' ) ) ) $errors[] = __( 'Pickup pincode must contain 6 digits.', 'viasetu-woocommerce' );
+        return array_values( array_unique( $errors ) );
+    }
+
+    public static function pickup_is_complete() {
+        return empty( self::pickup_errors() );
     }
 
     public static function store_connection( $api_key, $webhook_secret, $connection_id, $environment, $merchant = array() ) {
+        $environment = 'sandbox' === $environment ? 'sandbox' : 'live';
+        if ( ! self::api_key_is_valid( $api_key, $environment ) || strlen( trim( (string) $webhook_secret ) ) < 32 ) return false;
         $encrypted_key    = self::encrypt( trim( (string) $api_key ) );
         $encrypted_secret = self::encrypt( trim( (string) $webhook_secret ) );
         if ( '' === $encrypted_key || '' === $encrypted_secret ) return false;
 
         $settings                       = self::get_all();
         $settings['enabled']            = 'yes';
-        $settings['connection_mode']    = 'portal';
+        $settings['connection_mode']    = 'one_click';
         $settings['api_key']            = $encrypted_key;
         $settings['webhook_secret']     = $encrypted_secret;
         $settings['connection_id']      = sanitize_text_field( $connection_id );
-        $settings['environment']        = 'sandbox' === $environment ? 'sandbox' : 'live';
+        $settings['environment']        = $environment;
         $settings['merchant_company']   = sanitize_text_field( $merchant['company_name'] ?? '' );
         $settings['merchant_email']     = sanitize_email( $merchant['email'] ?? '' );
         $settings['connected_at']       = current_time( 'mysql', true );
+        $settings['connection_last_checked'] = '';
+        $settings['connection_last_status']  = 'unverified';
+        $settings['connection_last_error']   = '';
+        $settings['connection_key_fingerprint'] = self::key_fingerprint( $api_key );
         update_option( self::OPTION, $settings, false );
         return true;
     }
 
     public static function clear_connection() {
         $settings = self::get_all();
-        foreach ( array( 'api_key', 'webhook_secret', 'connection_id', 'merchant_company', 'merchant_email', 'connected_at' ) as $key ) {
+        foreach ( array( 'api_key', 'webhook_secret', 'connection_id', 'merchant_company', 'merchant_email', 'connected_at', 'connection_last_checked', 'connection_last_error', 'connection_key_fingerprint' ) as $key ) {
             $settings[ $key ] = '';
         }
+        $settings['connection_last_status'] = 'unverified';
         update_option( self::OPTION, $settings, false );
     }
 
@@ -125,7 +196,7 @@ final class ViaSetu_Settings {
 
         if ( 'connection' === $section ) {
             $output['enabled']         = isset( $input['enabled'] ) ? 'yes' : 'no';
-            $output['connection_mode'] = in_array( $input['connection_mode'] ?? '', array( 'api_key', 'portal' ), true ) ? $input['connection_mode'] : 'api_key';
+            $output['connection_mode'] = 'api_key';
             $endpoint                  = esc_url_raw( $input['api_endpoint'] ?? $current['api_endpoint'] );
             if ( 0 === strpos( $endpoint, 'https://' ) ) $output['api_endpoint'] = $endpoint;
             else add_settings_error( self::OPTION, 'endpoint', __( 'The API endpoint must use HTTPS.', 'viasetu-woocommerce' ) );
@@ -133,12 +204,27 @@ final class ViaSetu_Settings {
             foreach ( array( 'api_key', 'webhook_secret' ) as $secret_field ) {
                 $new_value = trim( (string) ( $input[ $secret_field ] ?? '' ) );
                 if ( '' === $new_value ) continue;
+                if ( 'api_key' === $secret_field && ! self::api_key_is_valid( $new_value ) ) {
+                    add_settings_error( self::OPTION, 'api_key', __( 'The API key is malformed. Paste the complete vs_live_ or vs_test_ key supplied by ViaSetu.', 'viasetu-woocommerce' ) );
+                    continue;
+                }
+                if ( 'webhook_secret' === $secret_field && strlen( $new_value ) < 32 ) {
+                    add_settings_error( self::OPTION, 'webhook_secret', __( 'The webhook signing secret must contain at least 32 characters.', 'viasetu-woocommerce' ) );
+                    continue;
+                }
                 $encrypted = self::encrypt( $new_value );
                 if ( '' === $encrypted ) {
                     add_settings_error( self::OPTION, 'encryption', __( 'Credentials were not changed because this server does not provide Sodium or OpenSSL encryption.', 'viasetu-woocommerce' ) );
                     continue;
                 }
                 $output[ $secret_field ] = $encrypted;
+                if ( 'api_key' === $secret_field ) {
+                    $output['environment']                = self::api_key_environment( $new_value );
+                    $output['connection_last_checked']    = '';
+                    $output['connection_last_status']     = 'unverified';
+                    $output['connection_last_error']      = '';
+                    $output['connection_key_fingerprint'] = self::key_fingerprint( $new_value );
+                }
             }
         }
 
@@ -146,6 +232,8 @@ final class ViaSetu_Settings {
             foreach ( array( 'pickup_name', 'pickup_phone', 'pickup_address', 'pickup_city', 'pickup_state', 'pickup_pincode', 'shipping_title', 'default_goods_type' ) as $field ) {
                 $output[ $field ] = sanitize_text_field( wp_unslash( $input[ $field ] ?? '' ) );
             }
+            $output['pickup_phone']   = substr( preg_replace( '/\D+/', '', $output['pickup_phone'] ), -10 );
+            $output['pickup_pincode'] = substr( preg_replace( '/\D+/', '', $output['pickup_pincode'] ), 0, 6 );
             foreach ( array( 'default_length', 'default_width', 'default_height' ) as $field ) {
                 $output[ $field ] = (string) max( 1, min( 300, (float) ( $input[ $field ] ?? 10 ) ) );
             }
@@ -161,6 +249,8 @@ final class ViaSetu_Settings {
             $statuses = array_map( 'sanitize_key', (array) ( $input['auto_create_statuses'] ?? array() ) );
             $output['auto_create_statuses']    = array_values( array_intersect( $statuses, $allowed_statuses ) );
             $output['auto_create']             = isset( $input['auto_create'] ) ? 'yes' : 'no';
+            $output['booking_retry_enabled']   = isset( $input['booking_retry_enabled'] ) ? 'yes' : 'no';
+            $output['booking_retry_limit']     = (string) max( 1, min( 5, absint( $input['booking_retry_limit'] ?? 3 ) ) );
             $output['complete_when_delivered'] = isset( $input['complete_when_delivered'] ) ? 'yes' : 'no';
             $output['debug_logging']           = isset( $input['debug_logging'] ) ? 'yes' : 'no';
             $output['sync_interval']           = in_array( $input['sync_interval'] ?? '', array( 'viasetu_15_minutes', 'hourly', 'twicedaily' ), true ) ? $input['sync_interval'] : 'hourly';
