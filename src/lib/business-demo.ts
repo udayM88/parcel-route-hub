@@ -3,11 +3,11 @@ import type { BusinessAccount } from "@/contexts/useBusinessAuth";
 export const BUSINESS_DEMO_EMAIL = "demo@viasetu.local";
 export const BUSINESS_DEMO_PASSWORD = "Demo@1234";
 
-// Browser-only fixtures are opt-in for isolated UI tests. Normal builds always
-// authenticate demo merchants through Supabase so orders and wallet data remain
-// tenant-scoped and authoritative.
+// The public browser-only sample is intentionally enabled by default and never
+// authenticates with Supabase or writes production data. The environment flag
+// remains an immediate kill switch without changing real merchant login.
 export const BUSINESS_DEMO_ENABLED =
-  String(import.meta.env.VITE_ENABLE_BUSINESS_DEMO ?? "false").toLowerCase() === "true";
+  String(import.meta.env.VITE_ENABLE_BUSINESS_DEMO ?? "true").toLowerCase() !== "false";
 
 const DEMO_SESSION_KEY = "viasetu_business_demo_session";
 
