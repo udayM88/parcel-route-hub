@@ -40,23 +40,30 @@ function assertSafePackage(entries, root) {
   }
 }
 
-test("production archive contains the live 1.1 plugin with one WordPress plugin folder", async () => {
-  const entries = await packageEntries("viasetu-woocommerce-1.1.0.zip");
+test("production archive contains the live 1.2 plugin with one WordPress plugin folder", async () => {
+  const entries = await packageEntries("viasetu-woocommerce-1.2.0.zip");
   assertSafePackage(entries, "viasetu-woocommerce");
   const bootstrap = entries.get("viasetu-woocommerce/viasetu-woocommerce.php")?.toString("utf8") || "";
   assert.match(bootstrap, /Plugin Name: ViaSetu Merchant for WooCommerce/);
-  assert.match(bootstrap, /Version: 1\.1\.0/);
+  assert.match(bootstrap, /Version: 1\.2\.0/);
   assert.match(bootstrap, /define\( 'VIASETU_WC_DEMO_MODE', false \);/);
   assert.match(bootstrap, /if \( ! function_exists\( 'viasetu_wc_boot' \) \) \{/);
   assert.doesNotMatch(bootstrap, /vs_live_[0-9a-f]{48}/);
 });
 
-test("demo archive is isolated from production requests", async () => {
-  const entries = await packageEntries("viasetu-woocommerce-demo-1.1.0.zip");
+test("demo archive is a real sandbox-only connector without fixtures or embedded credentials", async () => {
+  const entries = await packageEntries("viasetu-woocommerce-demo-1.2.0.zip");
   assertSafePackage(entries, "viasetu-woocommerce-demo");
   const bootstrap = entries.get("viasetu-woocommerce-demo/viasetu-woocommerce.php")?.toString("utf8") || "";
   assert.match(bootstrap, /Plugin Name: ViaSetu Merchant Demo for WooCommerce/);
-  assert.match(bootstrap, /Version: 1\.1\.0-demo/);
+  assert.match(bootstrap, /Version: 1\.2\.0-demo/);
   assert.match(bootstrap, /define\( 'VIASETU_WC_DEMO_MODE', true \);/);
   assert.match(bootstrap, /if \( ! function_exists\( 'viasetu_wc_boot' \) \) \{/);
+  const client = entries.get("viasetu-woocommerce-demo/includes/class-viasetu-api-client.php")?.toString("utf8") || "";
+  assert.doesNotMatch(client, /demo_response|12,450\.75|DLV-DEMO|Demo Courier/);
+  assert.match(client, /wp_safe_remote_post/);
+  for (const content of entries.values()) {
+    const source = content.toString("utf8");
+    assert.doesNotMatch(source, /vs_(?:live|test)_[0-9a-f]{48}/, "package must not embed an API credential");
+  }
 });

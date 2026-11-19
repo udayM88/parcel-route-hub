@@ -26,7 +26,7 @@ final class ViaSetu_Settings {
             'connection_last_status'  => 'unverified',
             'connection_last_error'   => '',
             'connection_key_fingerprint' => '',
-            'environment'             => 'live',
+            'environment'             => self::package_environment(),
             'pickup_name'             => '',
             'pickup_phone'            => '',
             'pickup_address'          => '',
@@ -78,14 +78,25 @@ final class ViaSetu_Settings {
         return self::decrypt( self::get( 'webhook_secret' ) );
     }
 
+    public static function package_environment() {
+        return defined( 'VIASETU_WC_DEMO_MODE' ) && VIASETU_WC_DEMO_MODE ? 'sandbox' : 'live';
+    }
+
+    public static function is_sandbox_package() {
+        return 'sandbox' === self::package_environment();
+    }
+
     public static function is_connected() {
-        if ( defined( 'VIASETU_WC_DEMO_MODE' ) && VIASETU_WC_DEMO_MODE ) return 'yes' === self::get( 'enabled' );
-        return 'yes' === self::get( 'enabled' ) && self::api_key_is_valid( self::api_key(), self::get( 'environment' ) );
+        return 'yes' === self::get( 'enabled' )
+            && self::package_environment() === self::get( 'environment' )
+            && self::api_key_is_valid( self::api_key(), self::package_environment() );
     }
 
     public static function api_key_is_valid( $api_key, $environment = '' ) {
         $api_key = trim( (string) $api_key );
         if ( ! preg_match( '/^vs_(live|test)_[0-9a-f]{48}$/', $api_key, $matches ) ) return false;
+        $secret = substr( $api_key, -48 );
+        if ( preg_match( '/^([0-9a-f])\1{47}$/', $secret ) ) return false;
         if ( 'live' === $environment && 'live' !== $matches[1] ) return false;
         if ( 'sandbox' === $environment && 'test' !== $matches[1] ) return false;
         return true;
@@ -113,7 +124,6 @@ final class ViaSetu_Settings {
     }
 
     public static function connection_is_verified() {
-        if ( defined( 'VIASETU_WC_DEMO_MODE' ) && VIASETU_WC_DEMO_MODE ) return self::is_connected();
         return self::is_connected()
             && 'verified' === self::get( 'connection_last_status' )
             && hash_equals( (string) self::get( 'connection_key_fingerprint' ), (string) self::key_fingerprint() );
@@ -143,6 +153,7 @@ final class ViaSetu_Settings {
 
     public static function store_connection( $api_key, $webhook_secret, $connection_id, $environment, $merchant = array() ) {
         $environment = 'sandbox' === $environment ? 'sandbox' : 'live';
+        if ( self::package_environment() !== $environment ) return false;
         if ( ! self::api_key_is_valid( $api_key, $environment ) || strlen( trim( (string) $webhook_secret ) ) < 32 ) return false;
         $encrypted_key    = self::encrypt( trim( (string) $api_key ) );
         $encrypted_secret = self::encrypt( trim( (string) $webhook_secret ) );
@@ -204,8 +215,9 @@ final class ViaSetu_Settings {
             foreach ( array( 'api_key', 'webhook_secret' ) as $secret_field ) {
                 $new_value = trim( (string) ( $input[ $secret_field ] ?? '' ) );
                 if ( '' === $new_value ) continue;
-                if ( 'api_key' === $secret_field && ! self::api_key_is_valid( $new_value ) ) {
-                    add_settings_error( self::OPTION, 'api_key', __( 'The API key is malformed. Paste the complete vs_live_ or vs_test_ key supplied by ViaSetu.', 'viasetu-woocommerce' ) );
+                if ( 'api_key' === $secret_field && ! self::api_key_is_valid( $new_value, self::package_environment() ) ) {
+                    $required_prefix = self::is_sandbox_package() ? 'vs_test_' : 'vs_live_';
+                    add_settings_error( self::OPTION, 'api_key', sprintf( __( 'This package accepts only a complete %s key supplied by ViaSetu.', 'viasetu-woocommerce' ), $required_prefix ) );
                     continue;
                 }
                 if ( 'webhook_secret' === $secret_field && strlen( $new_value ) < 32 ) {

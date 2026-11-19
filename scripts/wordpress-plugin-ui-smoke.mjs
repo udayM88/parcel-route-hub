@@ -25,7 +25,7 @@ try {
   await page.locator("#wp-submit").click();
   await page.waitForURL(/\/wp-admin\//);
 
-  const tab = mode === "demo" ? "dashboard" : "connection";
+  const tab = "connection";
   await page.goto(`${baseUrl}/wp-admin/admin.php?page=viasetu&tab=${tab}`, { waitUntil: "networkidle" });
   await page.locator(".viasetu-admin").waitFor({ state: "visible" });
   assert.equal(await page.locator(".viasetu-brand").getByText("ViaSetu Merchant", { exact: true }).isVisible(), true);
@@ -36,10 +36,13 @@ try {
   assert.equal(await navigation.getByRole("link", { name: /Diagnostics/ }).isVisible(), true);
 
   if (mode === "demo") {
-    assert.equal(await page.getByText("Sandbox demo", { exact: true }).isVisible(), true);
-    assert.equal(await page.getByText("12,450.75", { exact: false }).first().isVisible(), true);
+    assert.equal(await page.getByText("Sandbox · real API", { exact: true }).isVisible(), true);
+    assert.equal(await page.getByRole("link", { name: "Connect sandbox key" }).isVisible(), true);
+    assert.equal(await page.getByText("12,450.75", { exact: false }).count(), 0);
+    assert.equal(await page.getByText(/No sample orders or balances are generated/i).isVisible(), true);
   } else {
-    assert.equal(await page.getByRole("link", { name: "Sign in and connect" }).isVisible(), true);
+    assert.equal(await page.getByText("Live · real API", { exact: true }).isVisible(), true);
+    assert.equal(await page.getByText(/Move this store to HTTPS before connecting production/i).isVisible(), true);
     assert.equal(await page.getByRole("link", { name: "Create / apply for account" }).isVisible(), true);
   }
 
@@ -57,8 +60,19 @@ try {
   });
   assert.equal(desktop.overflow, false);
   assert.notEqual(desktop.heroBackgroundColor, "rgba(0, 0, 0, 0)");
-  if (mode === "production") assert.match(desktop.connectBackground, /gradient/i);
+  assert.match(desktop.connectBackground, /gradient/i);
   assert.equal(desktop.shellDisplay, "grid");
+
+  await page.setViewportSize({ width: 1046, height: 810 });
+  await page.reload({ waitUntil: "networkidle" });
+  const medium = await page.locator(".viasetu-admin").evaluate((element) => ({
+    overflow: element.scrollWidth > element.clientWidth + 1,
+    shellDisplay: getComputedStyle(element.querySelector(".viasetu-shell")).display,
+    fontFamily: getComputedStyle(element).fontFamily,
+  }));
+  assert.equal(medium.overflow, false);
+  assert.equal(medium.shellDisplay, "block");
+  assert.match(medium.fontFamily, /Segoe UI|Roboto|Helvetica Neue|Arial/i);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload({ waitUntil: "networkidle" });
@@ -74,7 +88,7 @@ try {
   );
   assert.deepEqual(pageErrors, []);
   assert.deepEqual(relevantConsoleErrors, []);
-  process.stdout.write(`${JSON.stringify({ mode, desktop, mobile, relevantConsoleErrors, pageErrors }, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ mode, desktop, medium, mobile, relevantConsoleErrors, pageErrors }, null, 2)}\n`);
 } finally {
   await browser.close();
 }

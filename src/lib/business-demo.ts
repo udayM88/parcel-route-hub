@@ -3,10 +3,11 @@ import type { BusinessAccount } from "@/contexts/useBusinessAuth";
 export const BUSINESS_DEMO_EMAIL = "demo@viasetu.local";
 export const BUSINESS_DEMO_PASSWORD = "Demo@1234";
 
-// The public demo is intentionally enabled in production. Set the Vite flag to
-// "false" for an immediate kill switch without changing the login flow.
+// Browser-only fixtures are opt-in for isolated UI tests. Normal builds always
+// authenticate demo merchants through Supabase so orders and wallet data remain
+// tenant-scoped and authoritative.
 export const BUSINESS_DEMO_ENABLED =
-  String(import.meta.env.VITE_ENABLE_BUSINESS_DEMO ?? "true").toLowerCase() !== "false";
+  String(import.meta.env.VITE_ENABLE_BUSINESS_DEMO ?? "false").toLowerCase() === "true";
 
 const DEMO_SESSION_KEY = "viasetu_business_demo_session";
 

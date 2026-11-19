@@ -5,7 +5,7 @@ import { deflateRawSync } from "node:zlib";
 const root = process.cwd();
 const sourceDir = path.join(root, "integrations", "woocommerce", "viasetu-woocommerce");
 const outputDir = path.join(root, "public", "downloads");
-const version = "1.1.0";
+const version = "1.2.0";
 
 const crcTable = Array.from({ length: 256 }, (_, index) => {
   let value = index;
@@ -100,9 +100,9 @@ function createZip(entries) {
 function demoBootstrap(content) {
   return content
     .replace("Plugin Name: ViaSetu Merchant for WooCommerce", "Plugin Name: ViaSetu Merchant Demo for WooCommerce")
-    .replace("Description: ViaSetu shipping rates, shipment booking, tracking, labels and signed status webhooks for WooCommerce.", "Description: Safe ViaSetu sandbox workspace with local fixtures and no external courier, wallet or production data requests.")
-    .replace("Version: 1.1.0", "Version: 1.1.0-demo")
-    .replace("define( 'VIASETU_WC_VERSION', '1.1.0' );", "define( 'VIASETU_WC_VERSION', '1.1.0-demo' );")
+    .replace("Description: ViaSetu shipping rates, shipment booking, tracking, labels and signed status webhooks for WooCommerce.", "Description: Real ViaSetu sandbox account, order, wallet, rate, shipment, label and tracking sync for WooCommerce testing.")
+    .replace("Version: 1.2.0", "Version: 1.2.0-demo")
+    .replace("define( 'VIASETU_WC_VERSION', '1.2.0' );", "define( 'VIASETU_WC_VERSION', '1.2.0-demo' );")
     .replace("define( 'VIASETU_WC_DEMO_MODE', false );", "define( 'VIASETU_WC_DEMO_MODE', true );");
 }
 

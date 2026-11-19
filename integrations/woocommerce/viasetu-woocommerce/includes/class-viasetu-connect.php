@@ -38,7 +38,11 @@ final class ViaSetu_Connect {
     }
 
     private static function environment() {
-        return defined( 'VIASETU_WC_DEMO_MODE' ) && VIASETU_WC_DEMO_MODE ? 'sandbox' : 'live';
+        return ViaSetu_Settings::package_environment();
+    }
+
+    public static function one_click_available() {
+        return is_ssl() && 0 === strpos( self::site_url(), 'https://' );
     }
 
     public static function start_url() {
@@ -58,16 +62,11 @@ final class ViaSetu_Connect {
             self::redirect_connection();
         }
 
-        if ( defined( 'VIASETU_WC_DEMO_MODE' ) && VIASETU_WC_DEMO_MODE ) {
-            $key = 'vs_test_' . str_repeat( '0', 48 );
-            ViaSetu_Settings::store_connection( $key, str_repeat( 'd', 64 ), 'demo-connection', 'sandbox', array( 'company_name' => 'ViaSetu Demo Store', 'email' => get_option( 'admin_email' ) ) );
-            ViaSetu_Settings::mark_connection_checked( true );
-            self::notice( __( 'Demo workspace connected locally. No ViaSetu or courier request was sent.', 'viasetu-woocommerce' ) );
-            self::redirect_connection();
-        }
-
-        if ( ! is_ssl() || 0 !== strpos( self::site_url(), 'https://' ) ) {
-            self::notice( __( 'A production ViaSetu connection requires WordPress and Home URLs to use HTTPS.', 'viasetu-woocommerce' ), 'error' );
+        if ( ! self::one_click_available() ) {
+            $message = ViaSetu_Settings::is_sandbox_package()
+                ? __( 'One-click sign-in requires an HTTPS staging URL. For localhost, paste the demo merchant account\'s dedicated vs_test_ key in manual setup.', 'viasetu-woocommerce' )
+                : __( 'A production ViaSetu connection requires WordPress and Home URLs to use HTTPS.', 'viasetu-woocommerce' );
+            self::notice( $message, 'error' );
             self::redirect_connection();
         }
 
@@ -162,7 +161,7 @@ final class ViaSetu_Connect {
     public static function disconnect() {
         self::require_admin();
         check_admin_referer( 'viasetu_disconnect' );
-        if ( ViaSetu_Settings::api_key() && ! ( defined( 'VIASETU_WC_DEMO_MODE' ) && VIASETU_WC_DEMO_MODE ) ) {
+        if ( ViaSetu_Settings::api_key() ) {
             $result = ( new ViaSetu_Api_Client() )->disconnect();
             if ( is_wp_error( $result ) ) {
                 self::notice( sprintf( __( 'ViaSetu could not revoke this connection: %s', 'viasetu-woocommerce' ), $result->get_error_message() ), 'error' );

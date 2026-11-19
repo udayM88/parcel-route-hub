@@ -39,17 +39,42 @@ function viasetu_smoke_order( $product, $method_id = 'viasetu_shipping' ) {
 	return $order;
 }
 
-$blocked_http_requests = 0;
+$sandbox_api_requests = 0;
+$sandbox_auth_ok      = true;
+$sandbox_filter       = null;
 if ( 'demo' === $mode ) {
-	add_filter(
-		'pre_http_request',
-		static function () use ( &$blocked_http_requests ) {
-			$blocked_http_requests++;
-			return new WP_Error( 'viasetu_smoke_http_blocked', 'Demo smoke test blocked an outbound HTTP request.' );
-		},
-		10,
-		3
-	);
+	$demo_api_key = 'vs_test_' . str_repeat( 'ab', 24 );
+	$demo_secret  = str_repeat( 'cd', 32 );
+	if ( ! ViaSetu_Settings::store_connection( $demo_api_key, $demo_secret, 'sandbox-smoke-connection', 'sandbox', array( 'company_name' => 'Sandbox Smoke Merchant', 'email' => 'sandbox@example.test' ) ) ) {
+		throw new RuntimeException( 'Could not configure sandbox smoke connection.' );
+	}
+	ViaSetu_Settings::mark_connection_checked( true );
+	$sandbox_filter = static function ( $preempt, $args, $url ) use ( &$sandbox_api_requests, &$sandbox_auth_ok, $demo_api_key ) {
+		if ( false === strpos( $url, '/merchant-api' ) ) return $preempt;
+		$sandbox_api_requests++;
+		$sandbox_auth_ok = $sandbox_auth_ok && ( $args['headers']['Authorization'] ?? '' ) === 'Bearer ' . $demo_api_key;
+		$body   = json_decode( $args['body'] ?? '{}', true );
+		$action = $body['action'] ?? '';
+		if ( 'dashboard' === $action ) {
+			$data = array(
+				'success' => true,
+				'metrics' => array( 'total_shipments' => 7, 'active_shipments' => 2, 'delivered_shipments' => 5, 'exceptions' => 0 ),
+				'wallet' => array( 'balance' => 321.45, 'low_balance_threshold' => 100, 'currency' => 'INR' ),
+				'recent_orders' => array(),
+			);
+		} elseif ( 'account' === $action ) {
+			$data = array(
+				'success' => true,
+				'merchant' => array( 'company_name' => 'Sandbox Smoke Merchant', 'email' => 'sandbox@example.test', 'status' => 'approved' ),
+				'wallet' => array( 'balance' => 321.45, 'low_balance_threshold' => 100, 'currency' => 'INR' ),
+				'connection' => array( 'environment' => 'sandbox', 'status' => 'active' ),
+			);
+		} else {
+			$data = array( 'success' => true );
+		}
+		return array( 'headers' => array(), 'body' => wp_json_encode( $data ), 'response' => array( 'code' => 200, 'message' => 'Smoke' ), 'cookies' => array(), 'filename' => null );
+	};
+	add_filter( 'pre_http_request', $sandbox_filter, 10, 3 );
 }
 
 $_GET['tab'] = 'demo' === $mode ? 'dashboard' : 'connection';
@@ -78,31 +103,33 @@ $checks           = array(
 
 if ( 'demo' === $mode ) {
 	$client                    = new ViaSetu_Api_Client();
-	$demo_dashboard            = $client->dashboard();
-	$demo_billing              = $client->billing();
-	$demo_shipment             = $client->create_shipment( array(), 'wc-smoke-demo-1' );
+	$demo_account              = $client->account();
 	$checks['connected']       = ViaSetu_Settings::is_connected();
-	$checks['sample_metrics']  = false !== strpos( $admin_html, 'All shipments' )
-		&& false !== strpos( $admin_html, '>128<' );
-	$checks['sample_wallet']   = false !== strpos( $admin_html, '12,450.75' );
-	$checks['sandbox_badge']   = false !== strpos( $admin_html, 'Sandbox demo' );
-	$checks['local_dashboard'] = ! is_wp_error( $demo_dashboard ) && ! empty( $demo_dashboard['demo'] );
-	$checks['local_billing']   = ! is_wp_error( $demo_billing ) && ! empty( $demo_billing['demo'] );
-	$checks['local_shipment']  = ! is_wp_error( $demo_shipment ) && ! empty( $demo_shipment['demo'] );
-	$checks['no_outbound_http'] = 0 === $blocked_http_requests;
+	$checks['verified']        = ViaSetu_Settings::connection_is_verified();
+	$checks['real_metrics']    = false !== strpos( $admin_html, 'All shipments' )
+		&& false !== strpos( $admin_html, '>7<' );
+	$checks['real_wallet']     = false !== strpos( $admin_html, '321.45' );
+	$checks['sandbox_badge']   = false !== strpos( $admin_html, 'Sandbox · real API' );
+	$checks['account_api']     = ! is_wp_error( $demo_account ) && 'Sandbox Smoke Merchant' === ( $demo_account['merchant']['company_name'] ?? '' );
+	$checks['api_called']      = $sandbox_api_requests >= 2;
+	$checks['api_authorized']  = $sandbox_auth_ok;
+	$checks['live_key_rejected'] = ! ViaSetu_Settings::api_key_is_valid( 'vs_live_' . str_repeat( 'ab', 24 ), ViaSetu_Settings::package_environment() );
+	$checks['old_fixture_key_rejected'] = ! ViaSetu_Settings::api_key_is_valid( 'vs_test_' . str_repeat( '0', 48 ), 'sandbox' );
+	remove_filter( 'pre_http_request', $sandbox_filter, 10 );
+	ViaSetu_Settings::clear_connection();
 } else {
 	$checks['disconnected']    = ! ViaSetu_Settings::is_connected();
-	$checks['connect_button']  = false !== strpos( $admin_html, 'Sign in and connect' );
+	$checks['https_required']  = false !== strpos( $admin_html, 'Move this store to HTTPS before connecting production' );
 	$checks['apply_button']    = false !== strpos( $admin_html, 'Create / apply for account' );
 	$checks['manual_recovery'] = false !== strpos( $admin_html, 'Advanced manual API-key setup' );
 
-	$api_key        = 'vs_test_' . str_repeat( '0', 48 );
+	$api_key        = 'vs_live_' . str_repeat( 'ab', 24 );
 	$webhook_secret = str_repeat( 'd', 64 );
 	$stored          = ViaSetu_Settings::store_connection(
 		$api_key,
 		$webhook_secret,
 		'smoke-connection',
-		'sandbox',
+		'live',
 		array( 'company_name' => 'Smoke Test Merchant', 'email' => 'smoke@example.test' )
 	);
 	$checks['credential_roundtrip'] = $stored
@@ -122,9 +149,9 @@ if ( 'demo' === $mode ) {
 	$settings['booking_retry_limit'] = '3';
 	update_option( ViaSetu_Settings::OPTION, $settings, false );
 	$checks['pickup_validation'] = ViaSetu_Settings::pickup_is_complete();
-	$checks['key_format_validation'] = ViaSetu_Settings::api_key_is_valid( $api_key, 'sandbox' )
+	$checks['key_format_validation'] = ViaSetu_Settings::api_key_is_valid( $api_key, 'live' )
 		&& ! ViaSetu_Settings::api_key_is_valid( 'vs_test_short', 'sandbox' )
-		&& ! ViaSetu_Settings::api_key_is_valid( $api_key, 'live' );
+		&& ! ViaSetu_Settings::api_key_is_valid( $api_key, 'sandbox' );
 
 	$good_product = new WC_Product_Simple();
 	$good_product->set_name( 'Smoke Parcel' );

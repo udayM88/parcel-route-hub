@@ -20,7 +20,7 @@ const integrationCards = [
     logo: wooCommerceLogo,
     logoAlt: "WooCommerce",
     status: "Version 1.1.0",
-    download: "/downloads/viasetu-woocommerce-1.1.0.zip",
+    download: "/downloads/viasetu-woocommerce-1.2.0.zip",
   },
   {
     title: "Shopify",
@@ -130,15 +130,15 @@ export default function BusinessIntegrations() {
                 ))}
               </CardContent>
               <CardFooter className="flex-wrap gap-2 border-t pt-4">
-                <Button asChild><a href="/downloads/viasetu-woocommerce-1.1.0.zip" download><Download />Production plugin</a></Button>
-                <Button asChild variant="outline"><a href="/downloads/viasetu-woocommerce-demo-1.1.0.zip" download><Download />Demo plugin</a></Button>
+                <Button asChild><a href="/downloads/viasetu-woocommerce-1.2.0.zip" download><Download />Production plugin</a></Button>
+                <Button asChild variant="outline"><a href="/downloads/viasetu-woocommerce-demo-1.2.0.zip" download><Download />Sandbox plugin</a></Button>
                 <Button asChild variant="outline"><a href="/developers/merchant-api"><BookOpen />Setup guide</a></Button>
               </CardFooter>
             </Card>
             <Card className="merchant-surface">
               <CardHeader>
                 <CardTitle className="text-base">Production and isolated demo</CardTitle>
-                <CardDescription>The production package uses live merchant APIs. The demo package uses local fixtures and sends no courier, wallet or payment request.</CardDescription>
+                <CardDescription>The production package accepts only live merchant credentials. The sandbox package accepts only a real test credential and never fabricates orders, balances or AWBs.</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3 text-sm">
                 <div className="flex items-center gap-2"><ShieldCheck className="size-4 text-primary" />Server-side credentials only</div>
