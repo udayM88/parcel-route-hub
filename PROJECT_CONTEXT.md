@@ -1,6 +1,6 @@
 # ViaSetu Project Context and Handoff
 
-Last updated: 2026-11-16 (Asia/Kolkata)
+Last updated: 2026-11-19 (Asia/Kolkata)
 
 This file is the persistent project handoff. Read it before making changes and update it after any material feature, database, architecture, deployment, or operational change. Do not store passwords, service-role keys, OAuth tokens, customer PII, or other secrets here.
 
@@ -328,6 +328,14 @@ The public login keeps the sample credentials operational without advertising a 
 - Generated final single-folder packages `public/downloads/viasetu-woocommerce-1.1.0.zip`, `public/downloads/viasetu-woocommerce-demo-1.1.0.zip`, and the stable production alias `public/downloads/viasetu-woocommerce.zip`. Package tests require the bootstrap at exactly one folder below the ZIP root and reject double nesting, Windows separators and path traversal.
 - Verification passed for all plugin PHP syntax, deterministic ZIP tests, the frontend production build, and desktop/mobile admin UI with no relevant page/console errors or plugin-level horizontal overflow. The exact production ZIP installed and passed full runtime assertions on WordPress 6.3.2 / WooCommerce 8.0.2 / PHP 7.4.33 and WordPress 7.1.4 / WooCommerce 11.3.0 / PHP 8.3.36. Assertions cover strict shipping-method filtering, credential/pickup checks, missing product data, missing booking ID, non-retryable 401, scheduled transient retry, successful booking metadata, signed webhooks and deduplication. The exact demo ZIP also installed and passed with zero outbound HTTP requests.
 - The public backend `create_shipment` action remains intentionally paused behind refund-safety verification and returns `wallet_setup_pending`; no server gate, migration or Edge Function was changed or deployed in this hardening. Do not claim live production booking until that independent gate is reviewed and enabled.
+
+## WooCommerce Merchant 1.2 release readiness (prepared 2026-11-19; Lovable publish pending)
+
+- Production and sandbox packages use the real merchant API. The sandbox package requires a dedicated `vs_test_...` key and no longer supplies hard-coded orders, wallet entries, AWBs, ratings or booking responses.
+- A live read-only probe found `woocommerce-connect` returning HTTP 404 for both POST and CORS preflight, proving that the Edge Function is not deployed. This probe does not establish the remote migration state; Lovable must inspect migration history before applying or skipping the additive migration.
+- The connection review now keeps backend failures visible in the page and replaces the raw Supabase fetch error with a support-safe explanation. Permission copy explicitly states that booking activation is required while the existing shipment safety gate remains active.
+- The manual Lovable handoff is documented in `docs/woocommerce-lovable-release.md`. The project owner performs Lovable publish/deployment; contributors must not open Lovable, publish the frontend, apply the migration or deploy Edge Functions implicitly.
+- Required backend scope is limited to additive migration `20261113090000_woocommerce_secure_connect.sql`, new `woocommerce-connect`, and the matching reviewed `merchant-api`. Do not deploy unrelated courier webhook functions and do not bypass `wallet_setup_pending`.
 
 ## WooCommerce Merchant 1.2 real sandbox separation (prepared 2026-11-19)
 

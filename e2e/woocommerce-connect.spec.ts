@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { getWooCommerceConnectErrorMessage } from "../src/lib/woocommerce-connect";
 
 const base = `${process.env.MERCHANT_BASE_URL || "http://127.0.0.1:4174"}/viasetuforbusinesses`;
 
@@ -24,4 +25,15 @@ test("WooCommerce authorization returns to the requested store flow and blocks s
   await expect(page.getByText("Example Store", { exact: true })).toBeVisible();
   await expect(page.getByText("Sample sessions cannot connect a live store", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Approve and connect" })).toBeDisabled();
+});
+
+test("WooCommerce connection failures explain missing and unreachable backend releases", async () => {
+  expect(await getWooCommerceConnectErrorMessage({
+    error: { name: "FunctionsHttpError", message: "Edge Function returned a non-2xx status code" },
+    response: new Response("Not Found", { status: 404 }),
+  })).toBe("The WooCommerce connection service is not active yet. Please contact ViaSetu support before retrying.");
+
+  expect(await getWooCommerceConnectErrorMessage({
+    error: { name: "FunctionsFetchError", message: "Failed to send a request to the Edge Function" },
+  })).toBe("The WooCommerce connection service could not be reached. Please contact ViaSetu support before retrying.");
 });

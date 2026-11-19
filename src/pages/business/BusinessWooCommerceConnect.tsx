@@ -12,6 +12,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { useBusinessAuth } from "@/contexts/useBusinessAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { isBusinessDemoSession } from "@/lib/business-demo";
+import { getWooCommerceConnectErrorMessage } from "@/lib/woocommerce-connect";
 
 type ConnectionRequest = {
   siteUrl: string;
@@ -64,14 +65,16 @@ export default function BusinessWooCommerceConnect() {
   const [params] = useSearchParams();
   const { business, can } = useBusinessAuth();
   const [connecting, setConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState("");
   const request = useMemo(() => readConnectionRequest(params), [params]);
   const isDemo = isBusinessDemoSession();
 
   const authorize = async () => {
     if (!request || !business || isDemo || !can("integrations:write")) return;
     setConnecting(true);
+    setConnectionError("");
     try {
-      const { data, error } = await supabase.functions.invoke("woocommerce-connect", {
+      const { data, error, response } = await supabase.functions.invoke("woocommerce-connect", {
         body: {
           action: "authorize",
           site_url: request.siteUrl,
@@ -83,13 +86,17 @@ export default function BusinessWooCommerceConnect() {
           plugin_version: request.pluginVersion,
         },
       });
-      if (error || !data?.success || !data?.code) throw new Error(data?.error || error?.message || "Connection authorization failed.");
+      if (error || !data?.success || !data?.code) {
+        throw new Error(await getWooCommerceConnectErrorMessage({ data, error, response }));
+      }
       const callback = new URL(request.redirectUri);
       callback.searchParams.set("code", data.code);
       callback.searchParams.set("state", request.state);
       window.location.assign(callback.toString());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Connection authorization failed.");
+      const message = error instanceof Error ? error.message : "Connection authorization failed.";
+      setConnectionError(message);
+      toast.error(message);
       setConnecting(false);
     }
   };
@@ -136,7 +143,7 @@ export default function BusinessWooCommerceConnect() {
             <section>
               <h2 className="text-base font-extrabold">This store will be able to</h2>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                {["Read live courier rates", "Create and manage shipments", "Read wallet and billing activity", "Receive signed tracking updates", "Fetch AWBs and shipping labels", "Cancel eligible shipments"].map((permission) => (
+                {["Read live courier rates", "Prepare and manage shipments (booking activation required)", "Read wallet and billing activity", "Receive signed tracking updates", "Fetch AWBs and shipping labels", "Cancel eligible shipments"].map((permission) => (
                   <div key={permission} className="flex items-start gap-2.5 text-sm"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#0e8f8a]" /><span>{permission}</span></div>
                 ))}
               </div>
@@ -150,6 +157,7 @@ export default function BusinessWooCommerceConnect() {
 
             {isDemo ? <Alert className="border-amber-300 bg-amber-50"><LockKeyhole /><AlertTitle>Sample sessions cannot connect a live store</AlertTitle><AlertDescription>Sign out of the sample workspace and use an approved merchant account.</AlertDescription></Alert> : null}
             {!can("integrations:write") ? <Alert className="border-amber-300 bg-amber-50"><LockKeyhole /><AlertTitle>Permission required</AlertTitle><AlertDescription>Your merchant role does not allow store connections. Ask the owner or an administrator.</AlertDescription></Alert> : null}
+            {connectionError ? <Alert variant="destructive"><AlertTitle>Store connection could not be completed</AlertTitle><AlertDescription>{connectionError}</AlertDescription></Alert> : null}
           </CardContent>
 
           <CardFooter className="flex flex-col-reverse gap-3 border-t bg-[#f7fafb] p-6 sm:flex-row sm:justify-end sm:p-8">
