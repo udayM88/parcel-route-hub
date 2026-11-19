@@ -1,11 +1,11 @@
-# ViaSetu Merchant for WooCommerce 1.2.0
+# ViaSetu Merchant for WooCommerce 1.2.1
 
 ViaSetu Merchant adds a branded operations workspace to WordPress for merchant orders, WooCommerce fulfilment, wallet billing, labels, shipping rules, tracking automation and diagnostics.
 
 ## Packages
 
-- `viasetu-woocommerce-1.2.0.zip` is the production connector. It accepts only a live `vs_live_` credential from an approved merchant account.
-- `viasetu-woocommerce-demo-1.2.0.zip` is the real sandbox connector. It accepts only a `vs_test_` credential from the existing demo merchant account and reads/writes that tenant's sandbox data through the same Merchant API contract.
+- `viasetu-woocommerce-1.2.1.zip` is the production connector. It accepts only a live `vs_live_` credential from an approved merchant account.
+- `viasetu-woocommerce-demo-1.2.1.zip` is the real sandbox connector. It accepts only a `vs_test_` credential from the configured dedicated demo merchant and reads that tenant's sandbox data through the same Merchant API contract.
 
 Both packages are produced from this source with `npm run build:woocommerce`. They have different WordPress plugin names, folder slugs and enforced credential environments. Do not activate both on one site. Neither package embeds an API key or merchant password.
 

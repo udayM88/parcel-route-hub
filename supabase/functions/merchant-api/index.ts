@@ -36,7 +36,6 @@ const err = (
 const ACTION_SCOPES: Record<string, string> = {
   rates: "rates:read",
   create_shipment: "shipments:write",
-  create_shipment_enabled_after_verification: "shipments:write",
   track: "shipments:read",
   label: "shipments:read",
   cancel: "shipments:cancel",
@@ -80,15 +79,6 @@ function parseBoxes(raw: unknown): Box[] | string {
 
 const pub = (q: any) => { const { _box_rates, partner_id, ...rest } = q; return rest; };
 
-function party(p: any, label: string): any | string {
-  const f = ["name", "phone", "address", "city", "state", "pincode"];
-  for (const k of f) if (!p?.[k] || String(p[k]).trim() === "") return `${label}.${k} is required`;
-  if (!/^\d{6}$/.test(String(p.pincode))) return `${label}.pincode must be 6 digits`;
-  const phone = String(p.phone).replace(/\D/g, "").slice(-10);
-  if (!/^\d{10}$/.test(phone)) return `${label}.phone must be 10 digits`;
-  return { ...p, phone, pincode: String(p.pincode), name: String(p.name).slice(0, 100), address: String(p.address).slice(0, 300) };
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return err("method_not_allowed", "Use POST", 405);
@@ -104,6 +94,8 @@ Deno.serve(async (req) => {
       .select("id,business_account_id,environment,revoked_at,scopes,expires_at,rate_limit_per_minute")
       .eq("key_hash", await sha256Hex(key)).maybeSingle();
     if (!apiKey || apiKey.revoked_at) return err("unauthorized", "Invalid or revoked API key", 401);
+    const keyEnvironment = key.startsWith("vs_live_") ? "live" : "sandbox";
+    if (apiKey.environment !== keyEnvironment) return err("unauthorized", "API key environment mismatch", 401);
     if (apiKey.expires_at && new Date(apiKey.expires_at).getTime() <= Date.now()) {
       return err("api_key_expired", "This API key has expired", 401);
     }
@@ -139,6 +131,7 @@ Deno.serve(async (req) => {
     if (!body || typeof body !== "object") return err("invalid_json", "Body must be a JSON object");
     const action = String(body.action || "");
     const requiredScope = ACTION_SCOPES[action];
+    if (!requiredScope) return err("unknown_action", "Unknown merchant API action");
     if (requiredScope && !(apiKey.scopes || []).includes(requiredScope)) {
       return err("insufficient_scope", `This API key requires the ${requiredScope} scope`, 403, { required_scope: requiredScope });
     }
@@ -292,76 +285,6 @@ Deno.serve(async (req) => {
 
     if (action === "create_shipment") {
       return err("wallet_setup_pending", "Wallet shipment creation is paused pending refund-safety verification", 503);
-    }
-
-    if (action === "create_shipment_enabled_after_verification") {
-      const idem = (req.headers.get("Idempotency-Key") || "").trim();
-      if (idem.length < 8 || idem.length > 100) return err("idempotency_key_required", "Send a unique Idempotency-Key header (8-100 chars)");
-      const { data: prior } = await admin.from("merchant_api_requests")
-        .select("response,status_code").eq("api_key_id", apiKey.id).eq("idempotency_key", idem).maybeSingle();
-      if (prior) {
-        if (prior.response) return json(prior.response, prior.status_code || 200);
-        return err("in_progress", "A request with this Idempotency-Key is still processing", 409);
-      }
-      const pickup = party(body.pickup, "pickup");
-      if (typeof pickup === "string") return err("validation_error", pickup);
-      const delivery = party(body.delivery, "delivery");
-      if (typeof delivery === "string") return err("validation_error", delivery);
-      const boxes = parseBoxes(body.boxes);
-      if (typeof boxes === "string") return err("validation_error", boxes);
-
-      const { error: claimErr } = await admin.from("merchant_api_requests")
-        .insert({ api_key_id: apiKey.id, idempotency_key: idem, action });
-      if (claimErr) return err("in_progress", "A request with this Idempotency-Key is already processing", 409);
-
-      const finish = async (payload: any, status: number, bookingId?: string) => {
-        await admin.from("merchant_api_requests").update({ response: payload, status_code: status, booking_id: bookingId ?? null })
-          .eq("api_key_id", apiKey.id).eq("idempotency_key", idem);
-        return json(payload, status);
-      };
-
-      const quotes = applyCarrierRules((await createB2BQuotes(admin,url,anonKey,biz.id,env,{pickup_pincode:pickup.pincode,delivery_pincode:delivery.pincode,boxes})).quotes);
-      const chosen = body.partner_code
-        ? quotes.find((q) => q.partner_code === body.partner_code && (!body.service_code || q.service_code === body.service_code))
-        : quotes[0];
-      if (!chosen) {
-        return finish({ success: false, error: { code: "not_serviceable", message: "No courier serves this route for the requested service" } }, 422);
-      }
-
-      const res = await fetch(`${url}/functions/v1/business-create-shipment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}`, "x-internal-key": serviceKey, "x-environment": env },
-        body: JSON.stringify({
-          _business_account_id: biz.id, _pay_with_wallet: true,
-          quote_id: chosen.quote_id,
-          sender_name: pickup.name, sender_phone: pickup.phone, sender_address: pickup.address,
-          sender_city: pickup.city, sender_state: pickup.state, sender_pincode: pickup.pincode,
-          receiver_name: delivery.name, receiver_phone: delivery.phone, receiver_address: delivery.address,
-          receiver_city: delivery.city, receiver_state: delivery.state, receiver_pincode: delivery.pincode,
-          goods_type: String(body.goods_type || "Package").slice(0, 60),
-          shipment_value: Number(body.declared_value) > 0 ? Number(body.declared_value) : null,
-          courier_name: `${chosen.partner_name} - ${chosen.service_name}`,
-          partner_id: chosen.partner_id, service_code: chosen.service_code, delivery_time: chosen.delivery_time,
-          boxes,
-        }),
-      });
-      const out = await res.json().catch(() => ({}));
-      if (res.status === 402) {
-        return finish({ success: false, error: { code: "insufficient_balance", message: "Wallet balance is too low. Please top up.", balance: out.balance, required: out.required } }, 402, out.booking_id);
-      }
-      if (!res.ok && !out?.booking_id) {
-        return finish({ success: false, error: { code: "booking_failed", message: out?.error || "Could not create shipment" } }, 502);
-      }
-      const payload = {
-        success: !!out.success,
-        booking_id: out.booking_id,
-        status: out.booking?.status,
-        courier: chosen.partner_name, service: chosen.service_name,
-        total_amount: out.total_amount, wallet_refunded: out.wallet_refunded || 0,
-        boxes: (out.boxes || []).map((b: any) => ({ box_index: b.box_index, success: b.success, awb: b.tracking_id, error: b.success ? undefined : b.error })),
-        ...(out.success ? {} : { error: { code: "courier_rejected", message: "Courier could not accept the shipment. Amount refunded to wallet." } }),
-      };
-      return finish(payload, out.success ? 201 : 502, out.booking_id);
     }
 
     // Lookups scoped to this business.

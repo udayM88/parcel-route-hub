@@ -3,7 +3,7 @@
  * Plugin Name: ViaSetu Merchant for WooCommerce
  * Plugin URI: https://www.viasetu.com/developers/merchant-api
  * Description: ViaSetu shipping rates, shipment booking, tracking, labels and signed status webhooks for WooCommerce.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Requires at least: 6.3
  * Requires PHP: 7.4
  * WC requires at least: 8.0
@@ -25,7 +25,7 @@ if ( defined( 'VIASETU_WC_FILE' ) ) {
     return;
 }
 
-define( 'VIASETU_WC_VERSION', '1.2.0' );
+define( 'VIASETU_WC_VERSION', '1.2.1' );
 define( 'VIASETU_WC_FILE', __FILE__ );
 define( 'VIASETU_WC_DIR', plugin_dir_path( __FILE__ ) );
 if ( ! defined( 'VIASETU_WC_DEMO_MODE' ) ) define( 'VIASETU_WC_DEMO_MODE', false );

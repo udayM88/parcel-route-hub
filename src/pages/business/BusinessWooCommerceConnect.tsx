@@ -68,19 +68,22 @@ export default function BusinessWooCommerceConnect() {
   const [connectionError, setConnectionError] = useState("");
   const request = useMemo(() => readConnectionRequest(params), [params]);
   const isDemo = isBusinessDemoSession();
+  const isDemoSandbox = isDemo && request?.environment === "sandbox";
+  const isDemoLive = isDemo && request?.environment === "live";
 
   const authorize = async () => {
-    if (!request || !business || isDemo || !can("integrations:write")) return;
+    if (!request || !business || isDemoLive || !can("integrations:write")) return;
     setConnecting(true);
     setConnectionError("");
     try {
       const { data, error, response } = await supabase.functions.invoke("woocommerce-connect", {
         body: {
-          action: "authorize",
+          action: isDemoSandbox ? "authorize_demo_sandbox" : "authorize",
           site_url: request.siteUrl,
           redirect_uri: request.redirectUri,
           webhook_url: request.webhookUrl,
           code_challenge: request.codeChallenge,
+          state: request.state,
           store_name: request.storeName,
           environment: request.environment,
           plugin_version: request.pluginVersion,
@@ -143,7 +146,14 @@ export default function BusinessWooCommerceConnect() {
             <section>
               <h2 className="text-base font-extrabold">This store will be able to</h2>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                {["Read live courier rates", "Prepare and manage shipments (booking activation required)", "Read wallet and billing activity", "Receive signed tracking updates", "Fetch AWBs and shipping labels", "Cancel eligible shipments"].map((permission) => (
+                {[
+                  request.environment === "sandbox" ? "Read sandbox courier rates" : "Read live courier rates",
+                  request.environment === "sandbox" ? "Prepare sandbox shipments (booking safety gate applies)" : "Prepare and manage shipments (booking activation required)",
+                  "Read wallet and billing activity",
+                  "Receive signed tracking updates",
+                  "Fetch AWBs and shipping labels",
+                  "Cancel eligible shipments",
+                ].map((permission) => (
                   <div key={permission} className="flex items-start gap-2.5 text-sm"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#0e8f8a]" /><span>{permission}</span></div>
                 ))}
               </div>
@@ -155,7 +165,8 @@ export default function BusinessWooCommerceConnect() {
               <AlertDescription>ViaSetu never sends your password to WordPress. A dedicated API key is returned once to this HTTPS store, stored encrypted there, rate-limited, and revocable from your merchant account.</AlertDescription>
             </Alert>
 
-            {isDemo ? <Alert className="border-amber-300 bg-amber-50"><LockKeyhole /><AlertTitle>Sample sessions cannot connect a live store</AlertTitle><AlertDescription>Sign out of the sample workspace and use an approved merchant account.</AlertDescription></Alert> : null}
+            {isDemoSandbox ? <Alert className="border-[#b9dedb] bg-[#effaf9]"><ShieldCheck className="text-[#0e8f8a]" /><AlertTitle>Controlled sandbox connection</AlertTitle><AlertDescription>This can connect only an allowlisted HTTPS test store to ViaSetu's dedicated demo merchant. It issues a revocable <code>vs_test_</code> key; live merchant and courier operations remain unavailable.</AlertDescription></Alert> : null}
+            {isDemoLive ? <Alert className="border-amber-300 bg-amber-50"><LockKeyhole /><AlertTitle>Sample sessions cannot connect a live store</AlertTitle><AlertDescription>Switch the plugin to Sandbox, or sign out and use an approved merchant account for a live store.</AlertDescription></Alert> : null}
             {!can("integrations:write") ? <Alert className="border-amber-300 bg-amber-50"><LockKeyhole /><AlertTitle>Permission required</AlertTitle><AlertDescription>Your merchant role does not allow store connections. Ask the owner or an administrator.</AlertDescription></Alert> : null}
             {connectionError ? <Alert variant="destructive"><AlertTitle>Store connection could not be completed</AlertTitle><AlertDescription>{connectionError}</AlertDescription></Alert> : null}
           </CardContent>
@@ -163,7 +174,7 @@ export default function BusinessWooCommerceConnect() {
           <CardFooter className="flex flex-col-reverse gap-3 border-t bg-[#f7fafb] p-6 sm:flex-row sm:justify-end sm:p-8">
             <Button variant="outline" onClick={() => navigate("/viasetuforbusinesses/integrations?tab=plugins")} disabled={connecting}>Cancel</Button>
             <Button className="bg-[#0e8f8a] hover:bg-[#0b7672]" onClick={() => void authorize()}
-              disabled={connecting || isDemo || !can("integrations:write")}>
+              disabled={connecting || isDemoLive || !can("integrations:write")}>
               {connecting ? <Loader2 className="animate-spin" /> : <ShieldCheck />}Approve and connect
             </Button>
           </CardFooter>

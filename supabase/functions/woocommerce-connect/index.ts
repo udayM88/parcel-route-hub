@@ -72,6 +72,48 @@ function validateConnectionUrls(body: Record<string, unknown>): ConnectionUrls |
   }
 }
 
+function configuredDemoStoreOrigins(): Set<string> {
+  const configured = Deno.env.get("WOOCOMMERCE_DEMO_STORE_ORIGINS") || "";
+  const origins = new Set<string>();
+  for (const value of configured.split(",")) {
+    try {
+      const url = new URL(value.trim());
+      if (url.protocol === "https:" && !url.username && !url.password) origins.add(url.origin);
+    } catch {
+      // Invalid entries remain closed instead of weakening the allowlist.
+    }
+  }
+  return origins;
+}
+
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+async function verifySandboxStoreProof(urls: ConnectionUrls, state: string, challenge: string): Promise<boolean> {
+  const proofUrl = new URL(urls.webhookUrl);
+  if (proofUrl.searchParams.get("rest_route") === "/viasetu/v1/webhook") {
+    proofUrl.searchParams.set("rest_route", "/viasetu/v1/connect-proof");
+  } else {
+    proofUrl.pathname = proofUrl.pathname.replace(/\/webhook\/?$/i, "/connect-proof");
+  }
+  proofUrl.searchParams.set("state", state);
+  proofUrl.searchParams.set("code_challenge", challenge);
+  proofUrl.searchParams.set("environment", "sandbox");
+  try {
+    const response = await fetch(proofUrl, {
+      method: "GET",
+      redirect: "error",
+      signal: AbortSignal.timeout(10_000),
+      headers: { Accept: "application/json", "User-Agent": "ViaSetu-WooCommerce-Connect/1" },
+    });
+    const text = await response.text();
+    if (!response.ok || text.length > 4096) return false;
+    const payload = JSON.parse(text);
+    return payload?.valid === true;
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (request.method !== "POST") return json({ success: false, error: "Use POST." }, 405);
@@ -86,35 +128,7 @@ Deno.serve(async (request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const admin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    if (action === "authorize") {
-      const token = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
-      if (!token) return json({ success: false, error: "Sign in to authorize this store." }, 401);
-      const auth = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-        global: { headers: { Authorization: `Bearer ${token}` } },
-      });
-      const { data: userResult } = await auth.auth.getUser();
-      if (!userResult.user) return json({ success: false, error: "Your merchant session is invalid or expired." }, 401);
-
-      const access = await resolveMerchantAccess(admin, userResult.user);
-      if (!merchantCan(access, "integrations:write")) {
-        return json({ success: false, error: "Your merchant role cannot connect stores." }, 403);
-      }
-
-      const recentWindow = new Date(Date.now() - 10 * 60_000).toISOString();
-      const { count: recentAttempts, error: attemptError } = await admin
-        .from("merchant_integration_authorizations")
-        .select("id", { count: "exact", head: true })
-        .eq("business_account_id", access!.business_account_id)
-        .is("used_at", null)
-        .gte("created_at", recentWindow);
-      if (attemptError) {
-        console.error("[woocommerce-connect] authorization limit check failed", attemptError.message);
-        return json({ success: false, error: "Could not prepare this connection." }, 500);
-      }
-      if ((recentAttempts || 0) >= 10) {
-        return json({ success: false, error: "Too many connection attempts. Try again in a few minutes." }, 429);
-      }
-
+    if (action === "authorize" || action === "authorize_demo_sandbox") {
       const challenge = String(body.code_challenge || "");
       if (!/^[A-Za-z0-9_-]{43,128}$/.test(challenge)) {
         return json({ success: false, error: "The connection challenge is invalid." }, 400);
@@ -125,10 +139,71 @@ Deno.serve(async (request) => {
       const storeName = String(body.store_name || new URL(urls.siteUrl).hostname).trim().replace(/[<>]/g, "").slice(0, 100);
       if (storeName.length < 2) return json({ success: false, error: "Store name is required." }, 400);
 
+      let businessAccountId = "";
+      let createdBy = "";
+
+      if (action === "authorize_demo_sandbox") {
+        if (environment !== "sandbox") {
+          return json({ success: false, error: "Sample access is available only for a sandbox store." }, 403);
+        }
+        const demoBusinessId = (Deno.env.get("WOOCOMMERCE_DEMO_BUSINESS_ACCOUNT_ID") || "").trim();
+        const allowedOrigins = configuredDemoStoreOrigins();
+        if (!isUuid(demoBusinessId) || allowedOrigins.size === 0) {
+          return json({ success: false, error: "The controlled WooCommerce sandbox is not configured yet." }, 503);
+        }
+        if (!allowedOrigins.has(new URL(urls.siteUrl).origin)) {
+          return json({ success: false, error: "This store is not approved for the controlled WooCommerce sandbox." }, 403);
+        }
+        const state = String(body.state || "");
+        if (!/^[A-Za-z0-9_-]{32,128}$/.test(state) || !await verifySandboxStoreProof(urls, state, challenge)) {
+          return json({ success: false, error: "The sandbox request could not be verified with this WordPress store. Start the connection again from WordPress." }, 403);
+        }
+        const { data: demoBusiness, error: demoBusinessError } = await admin.from("business_accounts")
+          .select("id,user_id,status,is_active")
+          .eq("id", demoBusinessId)
+          .maybeSingle();
+        if (demoBusinessError || !demoBusiness || !demoBusiness.is_active || demoBusiness.status !== "approved" || !isUuid(String(demoBusiness.user_id || ""))) {
+          console.error("[woocommerce-connect] configured demo business is unavailable");
+          return json({ success: false, error: "The controlled WooCommerce sandbox is not available." }, 503);
+        }
+        businessAccountId = demoBusiness.id;
+        createdBy = demoBusiness.user_id;
+      } else {
+        const token = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+        if (!token) return json({ success: false, error: "Sign in to authorize this store." }, 401);
+        const auth = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+          global: { headers: { Authorization: `Bearer ${token}` } },
+        });
+        const { data: userResult } = await auth.auth.getUser();
+        if (!userResult.user) return json({ success: false, error: "Your merchant session is invalid or expired." }, 401);
+
+        const access = await resolveMerchantAccess(admin, userResult.user);
+        if (!merchantCan(access, "integrations:write")) {
+          return json({ success: false, error: "Your merchant role cannot connect stores." }, 403);
+        }
+        businessAccountId = access!.business_account_id;
+        createdBy = userResult.user.id;
+      }
+
+      const recentWindow = new Date(Date.now() - 10 * 60_000).toISOString();
+      const { count: recentAttempts, error: attemptError } = await admin
+        .from("merchant_integration_authorizations")
+        .select("id", { count: "exact", head: true })
+        .eq("business_account_id", businessAccountId)
+        .is("used_at", null)
+        .gte("created_at", recentWindow);
+      if (attemptError) {
+        console.error("[woocommerce-connect] authorization limit check failed", attemptError.message);
+        return json({ success: false, error: "Could not prepare this connection." }, 500);
+      }
+      if ((recentAttempts || 0) >= 10) {
+        return json({ success: false, error: "Too many connection attempts. Try again in a few minutes." }, 429);
+      }
+
       const code = randomBase64Url(32);
       const { error } = await admin.from("merchant_integration_authorizations").insert({
         code_hash: await sha256Hex(code),
-        business_account_id: access!.business_account_id,
+        business_account_id: businessAccountId,
         platform: "woocommerce",
         environment,
         store_name: storeName,
@@ -137,7 +212,7 @@ Deno.serve(async (request) => {
         webhook_url: urls.webhookUrl,
         code_challenge: challenge,
         plugin_version: pluginVersion,
-        created_by: userResult.user.id,
+        created_by: createdBy,
         expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
       });
       if (error) {

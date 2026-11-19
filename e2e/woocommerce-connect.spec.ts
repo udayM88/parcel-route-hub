@@ -27,6 +27,28 @@ test("WooCommerce authorization returns to the requested store flow and blocks s
   await expect(page.getByRole("button", { name: "Approve and connect" })).toBeDisabled();
 });
 
+test("sample sessions can approve only a controlled sandbox store", async ({ page }) => {
+  const request = new URL(`${base}/connect/woocommerce`);
+  request.searchParams.set("site_url", "https://ecom.thesalesbridge.com");
+  request.searchParams.set("redirect_uri", "https://ecom.thesalesbridge.com/wp-admin/admin-post.php?action=viasetu_connect_callback");
+  request.searchParams.set("webhook_url", "https://ecom.thesalesbridge.com/wp-json/viasetu/v1/webhook");
+  request.searchParams.set("code_challenge", "c".repeat(43));
+  request.searchParams.set("state", "d".repeat(32));
+  request.searchParams.set("store_name", "TinyJoy Toy Store");
+  request.searchParams.set("environment", "sandbox");
+  request.searchParams.set("plugin_version", "1.2.0-demo");
+
+  await page.goto(request.toString());
+  await page.getByLabel("Work Email").fill("demo@viasetu.local");
+  await page.getByLabel("Password", { exact: true }).fill("Demo@1234");
+  await page.getByRole("button", { name: "Sign in securely", exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: "Connect this WooCommerce store" })).toBeVisible();
+  await expect(page.getByText("Controlled sandbox connection", { exact: true })).toBeVisible();
+  await expect(page.getByText("Read sandbox courier rates", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve and connect" })).toBeEnabled();
+});
+
 test("WooCommerce connection failures explain missing and unreachable backend releases", async () => {
   expect(await getWooCommerceConnectErrorMessage({
     error: { name: "FunctionsHttpError", message: "Edge Function returned a non-2xx status code" },

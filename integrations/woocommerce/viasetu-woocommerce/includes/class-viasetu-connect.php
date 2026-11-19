@@ -3,11 +3,52 @@ defined( 'ABSPATH' ) || exit;
 
 final class ViaSetu_Connect {
     const TRANSIENT_PREFIX = 'viasetu_wc_connect_';
+    const PROOF_PREFIX = 'viasetu_wc_connect_proof_';
 
     public static function init() {
         add_action( 'admin_post_viasetu_connect_start', array( __CLASS__, 'start' ) );
         add_action( 'admin_post_viasetu_connect_callback', array( __CLASS__, 'callback' ) );
         add_action( 'admin_post_viasetu_disconnect', array( __CLASS__, 'disconnect' ) );
+        add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
+    }
+
+    public static function register_routes() {
+        register_rest_route(
+            'viasetu/v1',
+            '/connect-proof',
+            array(
+                'methods'             => 'GET',
+                'callback'            => array( __CLASS__, 'connect_proof' ),
+                'permission_callback' => '__return_true',
+            )
+        );
+    }
+
+    private static function proof_key( $state ) {
+        return self::PROOF_PREFIX . hash( 'sha256', (string) $state );
+    }
+
+    private static function proof_response( $valid, $status ) {
+        $response = new WP_REST_Response( array( 'valid' => (bool) $valid ), (int) $status );
+        $response->header( 'Cache-Control', 'no-store, max-age=0' );
+        return $response;
+    }
+
+    public static function connect_proof( WP_REST_Request $request ) {
+        $state       = sanitize_text_field( (string) $request->get_param( 'state' ) );
+        $challenge   = sanitize_text_field( (string) $request->get_param( 'code_challenge' ) );
+        $environment = sanitize_key( (string) $request->get_param( 'environment' ) );
+        if ( ! preg_match( '/^[A-Za-z0-9_-]{32,128}$/', $state ) || ! preg_match( '/^[A-Za-z0-9_-]{43,128}$/', $challenge ) ) {
+            return self::proof_response( false, 400 );
+        }
+        $proof = get_transient( self::proof_key( $state ) );
+        $valid = is_array( $proof )
+            && isset( $proof['state'], $proof['code_challenge'], $proof['environment'], $proof['created_at'] )
+            && hash_equals( (string) $proof['state'], $state )
+            && hash_equals( (string) $proof['code_challenge'], $challenge )
+            && hash_equals( (string) $proof['environment'], $environment )
+            && time() - (int) $proof['created_at'] <= 600;
+        return self::proof_response( $valid, $valid ? 200 : 403 );
     }
 
     private static function require_admin() {
@@ -83,6 +124,16 @@ final class ViaSetu_Connect {
             'created_at'    => time(),
         );
         set_transient( self::TRANSIENT_PREFIX . get_current_user_id(), $request, 10 * MINUTE_IN_SECONDS );
+        set_transient(
+            self::proof_key( $state ),
+            array(
+                'state'          => $state,
+                'code_challenge' => $challenge,
+                'environment'    => $request['environment'],
+                'created_at'     => $request['created_at'],
+            ),
+            10 * MINUTE_IN_SECONDS
+        );
 
         $url = add_query_arg(
             array(
@@ -111,6 +162,7 @@ final class ViaSetu_Connect {
             self::redirect_connection();
         }
         delete_transient( self::TRANSIENT_PREFIX . get_current_user_id() );
+        delete_transient( self::proof_key( $state ) );
 
         $response = wp_safe_remote_post(
             ViaSetu_Settings::get( 'connect_endpoint' ),
