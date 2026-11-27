@@ -21,6 +21,8 @@ export interface BookingDraft {
   width?: string | number | null;
   height?: string | number | null;
   shipment_value?: number | null;
+  eway_bill_number?: string | null;
+  eway_bill_path?: string | null;
   urgency?: string;
   courier_name?: string;
   courier_price?: number;
@@ -63,6 +65,8 @@ export function buildBookingRow(draft: BookingDraft, userId: string) {
     width: draft.width != null ? String(draft.width) : null,
     height: draft.height != null ? String(draft.height) : null,
     shipment_value: draft.shipment_value ?? null,
+    eway_bill_number: draft.eway_bill_number ?? null,
+    eway_bill_path: draft.eway_bill_path ?? null,
     urgency: draft.urgency ?? "standard",
     courier_name: draft.courier_name ?? "",
     courier_price: draft.courier_price ?? 0,

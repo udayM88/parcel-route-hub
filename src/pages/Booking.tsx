@@ -1,3 +1,4 @@
+import { ewayBillError } from "@/lib/eway-bill";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -49,6 +50,8 @@ const Booking = () => {
     height: ""
   });
   const [shipmentValue, setShipmentValue] = useState("");
+  const [ewayBillNumber, setEwayBillNumber] = useState("");
+  const [ewayBillPath, setEwayBillPath] = useState("");
   // Parcels 2..10 of a multi-parcel order (parcel 1 = the fields above).
   const [extraParcels, setExtraParcels] = useState<Parcel[]>([]);
   const [weightUnit, setWeightUnit] = useState<'kg' | 'g'>('kg');
@@ -404,6 +407,12 @@ const Booking = () => {
       case "shipmentValue":
         setShipmentValue(value);
         break;
+      case "ewayBillNumber":
+        setEwayBillNumber(value);
+        break;
+      case "ewayBillPath":
+        setEwayBillPath(value);
+        break;
       case "packageDescription":
         setPackageDescription(value);
         break;
@@ -512,6 +521,8 @@ const Booking = () => {
     setCurrentStep(stepNumber);
   };
   const handleProceedToPayment = () => {
+    const ewErr = ewayBillError(shipmentValue, ewayBillNumber, ewayBillPath);
+    if (ewErr) { toast({ title: "E-Way Bill required", description: ewErr, variant: "destructive" }); setCurrentStep(4); return; }
     if (assistedContext) {
       handleSendAdminPaymentLink();
       return;
@@ -563,6 +574,8 @@ const Booking = () => {
     width: dimensions?.width || null,
     height: dimensions?.height || null,
     shipment_value: shipmentValue ? parseFloat(shipmentValue) : null,
+    eway_bill_number: ewayBillNumber || null,
+    eway_bill_path: ewayBillPath || null,
     urgency: urgency || 'standard',
     courier_name: selectedCourierData.name,
     courier_price: totalAmount,
@@ -1341,6 +1354,8 @@ const Booking = () => {
         width: dimensions?.width || null,
         height: dimensions?.height || null,
         shipment_value: shipmentValue ? parseFloat(shipmentValue) : null,
+        eway_bill_number: ewayBillNumber || null,
+        eway_bill_path: ewayBillPath || null,
         urgency: urgency || "standard",
         packaging_required: false,
         insurance_required: false,
@@ -1472,7 +1487,7 @@ const Booking = () => {
           shipmentValue: Number(shipmentValue) || 0
         }} />;
       case 4:
-        return <AddressStep senderData={senderData} receiverData={receiverData} pickupPincode={pickupPincode} deliveryPincode={deliveryPincode} shipmentValue={shipmentValue} packageDescription={packageDescription} onSenderChange={(field, value) => setSenderData(prev => ({
+        return <AddressStep senderData={senderData} receiverData={receiverData} pickupPincode={pickupPincode} deliveryPincode={deliveryPincode} shipmentValue={shipmentValue} ewayBillNumber={ewayBillNumber} ewayBillPath={ewayBillPath} packageDescription={packageDescription} onSenderChange={(field, value) => setSenderData(prev => ({
           ...prev,
           [field]: value
         }))} onReceiverChange={(field, value) => setReceiverData(prev => ({
@@ -1617,6 +1632,8 @@ const Booking = () => {
         width: dimensions?.width || null,
         height: dimensions?.height || null,
         shipment_value: shipmentValue ? parseFloat(shipmentValue) : null,
+        eway_bill_number: ewayBillNumber || null,
+        eway_bill_path: ewayBillPath || null,
         urgency: urgency || 'standard',
         courier_name: selectedCourierData.name ?? '',
         courier_price: totalAmount,

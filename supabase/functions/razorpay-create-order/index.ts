@@ -1,3 +1,4 @@
+import { ewayBillError } from "../_shared/eway-bill.ts";
 import { getEnvironmentFromRequest, getRazorpayConfig } from "../_shared/environment.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildBookingRow, syncBookingBoxes, type BookingDraft } from "../_shared/booking-draft.ts";
@@ -43,6 +44,11 @@ Deno.serve(async (req) => {
       preparedRow = { id: row.id };
     }
 
+
+    if (booking_draft) {
+      const ewErr = ewayBillError(booking_draft.shipment_value, booking_draft.eway_bill_number, booking_draft.eway_bill_path);
+      if (ewErr) return new Response(JSON.stringify({ error: ewErr }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
     if (!amount || amount <= 0) {
       console.error('Invalid amount provided:', amount);

@@ -1,3 +1,4 @@
+import { ewayBillError } from "../_shared/eway-bill.ts";
 // Verifies the Razorpay signature AND immediately persists a booking row
 // with status=PAYMENT_RECEIVED, payment_status=paid. This guarantees that
 // every captured payment is auditable from the admin dashboard, even if the

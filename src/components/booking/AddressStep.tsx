@@ -1,3 +1,4 @@
+import { ewayBillError, requiresEwayBill } from "@/lib/eway-bill";
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -98,6 +99,8 @@ interface AddressStepProps {
   pickupPincode: string;
   deliveryPincode: string;
   shipmentValue: string;
+  ewayBillNumber?: string;
+  ewayBillPath?: string;
   packageDescription: string;
   onSenderChange: (field: string, value: string) => void;
   onReceiverChange: (field: string, value: string) => void;
@@ -113,6 +116,8 @@ const AddressStep = ({
   pickupPincode,
   deliveryPincode,
   shipmentValue,
+  ewayBillNumber = "",
+  ewayBillPath = "",
   packageDescription,
   onSenderChange,
   onReceiverChange,
@@ -244,6 +249,11 @@ const AddressStep = ({
       });
       return;
     }
+    const ewErr = ewayBillError(shipmentValue, ewayBillNumber, ewayBillPath);
+    if (ewErr) {
+      toast({ title: "E-Way Bill required", description: ewErr, variant: "destructive" });
+      return;
+    }
     // Defensive submit-time pincode guard
     if (senderData.pincode !== pickupPincode || receiverData.pincode !== deliveryPincode) {
       toast({
@@ -260,6 +270,26 @@ const AddressStep = ({
       saveAddress({ ...receiverData, label: 'Receiver' });
     }
     onNext();
+  };
+
+  const [ewayUploading, setEwayUploading] = useState(false);
+  const handleEwayUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024 || !["application/pdf", "image/jpeg", "image/png"].includes(file.type)) {
+      toast({ title: "Invalid file", description: "Upload a PDF, JPG or PNG under 10 MB.", variant: "destructive" });
+      return;
+    }
+    setEwayUploading(true);
+    const ext = file.name.split(".").pop()?.toLowerCase() || "pdf";
+    const path = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from("eway-bills").upload(path, file, { contentType: file.type });
+    setEwayUploading(false);
+    if (error) {
+      toast({ title: "Upload failed", description: "Please try again.", variant: "destructive" });
+      return;
+    }
+    onPackageChange("ewayBillPath", path);
   };
 
   const handlePhoneChange = (type: 'sender' | 'receiver', value: string) => {
@@ -631,6 +661,32 @@ const AddressStep = ({
               Optional: For insurance purposes
             </p>
           </div>
+
+          {requiresEwayBill(shipmentValue) && (
+            <div className="rounded-lg border-2 border-primary bg-primary/10 p-4 space-y-3">
+              <p className="text-sm font-semibold text-foreground">
+                E-Way Bill required — as per GST rules, shipments valued above ₹50,000 need an E-Way Bill. Booking cannot continue without it.
+              </p>
+              <div>
+                <Label htmlFor="eway-number" className="font-semibold text-foreground">E-Way Bill Number *</Label>
+                <Input
+                  id="eway-number"
+                  inputMode="numeric"
+                  maxLength={12}
+                  value={ewayBillNumber}
+                  onChange={(e) => onPackageChange("ewayBillNumber", e.target.value.replace(/\D/g, "").slice(0, 12))}
+                  placeholder="12-digit E-Way Bill number"
+                />
+              </div>
+              <div>
+                <Label htmlFor="eway-file" className="font-semibold text-foreground">Upload E-Way Bill (PDF/JPG/PNG, max 10 MB) *</Label>
+                <Input id="eway-file" type="file" accept="application/pdf,image/jpeg,image/png" disabled={ewayUploading} onChange={handleEwayUpload} />
+                <p className="text-xs text-foreground font-medium mt-1">
+                  {ewayUploading ? "Uploading…" : ewayBillPath ? "✓ E-Way Bill uploaded" : "Not uploaded yet"}
+                </p>
+              </div>
+            </div>
+          )}
 
           <div>
             <Label htmlFor="package-description" className="font-semibold text-foreground">Package Contents *</Label>

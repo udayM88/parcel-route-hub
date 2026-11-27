@@ -109,6 +109,8 @@ Deno.serve(async (req) => {
       width: draft.width != null ? String(draft.width) : null,
       height: draft.height != null ? String(draft.height) : null,
       shipment_value: draft.shipment_value ?? null,
+      eway_bill_number: draft.eway_bill_number ?? null,
+      eway_bill_path: draft.eway_bill_path ?? null,
       urgency: draft.urgency ?? "standard",
       // courier + financials
       courier_name: draft.courier_name ?? "",
