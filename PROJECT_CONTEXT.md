@@ -1,6 +1,6 @@
 # ViaSetu Project Context and Handoff
 
-Last updated: 2026-11-19 (Asia/Kolkata)
+Last updated: 2026-11-28 (Asia/Kolkata)
 
 This file is the persistent project handoff. Read it before making changes and update it after any material feature, database, architecture, deployment, or operational change. Do not store passwords, service-role keys, OAuth tokens, customer PII, or other secrets here.
 
@@ -354,6 +354,15 @@ The public login keeps the sample credentials operational without advertising a 
 - Origin allowlisting alone is insufficient. Plugin 1.2.1 stores a ten-minute proof only after a WooCommerce administrator starts the nonce-protected connection. The Edge Function calls the same-origin `connect-proof` REST route and verifies the state, PKCE challenge and sandbox environment before issuing a five-minute authorization code.
 - The Merchant API now rejects an API key whose stored environment disagrees with its `vs_live_`/`vs_test_` prefix. The undocumented `create_shipment_enabled_after_verification` action was removed. The official `create_shipment` action remains paused with `wallet_setup_pending`; this change does not activate courier booking or bypass the refund-safety review.
 - New packages are `public/downloads/viasetu-woocommerce-1.2.1.zip` and `public/downloads/viasetu-woocommerce-demo-1.2.1.zip`. The user must install the 1.2.1 demo package before testing this handshake, then manually perform the Lovable-connected migration/function deployment and publish steps documented in `docs/woocommerce-lovable-release.md`.
+
+## Customer feedback backend activation (deployed 2026-11-28)
+
+- The reusable customer-feedback backend is active on production Supabase project `tksfdvnogzsweteetjjw`. The deployment was performed through the project-scoped Supabase OAuth connection after a read-only project/migration/function audit.
+- Applied the additive local migrations `20261127144814_add_customer_feedback_surveys.sql` and `20261127180958_add_public_feedback_links.sql` in that order. Supabase recorded them remotely as `20261127191854_add_customer_feedback_surveys` and `20261127191902_add_public_feedback_links`.
+- Production now has `feedback_surveys`, `feedback_invitations`, and `feedback_responses`, all with RLS enabled. Admins can read the survey data; only an active super admin can update the permitted survey fields, including `public_enabled`. Anonymous users have no direct table-write grant.
+- Deployed only `feedback-survey` v1 with `verify_jwt = false`. The function validates reusable public submissions itself and verifies the caller JWT plus active `super_admin` role for survey management and invitation actions.
+- Both built-in surveys are published and reusable links are enabled. Verification passed for function status ACTIVE, CORS preflight HTTP 200, public-status HTTP 200 for both forms, and the live `customer-experience` page rendering the 17-question shared form rather than the unavailable-link state.
+- This release did not deploy any unrelated Edge Function or modify existing booking, merchant, wallet, authentication, courier, or CMS data. Real SMS delivery was not triggered during verification.
 
 ## Recommended workflow for the next contributor
 
