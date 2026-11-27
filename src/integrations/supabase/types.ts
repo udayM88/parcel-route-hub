@@ -734,6 +734,8 @@ export type Database = {
           created_by_admin_id: string | null
           dead_weight_g: number | null
           delivery_time: string
+          eway_bill_number: string | null
+          eway_bill_path: string | null
           failure_reason: string | null
           failure_step: string | null
           goods_type: string
@@ -810,6 +812,8 @@ export type Database = {
           created_by_admin_id?: string | null
           dead_weight_g?: number | null
           delivery_time: string
+          eway_bill_number?: string | null
+          eway_bill_path?: string | null
           failure_reason?: string | null
           failure_step?: string | null
           goods_type: string
@@ -886,6 +890,8 @@ export type Database = {
           created_by_admin_id?: string | null
           dead_weight_g?: number | null
           delivery_time?: string
+          eway_bill_number?: string | null
+          eway_bill_path?: string | null
           failure_reason?: string | null
           failure_step?: string | null
           goods_type?: string

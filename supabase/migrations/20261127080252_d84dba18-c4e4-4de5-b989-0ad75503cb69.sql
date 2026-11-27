@@ -1,0 +1,3 @@
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS eway_bill_number text, ADD COLUMN IF NOT EXISTS eway_bill_path text;
+CREATE POLICY "Anyone can upload eway bills" ON storage.objects FOR INSERT TO anon, authenticated WITH CHECK (bucket_id = 'eway-bills');
+CREATE POLICY "Staff can read eway bills" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'eway-bills' AND public.is_admin(auth.uid()));
