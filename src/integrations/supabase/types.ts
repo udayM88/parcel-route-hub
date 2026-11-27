@@ -101,10 +101,10 @@ export type Database = {
       feedback_responses: {
         Row: {
           answers: Json
-          booking_id: string
+          booking_id: string | null
           client_elapsed_ms: number
           id: number
-          invitation_id: string
+          invitation_id: string | null
           nps_score: number | null
           overall_rating: number | null
           source: string
@@ -114,10 +114,10 @@ export type Database = {
         }
         Insert: {
           answers: Json
-          booking_id: string
+          booking_id?: string | null
           client_elapsed_ms: number
           id?: never
-          invitation_id: string
+          invitation_id?: string | null
           nps_score?: number | null
           overall_rating?: number | null
           source?: string
@@ -127,10 +127,10 @@ export type Database = {
         }
         Update: {
           answers?: Json
-          booking_id?: string
+          booking_id?: string | null
           client_elapsed_ms?: number
           id?: never
-          invitation_id?: string
+          invitation_id?: string | null
           nps_score?: number | null
           overall_rating?: number | null
           source?: string
@@ -172,6 +172,7 @@ export type Database = {
           id: string
           question_count: number
           questions: Json
+          public_enabled: boolean
           slug: string
           dlt_template_id: string | null
           sms_template: string
@@ -189,6 +190,7 @@ export type Database = {
           id?: string
           question_count: number
           questions: Json
+          public_enabled?: boolean
           slug: string
           dlt_template_id?: string | null
           sms_template: string
@@ -206,6 +208,7 @@ export type Database = {
           id?: string
           question_count?: number
           questions?: Json
+          public_enabled?: boolean
           slug?: string
           dlt_template_id?: string | null
           sms_template?: string
