@@ -12,3 +12,4 @@
 - Refund settlement endpoints require server-only authentication; customer cancellations use scoped partner cancellation handlers rather than requesting arbitrary refunds.
 - Customer cancellation charges are computed only server-side by `_shared/cancellation-fee.ts` (settings in system_settings 'cancellation_fees'); only verified staff may waive, so clients can never choose their refund amount.
 - Business quotes and booking charges use the shared database-configured B2B paise engine and atomically bound immutable snapshots, so customer input cannot alter freight, fees or saved historical totals; monthly tier assessments use delivery-event evidence in Asia/Kolkata.
+- Admin "Try Again" for failed paid bookings goes through admin-retry-booking (staff-verified, no AWB/refund, re-claims the row) so a retry can never double-book or charge again.

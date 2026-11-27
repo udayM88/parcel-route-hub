@@ -194,3 +194,6 @@ verify_jwt = false
 
 [functions.b2b-monthly-tiers]
 verify_jwt = false
+
+[functions.admin-retry-booking]
+verify_jwt = false

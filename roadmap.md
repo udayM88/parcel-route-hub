@@ -23,3 +23,4 @@
 # Stage-based cancellation charges
 - [x] Server-side quote, partial refunds in all six cancel handlers, admin waiver, settings tab, refund policy, business/admin pop-up (6 tests pass).
 - [ ] Consumer self-cancel button — consumers currently email support to cancel; needs a decision before adding.
+- [ ] Confirm admin-retry-booking is live (deploy returned 404 on first attempt) and test Try Again on a real low-balance failure

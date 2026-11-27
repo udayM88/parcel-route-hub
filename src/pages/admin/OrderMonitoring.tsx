@@ -216,6 +216,27 @@ const OrderMonitoring = () => {
 
   useRealtimeTable("bookings", () => fetchBookings(), { channelName: "admin-order-monitoring", debounceMs: 2500 });
 
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const handleRetryBooking = async (id: string) => {
+    setRetryingId(id);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-retry-booking", { body: { booking_id: id } });
+      const d: any = data;
+      if (error || d?.error) {
+        let msg = d?.error || error?.message;
+        try { msg = (await (error as any)?.context?.json())?.error || msg; } catch { /* keep msg */ }
+        throw new Error(msg || "Retry failed");
+      }
+      if (d?.booked) toast({ title: "Booking confirmed", description: `AWB ${d.awb}` });
+      else toast({ title: "Courier still couldn't accept the booking", description: d?.failure_reason || "Check the partner account balance and try again.", variant: "destructive" });
+      setSelectedBooking(null);
+      fetchBookings();
+    } catch (e: any) {
+      toast({ title: "Retry failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setRetryingId(null);
+    }
+  };
   const fetchBookings = async () => {
     try {
       setLoading(true);
@@ -1017,6 +1038,14 @@ const OrderMonitoring = () => {
                       <p className="text-xs text-muted-foreground">
                         Cancellation charge: ₹{Number(selectedBooking.cancellation_fee)} ({selectedBooking.cancellation_stage}) · Refund: ₹{Number(selectedBooking.refund_amount ?? 0)}
                       </p>
+                    )}
+                    {(isSuperAdmin || adminUser?.role === "operations") && !selectedBooking.prayog_awb && !selectedBooking.tracking_id && !selectedBooking.refund_id && ["paid", "external_settled"].includes(String(selectedBooking.payment_status)) && ["PAYMENT_RECEIVED", "FAILED", "BOOKING_RETRY"].includes(String(selectedBooking.status || "").toUpperCase()) && (
+                      <div className="rounded-md border border-primary bg-primary/10 p-3 space-y-2">
+                        <p className="text-xs">If this failed because the courier account balance was low, recharge the partner account and try again. The customer won't be charged again.</p>
+                        <Button size="sm" disabled={retryingId === selectedBooking.id} onClick={() => handleRetryBooking(selectedBooking.id)}>
+                          {retryingId === selectedBooking.id ? "Trying again…" : "Try Again"}
+                        </Button>
+                      </div>
                     )}
                     {selectedBooking.refund_id && (
                       <div className="flex justify-between">
