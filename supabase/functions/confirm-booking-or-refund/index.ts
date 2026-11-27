@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
     let bookingRecord: any = existing || null;
 
     // Build a user-friendly failure reason for the History UI.
-    const friendlyReason = (() => "Booking could not be completed. For your refund, please contact ViaSetu Customer Care at +91 94068 33147.")();
+    const friendlyReason = (() => "Booking could not be completed. For your refund, please contact ViaSetu Customer Care at +91 90139 99909.")();
     const failureStep = (() => {
       const r = (reason || "").toLowerCase();
       if (r.includes("payment")) return "payment";

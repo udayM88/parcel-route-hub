@@ -102,7 +102,7 @@ export default function RefundPolicy() {
           <p>
             For refund-related queries, contact us at{" "}
             <a href="mailto:support@viasetu.com" className="text-[#00A8A8] font-medium">support@viasetu.com</a>{" "}
-            or call <a href="tel:+919406833147" className="text-[#00A8A8] font-medium">+91 94068 33147</a>{" "}
+            or call <a href="tel:+919013999909" className="text-[#00A8A8] font-medium">+91 90139 99909</a>{" "}
             (9 AM – 9 PM IST). Unresolved concerns may be escalated to our Grievance Officer as described in the{" "}
             <Link to="/privacy-policy" className="text-[#00A8A8] font-medium">Privacy Policy</Link>.
           </p>

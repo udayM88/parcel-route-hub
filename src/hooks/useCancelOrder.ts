@@ -204,7 +204,7 @@ export const useCancelOrder = (options?: UseCancelOrderOptions) => {
 
       toast({
         title: "Order Cancelled",
-        description: "Your order has been cancelled. For your refund, please contact ViaSetu Customer Care at +91 94068 33147.",
+        description: "Your order has been cancelled. For your refund, please contact ViaSetu Customer Care at +91 90139 99909.",
       });
       options?.onSuccess?.();
       return true;

@@ -77,7 +77,7 @@ const CancelOrderDialog = ({ open, onOpenChange, onConfirm, cancelling, bookingI
           </DialogTitle>
           <DialogDescription>
             This action cannot be undone. Your shipping label has already been generated with the courier.
-            Refunds are not automatic — after cancelling, please contact Customer Care at +91 94068 33147 to request your refund.
+            Refunds are not automatic — after cancelling, please contact Customer Care at +91 90139 99909 to request your refund.
           </DialogDescription>
         </DialogHeader>
 
