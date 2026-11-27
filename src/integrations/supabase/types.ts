@@ -44,6 +44,142 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback_campaigns: {
+        Row: {
+          audience_summary: Json
+          channels: string[]
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          failed_count: number
+          id: string
+          name: string
+          requested_count: number
+          sent_count: number
+          skipped_count: number
+          status: string
+          survey_id: string
+        }
+        Insert: {
+          audience_summary?: Json
+          channels: string[]
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          failed_count?: number
+          id?: string
+          name: string
+          requested_count: number
+          sent_count?: number
+          skipped_count?: number
+          status?: string
+          survey_id: string
+        }
+        Update: {
+          audience_summary?: Json
+          channels?: string[]
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          failed_count?: number
+          id?: string
+          name?: string
+          requested_count?: number
+          sent_count?: number
+          skipped_count?: number
+          status?: string
+          survey_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_campaigns_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "feedback_surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback_deliveries: {
+        Row: {
+          booking_id: string
+          campaign_id: string | null
+          channel: string
+          created_at: string
+          created_by: string
+          error: string | null
+          id: string
+          invitation_id: string
+          provider_log_id: string | null
+          recipient_masked: string
+          sent_at: string | null
+          status: string
+          survey_id: string
+          user_id: string
+        }
+        Insert: {
+          booking_id: string
+          campaign_id?: string | null
+          channel: string
+          created_at?: string
+          created_by: string
+          error?: string | null
+          id?: string
+          invitation_id: string
+          provider_log_id?: string | null
+          recipient_masked: string
+          sent_at?: string | null
+          status?: string
+          survey_id: string
+          user_id: string
+        }
+        Update: {
+          booking_id?: string
+          campaign_id?: string | null
+          channel?: string
+          created_at?: string
+          created_by?: string
+          error?: string | null
+          id?: string
+          invitation_id?: string
+          provider_log_id?: string | null
+          recipient_masked?: string
+          sent_at?: string | null
+          status?: string
+          survey_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_deliveries_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "feedback_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_deliveries_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "feedback_invitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_deliveries_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "feedback_surveys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_deliveries_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feedback_invitations: {
         Row: {
           booking_id: string
@@ -175,6 +311,8 @@ export type Database = {
           public_enabled: boolean
           slug: string
           dlt_template_id: string | null
+          email_subject: string
+          email_template: string
           sms_template: string
           status: string
           title: string
@@ -193,6 +331,8 @@ export type Database = {
           public_enabled?: boolean
           slug: string
           dlt_template_id?: string | null
+          email_subject?: string
+          email_template?: string
           sms_template: string
           status?: string
           title: string
@@ -211,6 +351,8 @@ export type Database = {
           public_enabled?: boolean
           slug?: string
           dlt_template_id?: string | null
+          email_subject?: string
+          email_template?: string
           sms_template?: string
           status?: string
           title?: string
@@ -2851,8 +2993,7 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
@@ -2876,8 +3017,7 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
@@ -2901,8 +3041,7 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
   EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }

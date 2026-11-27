@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.55.0";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,6 +58,51 @@ const tenDigit = (phone: unknown) => {
     .slice(-10);
   return /^\d{10}$/.test(value) ? value : null;
 };
+const emailAddress = (value: unknown) => {
+  const email = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254
+    ? email
+    : null;
+};
+const emailMask = (value: unknown) => {
+  const email = emailAddress(value);
+  if (!email) return "—";
+  const [local, domain] = email.split("@");
+  return `${local.slice(0, 1)}${"•".repeat(Math.min(Math.max(local.length - 1, 2), 8))}@${domain}`;
+};
+const safeBaseUrl = (value: unknown) => {
+  let parsed: URL;
+  try {
+    parsed = new URL(String(value || "").replace(/\/$/, ""));
+  } catch {
+    return null;
+  }
+  if (
+    parsed.protocol !== "https:" &&
+    parsed.hostname !== "localhost" &&
+    parsed.hostname !== "127.0.0.1"
+  )
+    return null;
+  return parsed.origin;
+};
+const escapeHtml = (value: string) =>
+  value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        character
+      ] || character,
+  );
+const renderCopy = (
+  template: string,
+  values: { firstName: string; orderReference: string; link: string },
+) =>
+  template
+    .replaceAll("{first_name}", values.firstName)
+    .replaceAll("{order_reference}", values.orderReference)
+    .replaceAll("{link}", values.link);
 
 function validateQuestions(raw: unknown): Question[] {
   if (!Array.isArray(raw) || raw.length < 1 || raw.length > 50)
@@ -216,12 +263,78 @@ async function createInvitation(
   return { token, id: data.id, expiresAt: data.expires_at };
 }
 
+async function getAccountEmail(admin: any, userId: string) {
+  const { data, error } = await admin
+    .from("profiles")
+    .select("email")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  return emailAddress(data?.email);
+}
+
+async function claimDelivery(
+  admin: any,
+  input: {
+    campaignId?: string | null;
+    invitationId: string;
+    surveyId: string;
+    bookingId: string;
+    userId: string;
+    channel: "sms" | "email";
+    recipientMasked: string;
+    createdBy: string;
+  },
+) {
+  const { data, error } = await admin
+    .from("feedback_deliveries")
+    .insert({
+      campaign_id: input.campaignId || null,
+      invitation_id: input.invitationId,
+      survey_id: input.surveyId,
+      booking_id: input.bookingId,
+      user_id: input.userId,
+      channel: input.channel,
+      recipient_masked: input.recipientMasked,
+      status: "sending",
+      created_by: input.createdBy,
+    })
+    .select("id")
+    .single();
+  if (error?.code === "23505") return { duplicate: true, id: null };
+  if (error) throw error;
+  return { duplicate: false, id: data.id as string };
+}
+
+async function finishDelivery(
+  admin: any,
+  deliveryId: string | null,
+  result: {
+    status: "sent" | "failed" | "skipped" | "duplicate";
+    providerLogId?: string | null;
+    error?: string | null;
+  },
+) {
+  if (!deliveryId) return;
+  await admin
+    .from("feedback_deliveries")
+    .update({
+      status: result.status,
+      provider_log_id: result.providerLogId || null,
+      error: result.error?.slice(0, 1000) || null,
+      sent_at: result.status === "sent" ? new Date().toISOString() : null,
+    })
+    .eq("id", deliveryId);
+}
+
 async function sendFeedbackSms(
   admin: any,
   survey: any,
   booking: any,
   invitationId: string,
   link: string,
+  createdBy: string,
+  campaignId: string | null = null,
 ) {
   const apiKey = Deno.env.get("FAST2SMS_API_KEY");
   const senderId = Deno.env.get("FAST2SMS_SENDER_ID");
@@ -246,6 +359,19 @@ async function sendFeedbackSms(
       retryable: false,
     };
 
+  const delivery = await claimDelivery(admin, {
+    campaignId,
+    invitationId,
+    surveyId: survey.id,
+    bookingId: booking.id,
+    userId: booking.user_id,
+    channel: "sms",
+    recipientMasked: phoneMask(phone),
+    createdBy,
+  });
+  if (delivery.duplicate)
+    return { ok: true, duplicate: true, reason: null, retryable: false };
+
   const dedupeKey = `FEEDBACK_SURVEY|${invitationId}`;
   const { data: claim, error: claimError } = await admin
     .from("sms_logs")
@@ -262,13 +388,19 @@ async function sendFeedbackSms(
     })
     .select("id")
     .single();
-  if (claimError)
+  if (claimError) {
+    const duplicate = claimError.code === "23505";
+    await finishDelivery(admin, delivery.id, {
+      status: duplicate ? "duplicate" : "failed",
+      error: duplicate ? null : "Could not create SMS audit log",
+    });
     return {
-      ok: claimError.code === "23505",
-      reason:
-        claimError.code === "23505" ? null : "Could not create SMS audit log",
+      ok: duplicate,
+      duplicate,
+      reason: duplicate ? null : "Could not create SMS audit log",
       retryable: false,
     };
+  }
   const params = new URLSearchParams({
     authorization: apiKey,
     route: "dlt",
@@ -306,6 +438,11 @@ async function sendFeedbackSms(
           : null,
       })
       .eq("id", claim.id);
+    await finishDelivery(admin, delivery.id, {
+      status: ok ? "sent" : "failed",
+      providerLogId: claim.id,
+      error: reason,
+    });
     return { ok, reason, retryable, logId: claim.id };
   } catch (error) {
     const reason = `Network error: ${String(error)}`;
@@ -318,8 +455,268 @@ async function sendFeedbackSms(
         next_retry_at: new Date(Date.now() + 5 * 60_000).toISOString(),
       })
       .eq("id", claim.id);
+    await finishDelivery(admin, delivery.id, {
+      status: "failed",
+      providerLogId: claim.id,
+      error: reason,
+    });
     return { ok: false, reason, retryable: true, logId: claim.id };
   }
+}
+
+async function sendFeedbackEmail(
+  admin: any,
+  survey: any,
+  booking: any,
+  invitationId: string,
+  link: string,
+  createdBy: string,
+  campaignId: string | null = null,
+) {
+  const recipient = await getAccountEmail(admin, booking.user_id);
+  if (!recipient)
+    return { ok: false, reason: "Order account email is unavailable" };
+  const smtpHost = Deno.env.get("SMTP_HOST");
+  const smtpUser = Deno.env.get("SMTP_USERNAME") || Deno.env.get("SMTP_USER");
+  const smtpPass = Deno.env.get("SMTP_PASSWORD") || Deno.env.get("SMTP_PASS");
+  const smtpPort = Number(Deno.env.get("SMTP_PORT") || "465");
+  if (!smtpHost || !smtpUser || !smtpPass)
+    return { ok: false, reason: "Email service is not configured" };
+
+  const delivery = await claimDelivery(admin, {
+    campaignId,
+    invitationId,
+    surveyId: survey.id,
+    bookingId: booking.id,
+    userId: booking.user_id,
+    channel: "email",
+    recipientMasked: emailMask(recipient),
+    createdBy,
+  });
+  if (delivery.duplicate) return { ok: true, duplicate: true, reason: null };
+
+  const firstName = String(booking.receiver_name || "Customer")
+    .trim()
+    .split(/\s+/)[0]
+    .slice(0, 50);
+  const values = {
+    firstName,
+    orderReference: booking.id.slice(-8).toUpperCase(),
+    link,
+  };
+  const subject = renderCopy(
+    String(survey.email_subject || "ViaSetu feedback"),
+    values,
+  )
+    .replace(/[\r\n]+/g, " ")
+    .slice(0, 160);
+  const plainBody = renderCopy(
+    String(survey.email_template || "{link}"),
+    values,
+  );
+  const escapedLink = escapeHtml(link);
+  const bodyHtml = escapeHtml(plainBody)
+    .replaceAll("\n", "<br>")
+    .replaceAll(
+      escapedLink,
+      `<a href="${escapedLink}" style="color:#117b78;font-weight:700;">Open your secure feedback form</a>`,
+    );
+  const html = `<!doctype html><html><body style="margin:0;background:#eef5f5;font-family:Arial,sans-serif;color:#102b3f;"><div style="max-width:640px;margin:0 auto;padding:28px 16px;"><div style="background:#102b3f;color:#fff;padding:22px 26px;font-size:24px;font-weight:700;">ViaSetu</div><div style="background:#fff;border:1px solid #d8e4e4;padding:28px 26px;font-size:15px;line-height:1.7;">${bodyHtml}</div><div style="padding:14px 4px;color:#65797e;font-size:12px;">This secure feedback link is single-use and expires in 30 days.</div></div></body></html>`;
+
+  const logBase = {
+    event_key: "FEEDBACK_SURVEY",
+    booking_id: booking.id,
+    to_email: recipient,
+    cc_emails: [],
+    reply_to: null,
+    subject,
+    is_test: false,
+    triggered_by: createdBy,
+  };
+  let lastError: unknown = null;
+  for (const port of [...new Set([smtpPort, 587, 2525, 465])]) {
+    const client = new SMTPClient({
+      connection: {
+        hostname: smtpHost,
+        port,
+        tls: port === 465,
+        auth: { username: smtpUser, password: smtpPass },
+      },
+    });
+    try {
+      await Promise.race([
+        client.send({
+          from: `${Deno.env.get("SMTP_FROM_NAME") || "ViaSetu"} <${Deno.env.get("SMTP_FROM_EMAIL") || smtpUser}>`,
+          to: [recipient],
+          subject,
+          html,
+          content: "text/html",
+        } as any),
+        new Promise((_resolve, reject) =>
+          setTimeout(
+            () => reject(new Error(`SMTP timeout on port ${port}`)),
+            12_000,
+          ),
+        ),
+      ]);
+      await client.close();
+      const { data: emailLog } = await admin
+        .from("email_logs")
+        .insert({
+          ...logBase,
+          status: "sent",
+          provider_response: { transport: `smtp:${port}` },
+        })
+        .select("id")
+        .single();
+      await finishDelivery(admin, delivery.id, {
+        status: "sent",
+        providerLogId: emailLog?.id || null,
+      });
+      return { ok: true, reason: null, logId: emailLog?.id || null };
+    } catch (error) {
+      lastError = error;
+      try {
+        await client.close();
+      } catch {
+        // Ignore close failures and retain the transport error.
+      }
+    }
+  }
+  const reason = String(lastError || "Email delivery failed").slice(0, 1000);
+  const { data: emailLog } = await admin
+    .from("email_logs")
+    .insert({ ...logBase, status: "failed", error: reason })
+    .select("id")
+    .single();
+  await finishDelivery(admin, delivery.id, {
+    status: "failed",
+    providerLogId: emailLog?.id || null,
+    error: reason,
+  });
+  return { ok: false, reason, logId: emailLog?.id || null };
+}
+
+async function loadAudience(admin: any, rawLimit: unknown, rawSearch: unknown) {
+  const limit = Math.min(Math.max(Number(rawLimit) || 100, 1), 200);
+  const search = String(rawSearch || "")
+    .trim()
+    .toLowerCase()
+    .slice(0, 100);
+  const { data: rows, error } = await admin
+    .from("bookings")
+    .select(
+      "id,user_id,receiver_name,receiver_phone,status,payment_status,created_at",
+    )
+    .order("created_at", { ascending: false })
+    .limit(250);
+  if (error) throw error;
+  const eligible = (rows || []).filter(
+    (row: any) =>
+      !/cancel|failed|refund/i.test(String(row.status || "")) &&
+      (!search ||
+        String(row.id).toLowerCase().includes(search) ||
+        String(row.receiver_name || "")
+          .toLowerCase()
+          .includes(search) ||
+        String(row.receiver_phone || "").includes(search)),
+  );
+  const userIds = [...new Set(eligible.map((row: any) => row.user_id))];
+  const { data: profiles, error: profileError } = userIds.length
+    ? await admin
+        .from("profiles")
+        .select("user_id,email")
+        .in("user_id", userIds)
+    : { data: [], error: null };
+  if (profileError) throw profileError;
+  const emailByUser = new Map(
+    (profiles || []).map((profile: any) => [
+      profile.user_id,
+      emailAddress(profile.email),
+    ]),
+  );
+  return eligible.slice(0, limit).map((booking: any) => {
+    const accountEmail = emailByUser.get(booking.user_id) || null;
+    const phone = tenDigit(booking.receiver_phone);
+    return {
+      id: booking.id,
+      user_id: booking.user_id,
+      receiver_name: String(booking.receiver_name || "Customer").slice(0, 120),
+      masked_phone: phone ? phoneMask(phone) : "—",
+      masked_email: accountEmail ? emailMask(accountEmail) : "—",
+      has_sms: Boolean(phone),
+      has_email: Boolean(accountEmail),
+      status: booking.status,
+      payment_status: booking.payment_status,
+      created_at: booking.created_at,
+    };
+  });
+}
+
+async function suggestCampaignCopy(survey: any, audience: any[]) {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!apiKey)
+    return { available: false, reason: "AI service is not configured" };
+  const smsReady = audience.filter((item) => item.has_sms).length;
+  const emailReady = audience.filter((item) => item.has_email).length;
+  const prompt = `Create concise feedback campaign copy for ViaSetu, an Indian logistics platform. Return JSON only with keys campaign_name, email_subject, email_template, audience_note. The email_template must be plain text, under 700 characters, and include exactly these placeholders: {first_name}, {order_reference}, {link}. Do not add offers, claims, urgency, or personal data. Do not generate SMS copy because the SMS template is DLT-approved. Form title: ${JSON.stringify(String(survey.title).slice(0, 120))}. Form description: ${JSON.stringify(String(survey.description || "").slice(0, 300))}. Audience aggregate: ${audience.length} eligible orders, ${smsReady} with delivery phone, ${emailReady} with account email.`;
+  const response = await fetch(
+    "https://ai.gateway.lovable.dev/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You write factual, consent-aware customer feedback campaign copy. Return valid JSON only.",
+          },
+          { role: "user", content: prompt },
+        ],
+        stream: false,
+      }),
+    },
+  );
+  if (!response.ok)
+    return {
+      available: false,
+      reason: `AI service returned HTTP ${response.status}`,
+    };
+  const payload = await response.json();
+  const content = String(payload?.choices?.[0]?.message?.content || "");
+  const match = content.match(/\{[\s\S]*\}/);
+  if (!match) return { available: false, reason: "AI response was not usable" };
+  const suggestion = JSON.parse(match[0]);
+  const emailTemplate = String(suggestion.email_template || "").slice(0, 4000);
+  if (
+    !emailTemplate.includes("{first_name}") ||
+    !emailTemplate.includes("{order_reference}") ||
+    !emailTemplate.includes("{link}")
+  )
+    return {
+      available: false,
+      reason: "AI response missed required placeholders",
+    };
+  return {
+    available: true,
+    suggestion: {
+      campaign_name: String(
+        suggestion.campaign_name || "Feedback campaign",
+      ).slice(0, 120),
+      email_subject: String(
+        suggestion.email_subject || "Tell us about your ViaSetu order",
+      )
+        .replace(/[\r\n]+/g, " ")
+        .slice(0, 160),
+      email_template: emailTemplate,
+      audience_note: String(suggestion.audience_note || "").slice(0, 500),
+    },
+  };
 }
 
 Deno.serve(async (req) => {
@@ -412,12 +809,74 @@ Deno.serve(async (req) => {
       [
         "create_invite",
         "send_invite_sms",
+        "send_invite_email",
+        "audience_preview",
+        "channel_status",
+        "suggest_campaign",
+        "bulk_send",
         "save_survey",
         "update_survey",
       ].includes(body.action)
     ) {
       const user = await requireSuperAdmin(req, admin);
       if (!user) return json({ error: "not_authorized" }, 403);
+
+      if (body.action === "audience_preview") {
+        const audience = await loadAudience(admin, body.limit, body.search);
+        return json({ success: true, audience });
+      }
+
+      if (body.action === "channel_status") {
+        const surveyId = String(body.survey_id || "");
+        const { data: selectedSurvey } = uuid.test(surveyId)
+          ? await admin
+              .from("feedback_surveys")
+              .select("dlt_template_id")
+              .eq("id", surveyId)
+              .maybeSingle()
+          : { data: null };
+        return json({
+          success: true,
+          channels: {
+            sms:
+              Boolean(Deno.env.get("FAST2SMS_API_KEY")) &&
+              Boolean(Deno.env.get("FAST2SMS_SENDER_ID")) &&
+              Boolean(Deno.env.get("FAST2SMS_ENTITY_ID")) &&
+              Boolean(selectedSurvey?.dlt_template_id),
+            email:
+              Boolean(Deno.env.get("SMTP_HOST")) &&
+              Boolean(
+                Deno.env.get("SMTP_USERNAME") || Deno.env.get("SMTP_USER"),
+              ) &&
+              Boolean(
+                Deno.env.get("SMTP_PASSWORD") || Deno.env.get("SMTP_PASS"),
+              ),
+            ai: Boolean(Deno.env.get("LOVABLE_API_KEY")),
+          },
+        });
+      }
+
+      if (body.action === "suggest_campaign") {
+        const surveyId = String(body.survey_id || "");
+        if (!uuid.test(surveyId))
+          return json({ error: "invalid_survey_id" }, 400);
+        const [{ data: selectedSurvey, error: surveyError }, audience] =
+          await Promise.all([
+            admin
+              .from("feedback_surveys")
+              .select("id,title,description")
+              .eq("id", surveyId)
+              .maybeSingle(),
+            loadAudience(admin, 100, ""),
+          ]);
+        if (surveyError) throw surveyError;
+        if (!selectedSurvey) return json({ error: "survey_unavailable" }, 404);
+        const suggestion = await suggestCampaignCopy(selectedSurvey, audience);
+        return json(
+          { success: suggestion.available, ...suggestion },
+          suggestion.available ? 200 : 503,
+        );
+      }
 
       if (body.action === "save_survey" || body.action === "update_survey") {
         const questions = validateQuestions(body.survey?.questions);
@@ -434,7 +893,19 @@ Deno.serve(async (req) => {
           String(body.survey?.dlt_template_id || "")
             .trim()
             .slice(0, 100) || null;
-        if (!title || !smsTemplate.includes("{#var#}"))
+        const emailSubject = String(body.survey?.email_subject || "")
+          .trim()
+          .replace(/[\r\n]+/g, " ")
+          .slice(0, 160);
+        const emailTemplate = String(body.survey?.email_template || "")
+          .trim()
+          .slice(0, 4000);
+        if (
+          !title ||
+          !smsTemplate.includes("{#var#}") ||
+          !emailSubject ||
+          !emailTemplate.includes("{link}")
+        )
           return json({ error: "invalid_survey" }, 400);
         const row = {
           title,
@@ -450,6 +921,8 @@ Deno.serve(async (req) => {
           questions,
           sms_template: smsTemplate,
           dlt_template_id: dltTemplateId,
+          email_subject: emailSubject,
+          email_template: emailTemplate,
           public_enabled: Boolean(body.survey?.public_enabled),
           updated_at: new Date().toISOString(),
         };
@@ -487,6 +960,202 @@ Deno.serve(async (req) => {
         return json({ success: true, survey: data }, 201);
       }
 
+      if (body.action === "bulk_send") {
+        const surveyId = String(body.survey_id || "").trim();
+        const baseUrl = safeBaseUrl(body.base_url);
+        const channels = [
+          ...new Set(
+            (Array.isArray(body.channels) ? body.channels : []).map(String),
+          ),
+        ].filter((channel) => channel === "sms" || channel === "email") as (
+          "sms" | "email"
+        )[];
+        const bookingIds = [
+          ...new Set(
+            (Array.isArray(body.booking_ids) ? body.booking_ids : []).map(
+              String,
+            ),
+          ),
+        ].filter((id) => uuid.test(id));
+        if (
+          !uuid.test(surveyId) ||
+          !baseUrl ||
+          !channels.length ||
+          !bookingIds.length ||
+          bookingIds.length > 25
+        )
+          return json({ error: "invalid_campaign" }, 400);
+        const [
+          { data: selectedSurvey, error: surveyError },
+          { data: rows, error: bookingError },
+        ] = await Promise.all([
+          admin
+            .from("feedback_surveys")
+            .select("*")
+            .eq("id", surveyId)
+            .eq("status", "published")
+            .maybeSingle(),
+          admin
+            .from("bookings")
+            .select(
+              "id,user_id,receiver_name,receiver_phone,status,payment_status,created_at",
+            )
+            .in("id", bookingIds),
+        ]);
+        if (surveyError || bookingError) throw surveyError || bookingError;
+        if (!selectedSurvey) return json({ error: "survey_unavailable" }, 409);
+        if (
+          channels.includes("sms") &&
+          (!selectedSurvey.dlt_template_id ||
+            !Deno.env.get("FAST2SMS_API_KEY") ||
+            !Deno.env.get("FAST2SMS_SENDER_ID") ||
+            !Deno.env.get("FAST2SMS_ENTITY_ID"))
+        )
+          return json({ error: "sms_not_configured" }, 409);
+        if (
+          channels.includes("email") &&
+          (!Deno.env.get("SMTP_HOST") ||
+            !(Deno.env.get("SMTP_USERNAME") || Deno.env.get("SMTP_USER")) ||
+            !(Deno.env.get("SMTP_PASSWORD") || Deno.env.get("SMTP_PASS")))
+        )
+          return json({ error: "email_not_configured" }, 409);
+        const eligible = (rows || []).filter(
+          (booking: any) =>
+            !/cancel|failed|refund/i.test(String(booking.status || "")),
+        );
+        const dryRun = body.dry_run === true;
+        if (dryRun) {
+          const userIds = [
+            ...new Set(eligible.map((item: any) => item.user_id)),
+          ];
+          const { data: profiles } = userIds.length
+            ? await admin
+                .from("profiles")
+                .select("user_id,email")
+                .in("user_id", userIds)
+            : { data: [] };
+          const emails = new Map(
+            (profiles || []).map((item: any) => [
+              item.user_id,
+              emailAddress(item.email),
+            ]),
+          );
+          return json({
+            success: true,
+            dry_run: true,
+            requested: bookingIds.length,
+            eligible: eligible.length,
+            sms_ready: eligible.filter((item: any) =>
+              tenDigit(item.receiver_phone),
+            ).length,
+            email_ready: eligible.filter((item: any) =>
+              emails.get(item.user_id),
+            ).length,
+          });
+        }
+
+        const campaignName = String(
+          body.campaign_name || `${selectedSurvey.title} campaign`,
+        )
+          .trim()
+          .slice(0, 120);
+        const { data: campaign, error: campaignError } = await admin
+          .from("feedback_campaigns")
+          .insert({
+            survey_id: selectedSurvey.id,
+            name: campaignName || "Feedback campaign",
+            channels,
+            requested_count: bookingIds.length,
+            audience_summary: {
+              requested: bookingIds.length,
+              eligible: eligible.length,
+            },
+            created_by: user.id,
+          })
+          .select("id")
+          .single();
+        if (campaignError) throw campaignError;
+
+        const results: Array<Record<string, unknown>> = [];
+        let cursor = 0;
+        const worker = async () => {
+          while (cursor < eligible.length) {
+            const booking = eligible[cursor++];
+            const invitation = await createInvitation(
+              admin,
+              selectedSurvey,
+              booking,
+              user.id,
+            );
+            const root = `${baseUrl}/feedback/${selectedSurvey.slug}?token=${encodeURIComponent(invitation.token)}`;
+            const outcomes: Record<string, unknown> = {};
+            if (channels.includes("sms"))
+              outcomes.sms = await sendFeedbackSms(
+                admin,
+                selectedSurvey,
+                booking,
+                invitation.id,
+                `${root}&source=sms`,
+                user.id,
+                campaign.id,
+              );
+            if (channels.includes("email"))
+              outcomes.email = await sendFeedbackEmail(
+                admin,
+                selectedSurvey,
+                booking,
+                invitation.id,
+                `${root}&source=email`,
+                user.id,
+                campaign.id,
+              );
+            results.push({
+              booking_id: booking.id,
+              order_reference: booking.id.slice(-8).toUpperCase(),
+              outcomes,
+            });
+          }
+        };
+        await Promise.all(
+          Array.from({ length: Math.min(3, eligible.length) }, () => worker()),
+        );
+        const outcomes = results.flatMap((item: any) =>
+          Object.values(item.outcomes || {}),
+        ) as Array<any>;
+        const sent = outcomes.filter((item) => item?.ok).length;
+        const failed = outcomes.filter((item) => !item?.ok).length;
+        const skipped = bookingIds.length - eligible.length;
+        const status =
+          sent > 0 && failed === 0
+            ? "completed"
+            : sent > 0
+              ? "partial"
+              : "failed";
+        await admin
+          .from("feedback_campaigns")
+          .update({
+            sent_count: sent,
+            failed_count: failed,
+            skipped_count: skipped,
+            status,
+            completed_at: new Date().toISOString(),
+          })
+          .eq("id", campaign.id);
+        return json(
+          {
+            success: failed === 0,
+            campaign_id: campaign.id,
+            status,
+            requested: bookingIds.length,
+            sent,
+            failed,
+            skipped,
+            results,
+          },
+          failed === 0 ? 201 : 207,
+        );
+      }
+
       const bookingId = String(body.booking_id || "").trim();
       const surveyId = String(body.survey_id || "").trim();
       if (!uuid.test(bookingId) || !uuid.test(surveyId))
@@ -514,6 +1183,8 @@ Deno.serve(async (req) => {
       if (!survey) return json({ error: "survey_unavailable" }, 409);
       if (/cancel|failed|refund/i.test(String(booking.status || "")))
         return json({ error: "booking_not_eligible" }, 409);
+      const baseUrl = safeBaseUrl(body.base_url);
+      if (!baseUrl) return json({ error: "invalid_base_url" }, 400);
       const invitation = await createInvitation(
         admin,
         survey,
@@ -524,8 +1195,14 @@ Deno.serve(async (req) => {
         .trim()
         .split(/\s+/)[0]
         .slice(0, 50);
-      const baseUrl = String(body.base_url || "").replace(/\/$/, "");
-      const link = `${baseUrl}/feedback/${survey.slug}?token=${encodeURIComponent(invitation.token)}&source=sms`;
+      const source =
+        body.action === "send_invite_sms"
+          ? "sms"
+          : body.action === "send_invite_email"
+            ? "email"
+            : "web";
+      const link = `${baseUrl}/feedback/${survey.slug}?token=${encodeURIComponent(invitation.token)}&source=${source}`;
+      const accountEmail = await getAccountEmail(admin, booking.user_id);
       const common = {
         token: invitation.token,
         url: link,
@@ -534,29 +1211,33 @@ Deno.serve(async (req) => {
           first_name: firstName,
           order_reference: booking.id.slice(-8).toUpperCase(),
           masked_phone: phoneMask(booking.receiver_phone),
+          masked_email: accountEmail ? emailMask(accountEmail) : null,
         },
       };
       if (body.action === "send_invite_sms") {
-        let parsed: URL;
-        try {
-          parsed = new URL(baseUrl);
-        } catch {
-          return json({ error: "invalid_base_url" }, 400);
-        }
-        if (
-          parsed.protocol !== "https:" &&
-          parsed.hostname !== "localhost" &&
-          parsed.hostname !== "127.0.0.1"
-        )
-          return json({ error: "invalid_base_url" }, 400);
         const sms = await sendFeedbackSms(
           admin,
           survey,
           booking,
           invitation.id,
           link,
+          user.id,
         );
         return json({ success: sms.ok, ...common, sms }, sms.ok ? 201 : 502);
+      }
+      if (body.action === "send_invite_email") {
+        const email = await sendFeedbackEmail(
+          admin,
+          survey,
+          booking,
+          invitation.id,
+          link,
+          user.id,
+        );
+        return json(
+          { success: email.ok, ...common, email },
+          email.ok ? 201 : 502,
+        );
       }
       return json({ success: true, ...common }, 201);
     }

@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FileText,
   Link2,
+  Mail,
   MessageSquareText,
   Pause,
   Pencil,
@@ -16,8 +17,11 @@ import {
   Search,
   Send,
   Settings2,
+  Smartphone,
+  Sparkles,
   Star,
   Trash2,
+  Users,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -41,6 +45,8 @@ type SurveyRow = {
   questions: SurveyQuestion[];
   sms_template: string;
   dlt_template_id: string | null;
+  email_subject: string;
+  email_template: string;
   public_enabled: boolean;
   version: number;
 };
@@ -58,7 +64,10 @@ type BookingRow = {
   id: string;
   user_id: string;
   receiver_name: string;
-  receiver_phone: string;
+  masked_phone: string;
+  masked_email: string;
+  has_sms: boolean;
+  has_email: boolean;
   status: string | null;
   payment_status: string | null;
   created_at: string;
@@ -69,7 +78,27 @@ type GeneratedLink = {
   orderReference: string;
   expiresAt: string;
   maskedPhone?: string;
+  maskedEmail?: string;
   sent?: boolean;
+  channel?: "sms" | "email";
+};
+type CampaignRow = {
+  id: string;
+  name: string;
+  channels: string[];
+  requested_count: number;
+  sent_count: number;
+  failed_count: number;
+  skipped_count: number;
+  status: string;
+  created_at: string;
+};
+type ChannelStatus = { sms: boolean; email: boolean; ai: boolean };
+type AiDraft = {
+  campaign_name: string;
+  email_subject: string;
+  email_template: string;
+  audience_note: string;
 };
 
 const fallbackSurveys: SurveyRow[] = surveyTemplates.map((survey, index) => ({
@@ -87,6 +116,9 @@ const fallbackSurveys: SurveyRow[] = surveyTemplates.map((survey, index) => ({
   questions: survey.questions,
   sms_template: survey.smsTemplate,
   dlt_template_id: null,
+  email_subject: "Tell us about your ViaSetu order",
+  email_template:
+    "Hi {first_name},\n\nWe would value your feedback about order #{order_reference}. It takes only a few minutes:\n\n{link}\n\nThank you,\nTeam ViaSetu",
   public_enabled: true,
   version: 1,
 }));
@@ -100,14 +132,13 @@ const emptyQuestion = (position: number): SurveyQuestion => ({
 });
 const shortOrder = (id: string | null) =>
   id ? id.slice(-8).toUpperCase() : "SHARED";
-const maskPhone = (phone: string) =>
-  phone.length >= 4 ? `••••••${phone.slice(-4)}` : "—";
 
 const SurveyCenter = () => {
   const [surveys, setSurveys] = useState<SurveyRow[]>(fallbackSurveys);
   const [selectedId, setSelectedId] = useState(fallbackSurveys[0].id);
   const [responses, setResponses] = useState<ResponseRow[]>([]);
   const [bookings, setBookings] = useState<BookingRow[]>([]);
+  const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [backendReady, setBackendReady] = useState(true);
@@ -115,6 +146,24 @@ const SurveyCenter = () => {
   const [generated, setGenerated] = useState<GeneratedLink | null>(null);
   const [editor, setEditor] = useState<SurveyRow | null>(null);
   const [saving, setSaving] = useState(false);
+  const [channels, setChannels] = useState<ChannelStatus>({
+    sms: false,
+    email: false,
+    ai: false,
+  });
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkSelection, setBulkSelection] = useState<string[]>([]);
+  const [bulkChannels, setBulkChannels] = useState<("sms" | "email")[]>([
+    "sms",
+  ]);
+  const [campaignName, setCampaignName] = useState("");
+  const [bulkPreview, setBulkPreview] = useState<Record<string, number> | null>(
+    null,
+  );
+  const [bulkConfirmed, setBulkConfirmed] = useState(false);
+  const [bulkWorking, setBulkWorking] = useState(false);
+  const [aiWorking, setAiWorking] = useState(false);
+  const [aiDraft, setAiDraft] = useState<AiDraft | null>(null);
 
   const survey = surveys.find((item) => item.id === selectedId) || surveys[0];
   const publicUrl = survey
@@ -133,29 +182,35 @@ const SurveyCenter = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [surveyResult, responseResult, bookingResult] = await Promise.all([
-      supabase
-        .from("feedback_surveys")
-        .select(
-          "id,slug,form_type,title,description,status,estimated_minutes,question_count,questions,sms_template,dlt_template_id,public_enabled,version",
-        )
-        .order("created_at"),
-      supabase
-        .from("feedback_responses")
-        .select(
-          "id,survey_id,booking_id,answers,nps_score,overall_rating,source,submitted_at",
-        )
-        .order("submitted_at", { ascending: false })
-        .limit(500),
-      supabase
-        .from("bookings")
-        .select(
-          "id,user_id,receiver_name,receiver_phone,status,payment_status,created_at",
-        )
-        .order("created_at", { ascending: false })
-        .limit(100),
-    ]);
-    if (bookingResult.data) setBookings(bookingResult.data);
+    const [surveyResult, responseResult, audienceResult, campaignResult] =
+      await Promise.all([
+        supabase
+          .from("feedback_surveys")
+          .select(
+            "id,slug,form_type,title,description,status,estimated_minutes,question_count,questions,sms_template,dlt_template_id,email_subject,email_template,public_enabled,version",
+          )
+          .order("created_at"),
+        supabase
+          .from("feedback_responses")
+          .select(
+            "id,survey_id,booking_id,answers,nps_score,overall_rating,source,submitted_at",
+          )
+          .order("submitted_at", { ascending: false })
+          .limit(500),
+        supabase.functions.invoke("feedback-survey", {
+          body: { action: "audience_preview", limit: 100 },
+        }),
+        supabase
+          .from("feedback_campaigns")
+          .select(
+            "id,name,channels,requested_count,sent_count,failed_count,skipped_count,status,created_at",
+          )
+          .order("created_at", { ascending: false })
+          .limit(12),
+      ]);
+    if (audienceResult.data?.audience)
+      setBookings(audienceResult.data.audience as BookingRow[]);
+    if (campaignResult.data) setCampaigns(campaignResult.data as CampaignRow[]);
     if (
       surveyResult.error ||
       responseResult.error ||
@@ -186,6 +241,17 @@ const SurveyCenter = () => {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!backendReady || !survey?.id) return;
+    void supabase.functions
+      .invoke("feedback-survey", {
+        body: { action: "channel_status", survey_id: survey.id },
+      })
+      .then(({ data }) => {
+        if (data?.channels) setChannels(data.channels as ChannelStatus);
+      });
+  }, [backendReady, survey?.id]);
+
   const filteredBookings = useMemo(() => {
     const term = search.trim().toLowerCase();
     const eligible = bookings.filter(
@@ -197,7 +263,8 @@ const SurveyCenter = () => {
         (booking) =>
           booking.id.toLowerCase().includes(term) ||
           booking.receiver_name.toLowerCase().includes(term) ||
-          booking.receiver_phone.includes(term),
+          booking.masked_phone.toLowerCase().includes(term) ||
+          booking.masked_email.toLowerCase().includes(term),
       )
       .slice(0, 12);
   }, [bookings, search]);
@@ -230,13 +297,21 @@ const SurveyCenter = () => {
     await navigator.clipboard.writeText(value);
     toast.success(`${label} copied`);
   };
-  const runInvitation = async (booking: BookingRow, sendSms: boolean) => {
+  const runInvitation = async (
+    booking: BookingRow,
+    channel: "link" | "sms" | "email",
+  ) => {
     if (!survey) return;
-    setWorkingId(`${booking.id}:${sendSms ? "sms" : "link"}`);
+    setWorkingId(`${booking.id}:${channel}`);
     setGenerated(null);
     const { data, error } = await supabase.functions.invoke("feedback-survey", {
       body: {
-        action: sendSms ? "send_invite_sms" : "create_invite",
+        action:
+          channel === "sms"
+            ? "send_invite_sms"
+            : channel === "email"
+              ? "send_invite_email"
+              : "create_invite",
         booking_id: booking.id,
         survey_id: survey.id,
         base_url: window.location.origin,
@@ -251,11 +326,14 @@ const SurveyCenter = () => {
           data.customer?.order_reference || shortOrder(booking.id),
         expiresAt: data.expires_at,
         maskedPhone: data.customer?.masked_phone,
-        sent: Boolean(data?.sms?.ok),
+        maskedEmail: data.customer?.masked_email,
+        sent: Boolean(data?.sms?.ok || data?.email?.ok),
+        channel: channel === "link" ? undefined : channel,
       });
     if (error || !data?.success) {
       const reason =
         data?.sms?.reason ||
+        data?.email?.reason ||
         (data?.error === "booking_not_eligible"
           ? "This order is not eligible for feedback"
           : "The feedback invitation could not be completed");
@@ -263,10 +341,131 @@ const SurveyCenter = () => {
       return;
     }
     toast.success(
-      sendSms
+      channel === "sms"
         ? "Feedback SMS accepted by provider"
-        : "Secure customer link created",
+        : channel === "email"
+          ? "Feedback email sent"
+          : "Secure customer link created",
     );
+  };
+
+  const openBulkCampaign = () => {
+    setBulkSelection([]);
+    setBulkChannels(channels.sms ? ["sms"] : channels.email ? ["email"] : []);
+    setCampaignName(
+      `${survey.title} · ${new Date().toLocaleDateString("en-IN")}`,
+    );
+    setBulkPreview(null);
+    setBulkConfirmed(false);
+    setAiDraft(null);
+    setBulkOpen(true);
+  };
+  const toggleBulkBooking = (bookingId: string) => {
+    setBulkSelection((current) =>
+      current.includes(bookingId)
+        ? current.filter((id) => id !== bookingId)
+        : current.length < 25
+          ? [...current, bookingId]
+          : current,
+    );
+    setBulkPreview(null);
+    setBulkConfirmed(false);
+  };
+  const toggleBulkChannel = (channel: "sms" | "email") => {
+    setBulkChannels((current) =>
+      current.includes(channel)
+        ? current.filter((item) => item !== channel)
+        : [...current, channel],
+    );
+    setBulkPreview(null);
+    setBulkConfirmed(false);
+  };
+  const previewBulkCampaign = async () => {
+    if (!bulkSelection.length || !bulkChannels.length)
+      return toast.error("Select customers and at least one delivery channel");
+    setBulkWorking(true);
+    const { data, error } = await supabase.functions.invoke("feedback-survey", {
+      body: {
+        action: "bulk_send",
+        dry_run: true,
+        survey_id: survey.id,
+        booking_ids: bulkSelection,
+        channels: bulkChannels,
+        campaign_name: campaignName,
+        base_url: window.location.origin,
+      },
+    });
+    setBulkWorking(false);
+    if (error || !data?.success) {
+      const message =
+        data?.error === "sms_not_configured"
+          ? "Configure the approved DLT SMS template before using SMS"
+          : data?.error === "email_not_configured"
+            ? "Configure the email service before using email"
+            : "Campaign audience could not be verified";
+      return toast.error(message);
+    }
+    setBulkPreview({
+      requested: Number(data.requested || 0),
+      eligible: Number(data.eligible || 0),
+      sms_ready: Number(data.sms_ready || 0),
+      email_ready: Number(data.email_ready || 0),
+    });
+    setBulkConfirmed(false);
+  };
+  const sendBulkCampaign = async () => {
+    if (!bulkPreview || !bulkConfirmed) return;
+    setBulkWorking(true);
+    const { data, error } = await supabase.functions.invoke("feedback-survey", {
+      body: {
+        action: "bulk_send",
+        survey_id: survey.id,
+        booking_ids: bulkSelection,
+        channels: bulkChannels,
+        campaign_name: campaignName,
+        base_url: window.location.origin,
+      },
+    });
+    setBulkWorking(false);
+    if (error || !data?.campaign_id) {
+      toast.error(
+        "Campaign could not be sent. No automatic retry was started.",
+      );
+      return;
+    }
+    if (Number(data.failed || 0) > 0)
+      toast.warning(
+        `Campaign completed with ${data.sent || 0} sent and ${data.failed} failed deliveries`,
+      );
+    else toast.success(`Campaign sent: ${data.sent || 0} deliveries`);
+    setBulkOpen(false);
+    await load();
+  };
+  const requestAiCampaign = async () => {
+    setAiWorking(true);
+    const { data, error } = await supabase.functions.invoke("feedback-survey", {
+      body: { action: "suggest_campaign", survey_id: survey.id },
+    });
+    setAiWorking(false);
+    if (error || !data?.suggestion)
+      return toast.error(data?.reason || "AI campaign planner is unavailable");
+    const suggestion = data.suggestion as AiDraft;
+    setAiDraft(suggestion);
+    setCampaignName(suggestion.campaign_name);
+    toast.success("AI campaign brief is ready for review");
+  };
+  const reviewAiEmailCopy = () => {
+    if (!aiDraft) return;
+    setEditor({
+      ...survey,
+      email_subject: aiDraft.email_subject,
+      email_template: aiDraft.email_template,
+      questions: survey.questions.map((question) => ({
+        ...question,
+        options: question.options ? [...question.options] : undefined,
+      })),
+    });
+    setBulkOpen(false);
   };
   const changeStatus = async () => {
     if (!backendReady || !survey) return;
@@ -314,6 +513,9 @@ const SurveyCenter = () => {
       sms_template:
         "Thank you for choosing ViaSetu! How was your recent order experience? Share your feedback here: {#var#}",
       dlt_template_id: null,
+      email_subject: "Tell us about your ViaSetu order",
+      email_template:
+        "Hi {first_name},\n\nWe would value your feedback about order #{order_reference}. It takes only a few minutes:\n\n{link}\n\nThank you,\nTeam ViaSetu",
       public_enabled: false,
       version: 1,
     });
@@ -328,6 +530,11 @@ const SurveyCenter = () => {
       return toast.error(
         "SMS template must contain {#var#} for the secure link",
       );
+    if (
+      !editor.email_subject.trim() ||
+      !editor.email_template.includes("{link}")
+    )
+      return toast.error("Email needs a subject and the {link} placeholder");
     if (!backendReady) {
       const slug = editor.slug || `custom-preview-${Date.now().toString(36)}`;
       const row: SurveyRow = {
@@ -575,7 +782,7 @@ const SurveyCenter = () => {
               className="inline-flex min-h-10 items-center gap-2 border border-[#bfd0d1] bg-white px-4 text-sm font-semibold"
             >
               <Pencil className="h-4 w-4" />
-              Edit form & SMS
+              Edit form & messages
             </button>
             <button
               onClick={() => void changeStatus()}
@@ -689,17 +896,29 @@ const SurveyCenter = () => {
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,.7fr)]">
         <div className="border border-[#d8e4e4] bg-white">
           <div className="border-b border-[#e1eaea] p-5 sm:p-6">
-            <h3 className="text-lg font-bold">Send to a customer</h3>
-            <p className="mt-1 text-sm text-[#667a7f]">
-              Choose an eligible order, then copy its private link or send the
-              approved DLT SMS.
-            </p>
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+              <div>
+                <h3 className="text-lg font-bold">Customer invitations</h3>
+                <p className="mt-1 max-w-2xl text-sm text-[#667a7f]">
+                  Create one secure link, send it to the delivery phone by SMS,
+                  or use the order account email.
+                </p>
+              </div>
+              <button
+                onClick={openBulkCampaign}
+                disabled={!backendReady || (!channels.sms && !channels.email)}
+                className="inline-flex min-h-10 items-center justify-center gap-2 bg-[#102b3f] px-4 text-sm font-bold text-white disabled:opacity-50"
+              >
+                <Users className="h-4 w-4" />
+                Bulk campaign
+              </button>
+            </div>
             <label className="relative mt-4 block">
               <Search className="absolute left-3 top-3 h-4 w-4 text-[#7e9195]" />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by customer, phone or order ID"
+                placeholder="Search by customer, masked contact or order ID"
                 className="min-h-10 w-full border border-[#cbd9da] pl-10 pr-3 text-sm outline-none focus:border-[#168e8b] focus:ring-4 focus:ring-[#168e8b]/10"
               />
             </label>
@@ -711,10 +930,15 @@ const SurveyCenter = () => {
                 className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:px-6"
               >
                 <div>
-                  <div className="flex flex-wrap items-center gap-x-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <p className="font-bold">{booking.receiver_name}</p>
-                    <span className="text-xs text-[#718287]">
-                      {maskPhone(booking.receiver_phone)}
+                    <span className="inline-flex items-center gap-1 bg-[#f1f6f6] px-2 py-1 text-xs text-[#52686f]">
+                      <Smartphone className="h-3 w-3" />
+                      {booking.masked_phone}
+                    </span>
+                    <span className="inline-flex items-center gap-1 bg-[#f1f6f6] px-2 py-1 text-xs text-[#52686f]">
+                      <Mail className="h-3 w-3" />
+                      {booking.masked_email}
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-[#718287]">
@@ -725,7 +949,7 @@ const SurveyCenter = () => {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => void runInvitation(booking, false)}
+                    onClick={() => void runInvitation(booking, "link")}
                     disabled={!backendReady || Boolean(workingId)}
                     className="inline-flex min-h-10 items-center gap-2 border border-[#168e8b] px-3 text-sm font-bold text-[#117b78] disabled:opacity-50"
                   >
@@ -735,23 +959,48 @@ const SurveyCenter = () => {
                       : "Create link"}
                   </button>
                   <button
-                    onClick={() => void runInvitation(booking, true)}
+                    onClick={() => void runInvitation(booking, "sms")}
                     disabled={
                       !backendReady ||
-                      !survey.dlt_template_id ||
+                      !channels.sms ||
+                      !booking.has_sms ||
                       Boolean(workingId)
                     }
                     title={
-                      !survey.dlt_template_id
-                        ? "Add the approved DLT template ID first"
-                        : "Send feedback SMS"
+                      !channels.sms
+                        ? "Configure the approved DLT SMS channel first"
+                        : !booking.has_sms
+                          ? "This order has no valid delivery phone"
+                          : "Send feedback SMS"
                     }
                     className="inline-flex min-h-10 items-center gap-2 bg-[#168e8b] px-3 text-sm font-bold text-white disabled:opacity-50"
                   >
-                    <Send className="h-4 w-4" />
+                    <Smartphone className="h-4 w-4" />
                     {workingId === `${booking.id}:sms`
                       ? "Sending…"
                       : "Send SMS"}
+                  </button>
+                  <button
+                    onClick={() => void runInvitation(booking, "email")}
+                    disabled={
+                      !backendReady ||
+                      !channels.email ||
+                      !booking.has_email ||
+                      Boolean(workingId)
+                    }
+                    title={
+                      !channels.email
+                        ? "Configure the email channel first"
+                        : !booking.has_email
+                          ? "This order account has no valid email"
+                          : "Send feedback email"
+                    }
+                    className="inline-flex min-h-10 items-center gap-2 bg-[#dff2f1] px-3 text-sm font-bold text-[#0c6866] disabled:opacity-50"
+                  >
+                    <Mail className="h-4 w-4" />
+                    {workingId === `${booking.id}:email`
+                      ? "Sending…"
+                      : "Send email"}
                   </button>
                 </div>
               </div>
@@ -768,10 +1017,16 @@ const SurveyCenter = () => {
             className={`border p-5 ${generated ? "border-[#8bc9c6] bg-[#eff9f8]" : "border-[#d8e4e4] bg-white"}`}
           >
             <div className="flex items-center gap-2">
-              <Send className="h-5 w-5 text-[#168e8b]" />
+              {generated?.channel === "email" ? (
+                <Mail className="h-5 w-5 text-[#168e8b]" />
+              ) : (
+                <Send className="h-5 w-5 text-[#168e8b]" />
+              )}
               <h3 className="font-bold">
                 {generated?.sent
-                  ? "SMS sent"
+                  ? generated.channel === "email"
+                    ? "Email sent"
+                    : "SMS sent"
                   : generated
                     ? "Secure link ready"
                     : "Invitation result"}
@@ -782,6 +1037,7 @@ const SurveyCenter = () => {
                 <p className="mt-3 text-sm text-[#405b61]">
                   {generated.customer} · Order #{generated.orderReference}
                   {generated.maskedPhone ? ` · ${generated.maskedPhone}` : ""}
+                  {generated.maskedEmail ? ` · ${generated.maskedEmail}` : ""}
                 </p>
                 <p className="mt-3 break-all border border-[#c9dedd] bg-white p-3 text-xs leading-5 text-[#52686f]">
                   {generated.url}
@@ -837,6 +1093,102 @@ const SurveyCenter = () => {
                 : "Add your approved DLT template ID in Edit form & SMS before sending."}
             </div>
           </div>
+          <div className="border border-[#d8e4e4] bg-white p-5">
+            <div className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-[#168e8b]" />
+              <h3 className="font-bold">Email invitation</h3>
+            </div>
+            <p className="mt-3 text-sm font-semibold text-[#102b3f]">
+              {survey.email_subject}
+            </p>
+            <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#52686f]">
+              {survey.email_template
+                .replace("{first_name}", generated?.customer || "Customer")
+                .replace(
+                  "{order_reference}",
+                  generated?.orderReference || "ORDER",
+                )
+                .replace("{link}", generated?.url || "[secure customer link]")}
+            </p>
+            <div
+              className={`mt-4 p-3 text-xs ${channels.email ? "bg-[#eaf7f4] text-[#256159]" : "bg-[#fff7e3] text-[#6b5319]"}`}
+            >
+              {channels.email
+                ? "Email service ready. Recipient comes from the order account profile."
+                : "Configure SMTP before sending email invitations."}
+            </div>
+          </div>
+          <div className="border border-[#bee0de] bg-[#f0f9f8] p-5 text-sm leading-6 text-[#315b60]">
+            <p className="font-bold text-[#102b3f]">
+              Contact and AI safeguards
+            </p>
+            <p className="mt-2">
+              SMS uses the saved delivery phone. Email uses the saved order
+              account email. Bulk campaigns are limited to 25 orders and keep
+              masked, auditable delivery records.
+            </p>
+            <p className="mt-2">
+              Gemini receives only form details and aggregate audience counts—no
+              customer names, phone numbers, emails or order IDs. Approved DLT
+              SMS text is never rewritten by AI.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="border border-[#d8e4e4] bg-white">
+        <div className="border-b border-[#e1eaea] p-5 sm:px-6">
+          <h3 className="font-bold">Recent campaigns</h3>
+          <p className="mt-1 text-xs text-[#718287]">
+            Audited SMS and email batches. Recipient details remain masked.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-left text-sm">
+            <thead className="bg-[#f5f8f8] text-xs text-[#61767b]">
+              <tr>
+                <th className="px-6 py-3">Campaign</th>
+                <th className="px-4 py-3">Channels</th>
+                <th className="px-4 py-3">Requested</th>
+                <th className="px-4 py-3">Sent</th>
+                <th className="px-4 py-3">Failed</th>
+                <th className="px-4 py-3">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e7eeee]">
+              {campaigns.map((campaign) => (
+                <tr key={campaign.id}>
+                  <td className="px-6 py-3">
+                    <p className="font-semibold">{campaign.name}</p>
+                    <p className="mt-1 text-xs text-[#718287]">
+                      {new Date(campaign.created_at).toLocaleString("en-IN")}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3 capitalize">
+                    {campaign.channels.join(" + ")}
+                  </td>
+                  <td className="px-4 py-3">{campaign.requested_count}</td>
+                  <td className="px-4 py-3 font-bold text-[#14704f]">
+                    {campaign.sent_count}
+                  </td>
+                  <td className="px-4 py-3 font-bold text-[#a8423a]">
+                    {campaign.failed_count}
+                  </td>
+                  <td className="px-4 py-3 capitalize">{campaign.status}</td>
+                </tr>
+              ))}
+              {!campaigns.length && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-6 py-8 text-center text-[#718287]"
+                  >
+                    No bulk campaign has been sent yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -901,6 +1253,275 @@ const SurveyCenter = () => {
           </table>
         </div>
       </section>
+
+      {bulkOpen && (
+        <div
+          className="fixed inset-0 z-[110] overflow-y-auto bg-[#092235]/75 p-3 sm:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Bulk feedback campaign"
+        >
+          <div className="mx-auto max-w-6xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-[#dce6e6] bg-[#102b3f] px-5 py-5 text-white sm:px-7">
+              <div>
+                <div className="flex items-center gap-2 text-[#71d5d1]">
+                  <Users className="h-5 w-5" />
+                  <span className="text-sm font-bold">Bulk campaign</span>
+                </div>
+                <h2 className="mt-2 text-2xl font-bold">{survey.title}</h2>
+                <p className="mt-1 max-w-2xl text-sm text-[#c6d7dc]">
+                  Select up to 25 eligible orders. Contacts are resolved and
+                  validated on the server immediately before sending.
+                </p>
+              </div>
+              <button
+                onClick={() => setBulkOpen(false)}
+                aria-label="Close bulk campaign"
+                className="grid h-10 w-10 shrink-0 place-items-center border border-white/30"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="border-b border-[#dce6e6] p-5 sm:p-7 lg:border-b-0 lg:border-r">
+                <h3 className="font-bold">1. Choose delivery channels</h3>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <button
+                    onClick={() => toggleBulkChannel("sms")}
+                    disabled={!channels.sms}
+                    className={`flex min-h-20 items-center gap-3 border p-4 text-left disabled:opacity-45 ${
+                      bulkChannels.includes("sms")
+                        ? "border-[#168e8b] bg-[#eff9f8]"
+                        : "border-[#d8e4e4]"
+                    }`}
+                  >
+                    <Smartphone className="h-6 w-6 text-[#168e8b]" />
+                    <span>
+                      <span className="block font-bold">DLT SMS</span>
+                      <span className="mt-1 block text-xs text-[#65797e]">
+                        Saved delivery phone
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => toggleBulkChannel("email")}
+                    disabled={!channels.email}
+                    className={`flex min-h-20 items-center gap-3 border p-4 text-left disabled:opacity-45 ${
+                      bulkChannels.includes("email")
+                        ? "border-[#168e8b] bg-[#eff9f8]"
+                        : "border-[#d8e4e4]"
+                    }`}
+                  >
+                    <Mail className="h-6 w-6 text-[#168e8b]" />
+                    <span>
+                      <span className="block font-bold">Email</span>
+                      <span className="mt-1 block text-xs text-[#65797e]">
+                        Saved order-account email
+                      </span>
+                    </span>
+                  </button>
+                </div>
+
+                <div className="mt-7 flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold">2. Select customers</h3>
+                    <p className="mt-1 text-xs text-[#718287]">
+                      {bulkSelection.length}/25 selected
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        const selected = bookings
+                          .filter(
+                            (booking) =>
+                              (bulkChannels.includes("sms") &&
+                                booking.has_sms) ||
+                              (bulkChannels.includes("email") &&
+                                booking.has_email),
+                          )
+                          .slice(0, 25)
+                          .map((booking) => booking.id);
+                        setBulkSelection(selected);
+                        setBulkPreview(null);
+                        setBulkConfirmed(false);
+                      }}
+                      className="min-h-9 border border-[#bfd0d1] px-3 text-xs font-bold"
+                    >
+                      Select ready
+                    </button>
+                    <button
+                      onClick={() => {
+                        setBulkSelection([]);
+                        setBulkPreview(null);
+                        setBulkConfirmed(false);
+                      }}
+                      className="min-h-9 border border-[#bfd0d1] px-3 text-xs font-bold"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-3 max-h-[430px] divide-y divide-[#e7eeee] overflow-y-auto border border-[#d8e4e4]">
+                  {bookings.map((booking) => {
+                    const channelReady =
+                      (bulkChannels.includes("sms") && booking.has_sms) ||
+                      (bulkChannels.includes("email") && booking.has_email);
+                    return (
+                      <label
+                        key={booking.id}
+                        className={`flex cursor-pointer items-start gap-3 p-4 ${
+                          channelReady ? "bg-white" : "bg-[#f7f9f9] opacity-60"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={bulkSelection.includes(booking.id)}
+                          disabled={!channelReady}
+                          onChange={() => toggleBulkBooking(booking.id)}
+                          className="mt-1"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-bold">
+                            {booking.receiver_name}
+                          </span>
+                          <span className="mt-1 flex flex-wrap gap-x-3 text-xs text-[#65797e]">
+                            <span>#{shortOrder(booking.id)}</span>
+                            <span>{booking.masked_phone}</span>
+                            <span>{booking.masked_email}</span>
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <aside className="space-y-5 bg-[#f5f9f9] p-5 sm:p-7">
+                <div>
+                  <label className="text-sm font-bold">
+                    Campaign name
+                    <input
+                      value={campaignName}
+                      onChange={(event) => {
+                        setCampaignName(event.target.value);
+                        setBulkPreview(null);
+                        setBulkConfirmed(false);
+                      }}
+                      maxLength={120}
+                      className="mt-2 min-h-11 w-full border border-[#cbd9da] bg-white px-3 font-normal"
+                    />
+                  </label>
+                </div>
+
+                <div className="border border-[#b8dcda] bg-white p-4">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-[#168e8b]" />
+                    <h3 className="font-bold">AI campaign planner</h3>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-[#65797e]">
+                    Gemini uses aggregate audience counts only. It suggests an
+                    email draft and never changes the approved DLT SMS.
+                  </p>
+                  <button
+                    onClick={() => void requestAiCampaign()}
+                    disabled={!channels.ai || aiWorking}
+                    className="mt-3 min-h-10 w-full border border-[#168e8b] px-3 text-sm font-bold text-[#117b78] disabled:opacity-50"
+                  >
+                    {aiWorking ? "Thinking…" : "Suggest campaign"}
+                  </button>
+                  {aiDraft && (
+                    <div className="mt-4 border-t border-[#dce7e7] pt-4 text-xs leading-5 text-[#52686f]">
+                      <p>{aiDraft.audience_note}</p>
+                      <p className="mt-3 font-bold text-[#102b3f]">
+                        {aiDraft.email_subject}
+                      </p>
+                      <button
+                        onClick={reviewAiEmailCopy}
+                        className="mt-3 font-bold text-[#117b78] underline"
+                      >
+                        Review and save this email copy
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {bulkPreview ? (
+                  <div className="border border-[#8bc9c6] bg-[#eff9f8] p-4">
+                    <h3 className="font-bold">Audience verified</h3>
+                    <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <dt className="text-xs text-[#65797e]">Eligible</dt>
+                        <dd className="text-xl font-bold">
+                          {bulkPreview.eligible}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-[#65797e]">SMS ready</dt>
+                        <dd className="text-xl font-bold">
+                          {bulkPreview.sms_ready}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-[#65797e]">Email ready</dt>
+                        <dd className="text-xl font-bold">
+                          {bulkPreview.email_ready}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-[#65797e]">Requested</dt>
+                        <dd className="text-xl font-bold">
+                          {bulkPreview.requested}
+                        </dd>
+                      </div>
+                    </dl>
+                    <label className="mt-4 flex items-start gap-2 border-t border-[#cbe2e1] pt-4 text-xs leading-5">
+                      <input
+                        type="checkbox"
+                        checked={bulkConfirmed}
+                        onChange={(event) =>
+                          setBulkConfirmed(event.target.checked)
+                        }
+                        className="mt-1"
+                      />
+                      Send real messages to these saved customer contacts.
+                    </label>
+                  </div>
+                ) : (
+                  <div className="border border-[#d8e4e4] bg-white p-4 text-xs leading-5 text-[#65797e]">
+                    Review validates eligibility and contact availability. It
+                    does not create links or send any message.
+                  </div>
+                )}
+
+                {!bulkPreview ? (
+                  <button
+                    onClick={() => void previewBulkCampaign()}
+                    disabled={
+                      bulkWorking ||
+                      !bulkSelection.length ||
+                      !bulkChannels.length ||
+                      !campaignName.trim()
+                    }
+                    className="min-h-12 w-full bg-[#168e8b] px-4 font-bold text-white disabled:opacity-50"
+                  >
+                    {bulkWorking ? "Checking…" : "Review audience"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => void sendBulkCampaign()}
+                    disabled={bulkWorking || !bulkConfirmed}
+                    className="min-h-12 w-full bg-[#102b3f] px-4 font-bold text-white disabled:opacity-50"
+                  >
+                    {bulkWorking ? "Sending…" : "Send campaign"}
+                  </button>
+                )}
+              </aside>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editor && (
         <div
@@ -1180,6 +1801,44 @@ const SurveyCenter = () => {
                         setEditor({ ...editor, sms_template: e.target.value })
                       }
                       rows={7}
+                      className="mt-1 w-full border border-[#cbd9da] p-3 text-sm font-normal outline-none focus:border-[#168e8b]"
+                    />
+                  </label>
+                </div>
+                <div className="border border-[#d8e4e4] p-4">
+                  <h3 className="font-bold">Email invitation</h3>
+                  <p className="mt-1 text-xs leading-5 text-[#718287]">
+                    Plain text is converted into a branded email. Keep{" "}
+                    <code>{"{link}"}</code>; optional placeholders are{" "}
+                    <code>{"{first_name}"}</code> and{" "}
+                    <code>{"{order_reference}"}</code>.
+                  </p>
+                  <label className="mt-4 block text-xs font-bold">
+                    Email subject
+                    <input
+                      value={editor.email_subject}
+                      onChange={(event) =>
+                        setEditor({
+                          ...editor,
+                          email_subject: event.target.value,
+                        })
+                      }
+                      maxLength={160}
+                      className="mt-1 min-h-10 w-full border border-[#cbd9da] px-3 text-sm font-normal"
+                    />
+                  </label>
+                  <label className="mt-3 block text-xs font-bold">
+                    Email message
+                    <textarea
+                      value={editor.email_template}
+                      onChange={(event) =>
+                        setEditor({
+                          ...editor,
+                          email_template: event.target.value,
+                        })
+                      }
+                      rows={9}
+                      maxLength={4000}
                       className="mt-1 w-full border border-[#cbd9da] p-3 text-sm font-normal outline-none focus:border-[#168e8b]"
                     />
                   </label>

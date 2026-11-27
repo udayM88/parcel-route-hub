@@ -364,6 +364,15 @@ The public login keeps the sample credentials operational without advertising a 
 - Both built-in surveys are published and reusable links are enabled. Verification passed for function status ACTIVE, CORS preflight HTTP 200, public-status HTTP 200 for both forms, and the live `customer-experience` page rendering the 17-question shared form rather than the unavailable-link state.
 - This release did not deploy any unrelated Edge Function or modify existing booking, merchant, wallet, authentication, courier, or CMS data. Real SMS delivery was not triggered during verification.
 
+## Customer feedback multichannel campaigns (deployed 2026-11-28; Lovable publish pending)
+
+- Added the additive local migration `20261127195712_feedback_campaign_delivery.sql`; Supabase recorded it remotely as `20261127201125_feedback_campaign_delivery`. It adds reusable email invitation fields plus RLS-protected `feedback_campaigns` and `feedback_deliveries` audit tables. Admin access is read-only; public/anonymous roles receive no direct access.
+- Deployed only `feedback-survey` v2 with `verify_jwt = false`. The function continues to perform its own public-token and super-admin checks, and now supports channel readiness, masked audience preview, individual email invitations, bounded bulk SMS/email campaigns, dry-run review, delivery auditing, and aggregate-only AI campaign suggestions.
+- SMS uses the booking's saved delivery phone. Email uses the order account email linked by `bookings.user_id -> profiles.email`; the frontend shows masked contact readiness and never receives raw bulk contact details. No raw customer name, phone, email, booking ID, or order ID is sent to Gemini/Lovable AI.
+- The DLT-approved SMS template remains immutable in the campaign planner. Gemini may suggest a campaign name and editable email copy only; a super admin must review/save it. Bulk sending is capped at 25 selected orders, validates readiness server-side, requires a dry-run and explicit UI confirmation, and writes only masked recipient identifiers to the new delivery audit table.
+- The Admin Analytics > Customer Feedback UI now includes secure link creation, Send SMS, Send email, a guarded bulk-campaign modal, recent campaign results, message previews, and operational instructions. This frontend source is committed for the normal Lovable-connected workflow but remains invisible on the live site until the project owner manually publishes Lovable.
+- Verification passed: TypeScript, targeted ESLint, production build, `bun test src/lib/feedback-surveys.test.ts`, `git diff --check`, remote migration/RLS/grant inspection, Edge Function ACTIVE v2, HTTP 200 CORS/public-status checks, and HTTP 403 for an unauthenticated bulk dry-run. No real SMS or email was sent during verification.
+
 ## Recommended workflow for the next contributor
 
 1. Read this file and `AGENTS.md`.
