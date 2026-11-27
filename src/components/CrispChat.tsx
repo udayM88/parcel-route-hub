@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { ChatboxPosition, Crisp } from "crisp-sdk-web";
 import { getAuthSession } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { useLocation } from "react-router-dom";
 
 const CRISP_WEBSITE_ID = "0f163c1b-0824-46f1-9e7e-68aaa3c55367";
 const CRISP_Z_INDEX = 2147483000;
@@ -56,7 +57,21 @@ const applySession = async () => {
 };
 
 export function CrispChat() {
+  const { pathname } = useLocation();
+  const disabled = pathname.startsWith("/feedback/");
+
   useEffect(() => {
+    if (disabled) {
+      if (configured) {
+        try {
+          Crisp.chat.hide();
+        } catch {
+          /* noop */
+        }
+      }
+      return;
+    }
+
     if (!configured) {
       Crisp.configure(CRISP_WEBSITE_ID);
       try {
@@ -66,6 +81,11 @@ export function CrispChat() {
         /* noop */
       }
       configured = true;
+    }
+    try {
+      Crisp.chat.show();
+    } catch {
+      /* noop */
     }
     void applySession();
 
@@ -82,7 +102,7 @@ export function CrispChat() {
       window.removeEventListener("storage", onStorage);
       sub?.subscription?.unsubscribe();
     };
-  }, []);
+  }, [disabled]);
 
   return null;
 }

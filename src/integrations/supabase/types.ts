@@ -44,6 +44,178 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback_invitations: {
+        Row: {
+          booking_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          revoked_at: string | null
+          survey_id: string
+          token_hash: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          created_by: string
+          expires_at: string
+          id?: string
+          revoked_at?: string | null
+          survey_id: string
+          token_hash: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          revoked_at?: string | null
+          survey_id?: string
+          token_hash?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_invitations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_invitations_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "feedback_surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback_responses: {
+        Row: {
+          answers: Json
+          booking_id: string
+          client_elapsed_ms: number
+          id: number
+          invitation_id: string
+          nps_score: number | null
+          overall_rating: number | null
+          source: string
+          submission_fingerprint: string
+          submitted_at: string
+          survey_id: string
+        }
+        Insert: {
+          answers: Json
+          booking_id: string
+          client_elapsed_ms: number
+          id?: never
+          invitation_id: string
+          nps_score?: number | null
+          overall_rating?: number | null
+          source?: string
+          submission_fingerprint: string
+          submitted_at?: string
+          survey_id: string
+        }
+        Update: {
+          answers?: Json
+          booking_id?: string
+          client_elapsed_ms?: number
+          id?: never
+          invitation_id?: string
+          nps_score?: number | null
+          overall_rating?: number | null
+          source?: string
+          submission_fingerprint?: string
+          submitted_at?: string
+          survey_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_responses_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_responses_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: true
+            referencedRelation: "feedback_invitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_responses_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "feedback_surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback_surveys: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string
+          estimated_minutes: number
+          form_type: string
+          id: string
+          question_count: number
+          questions: Json
+          slug: string
+          dlt_template_id: string | null
+          sms_template: string
+          status: string
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          estimated_minutes: number
+          form_type: string
+          id?: string
+          question_count: number
+          questions: Json
+          slug: string
+          dlt_template_id?: string | null
+          sms_template: string
+          status?: string
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          estimated_minutes?: number
+          form_type?: string
+          id?: string
+          question_count?: number
+          questions?: Json
+          slug?: string
+          dlt_template_id?: string | null
+          sms_template?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       b2b_booking_pricing_snapshots: {
         Row: {
           booking_id: string
@@ -2579,6 +2751,18 @@ export type Database = {
       }
     }
     Functions: {
+      submit_feedback_response: {
+        Args: {
+          p_answers: Json
+          p_client_elapsed_ms: number
+          p_invitation_id: string
+          p_nps_score: number
+          p_overall_rating: number
+          p_source: string
+          p_submission_fingerprint: string
+        }
+        Returns: number
+      }
       b2b_resolve_month: {
         Args: { _business_id: string; _version_id: string }
         Returns: Json

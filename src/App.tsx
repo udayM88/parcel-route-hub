@@ -36,6 +36,7 @@ const ForBusiness = lazy(() => import("./pages/ForBusiness"));
 const MerchantApiDocs = lazy(() => import("./pages/MerchantApiDocs"));
 const ServicePage = lazy(() => import("./pages/ServicePage"));
 const ParcelTrackingPage = lazy(() => import("./pages/ParcelTrackingPage"));
+const FeedbackSurvey = lazy(() => import("./pages/FeedbackSurvey"));
 const CityPage = lazy(() => import("./pages/CityPage"));
 import { SERVICES } from "./pages/ServicePage";
 import { CITIES } from "./pages/CityPage";
@@ -97,8 +98,8 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <CrispChat />
       <BrowserRouter>
+        <CrispChat />
         <Suspense fallback={<AppLoading />}>
         <Routes>
           <Route path="/" element={<Landing />} />
@@ -145,6 +146,7 @@ const App = () => (
           <Route path="/refund-policy" element={<RefundPolicy />} />
           <Route path="/Refundpolicy" element={<Navigate to="/refund-policy" replace />} />
           <Route path="/refund" element={<Navigate to="/refund-policy" replace />} />
+          <Route path="/feedback/:slug" element={<FeedbackSurvey />} />
           
           {/* Admin Routes */}
           <Route path="/viasetuforbusinesses" element={<BusinessPortalLayout />}>

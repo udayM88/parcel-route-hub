@@ -197,3 +197,6 @@ verify_jwt = false
 
 [functions.admin-retry-booking]
 verify_jwt = false
+
+[functions.feedback-survey]
+verify_jwt = false

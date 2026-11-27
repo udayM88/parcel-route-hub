@@ -14,6 +14,7 @@ import { isBookedOrder, isCollected } from "@/lib/revenue";
 import { bucketOfStatus } from "@/lib/booking-status";
 
 import { bookingFinancials } from "@/lib/booking-financials";
+import SurveyCenter from "@/pages/admin/SurveyCenter";
 
 interface Booking {
   id: string;
@@ -39,6 +40,7 @@ const Analytics = () => {
   const [userCount, setUserCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("month");
+  const [activeTab, setActiveTab] = useState("performance");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -60,8 +62,8 @@ const Analytics = () => {
       if (bookingsRes.error) throw bookingsRes.error;
       setBookings(((bookingsRes.data as Booking[]) || []).filter(b => isBookedOrder(b.status, b.payment_status)));
       setUserCount(profilesRes.count || 0);
-    } catch (error: any) {
-      toast({ title: "Error loading analytics", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      toast({ title: "Error loading analytics", description: error instanceof Error ? error.message : "Could not load analytics", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -225,7 +227,7 @@ const Analytics = () => {
           <h2 className="text-3xl font-bold tracking-tight">Analytics & Insights</h2>
           <p className="text-muted-foreground">Comprehensive platform analytics from real data</p>
         </div>
-        <div className="flex gap-2">
+        {activeTab !== "feedback" && <div className="flex gap-2">
           <Select value={dateRange} onValueChange={setDateRange}>
             <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -241,10 +243,10 @@ const Analytics = () => {
           <Button variant="outline" onClick={handleExportReport}>
             <Download className="h-4 w-4 mr-2" />Export
           </Button>
-        </div>
+        </div>}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {activeTab !== "feedback" && <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpiStats.map((stat) => (
           <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -257,14 +259,15 @@ const Analytics = () => {
             </CardContent>
           </Card>
         ))}
-      </div>
+      </div>}
 
-      <Tabs defaultValue="performance" className="space-y-4">
-        <TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="performance">Performance KPIs</TabsTrigger>
           <TabsTrigger value="partners">Courier Analytics</TabsTrigger>
           <TabsTrigger value="geographic">Route Analysis</TabsTrigger>
           <TabsTrigger value="time">Time-based Insights</TabsTrigger>
+          <TabsTrigger value="feedback">Customer Feedback</TabsTrigger>
         </TabsList>
 
         <TabsContent value="performance">
@@ -426,6 +429,10 @@ const Analytics = () => {
               })()}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="feedback">
+          <SurveyCenter />
         </TabsContent>
       </Tabs>
     </div>
